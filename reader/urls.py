@@ -15,8 +15,8 @@ urlpatterns = [
     path('chapter_detail/<int:pk>/', views.ChapterDetailView.as_view(), name='chapter_detail'),
 
     path('book_temp/<int:pk>/', views.book, name='book'),
-    path('book/<int:book_pk>/<int:chapter_pk>/', views.book_reader, name='book_reader'),
-    path('book/<int:book_pk>/<int:chapter_pk>/<int:offset>/', views.book_reader_offset, name='book_reader_offset'),
+    # path('book/<int:book_pk>/<int:chapter_pk>/', views.book_reader, name='book_reader'),
+    # path('book/<int:book_pk>/<int:chapter_pk>/<int:offset>/', views.book_reader_offset, name='book_reader_offset'),
 
     path('login/', views.login_auth, name='login'),
     path('logout/', views.logout_view, name='logout'),
@@ -30,5 +30,6 @@ urlpatterns = [
 
 
     path('view/', views.BookView, name='book_view'),
+    path('chapter_content/<int:chapter_id>/', views.chapter_content, name='chapter_content'),
 
 ]

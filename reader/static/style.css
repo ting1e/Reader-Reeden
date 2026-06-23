@@ -13,7 +13,7 @@
 article{
     columns: calc(100vw - 32px) 1;
     column-gap: 16px;
-    height: 100vh;
+    height: calc(100vh - 143px);
     transition: 0s;
 }
 
@@ -22,23 +22,7 @@ article{
 }
 
 .desktop-only-fixed{
-	display: none;
-}
-
-
-
-@media  screen and  (min-width: 992px) {
-
-article{
-    columns: calc(100vw - 32px) 1;
-    column-gap: 16px;
-    height: calc(100vh - 143px );
-    transition: 0s;
-}
-.desktop-only-fixed{
-	position: fixed;
-}
-
+    position: fixed;
 }
 
 
@@ -90,9 +74,9 @@ article{
 	margin-left:10px;
 	}
 .uploadify-progress{
-	 display:inline-block; 
-	 width:600px; 
-	 height:10px; 
+	 display:inline-block;
+	 width:600px;
+	 height:10px;
 	 background-color:white;
 	 border-radius:20px;
 	 border:2px groove #666;
@@ -118,20 +102,6 @@ article{
 	display: block;
 	color:#666;
 	text-decoration:none;
-}
-
-.mob-icon{
-	width: 2.5rem;
-	height: 2.5rem;
-	margin: -5px auto 4px auto;
-	font-size: 2rem;
-	text-align: center;
-}
-
-.mob-icon-text{
-	font-size: 0.6rem;
-	text-align: center; 
-	display: block;
 }
 
 button {

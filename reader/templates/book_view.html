@@ -31,31 +31,27 @@ article{
 <main class="vh-100">
     
     
-    <div class="d-none d-lg-block">
-        {% include 'header.html' %}
-    </div>
-
-    <div class="center_menu zindex-tooltip position-fixed top-50 start-50 translate-middle" style="width: 30%;height:30%"></div>
+    {% include 'header.html' %}
 
     <div class="container">
         <div class="article-container">
             {{chapter_view|safe}}
         </div>
     
-        <div class="page-nav d-none d-lg-block">
+        <div class="page-nav">
             <nav aria-label="Page navigation example w-100">
-                <ul class="pagination  d-lg-flex   justify-content-between">
-                    <div class="d-lg-flex ">
+                <ul class="pagination d-flex justify-content-between">
+                    <div class="d-flex">
                         <li class="page-item "><a class="page-link prev-chapter" href="#">上一章</a></li>
                         <li class="page-item prev-page"><a class="page-link " href="#">上一页</a></li>
-    
+
                     </div>
-                    
-                    <div class="pages-container d-lg-flex justify-content-center">
-                       
+
+                    <div class="pages-container d-flex justify-content-center">
+
                     </div>
-    
-                    <div class="d-lg-flex ">
+
+                    <div class="d-flex">
                         <li class="page-item next-page"><a class="page-link" href="#">下一页</a></li>
                         <li class="page-item float-end"><a class="page-link next-chapter" href="#">下一章</a></li>
                     </div>
@@ -66,23 +62,7 @@ article{
         
     </div>
     
-    <div class="offcanvas offcanvas-top pb-auto" style="height:fit-content" data-bs-scroll="true" data-bs-backdrop="false" tabindex="-1" id="offcanvasTop" aria-labelledby="offcanvasTopLabel"> 
-        <nav class="navbar navbar-dark bg-dark">
-            <div class="container-fluid">
-                <a class="navbar-brand m-0 ms-4 chapter_list_btn" href="#">
-                    
-                    返回
-                </a>
-                <a class="navbar-brand m-0" href="#">
-                菜单
-                </a>
-                <a class="navbar-brand m-0 me-4" href="#">
-                    设置
-                </a>
-            </div>
-        </nav>
-    </div>
-    <div class="offcanvas offcanvas-start col-12 col-lg-3" data-bs-scroll="false" data-bs-backdrop="false" tabindex="-1" id="offcanvasLeft" aria-labelledby="offcanvasLeftLabel"> 
+    <div class="offcanvas offcanvas-start col-lg-3" data-bs-scroll="false" data-bs-backdrop="false" tabindex="-1" id="offcanvasLeft" aria-labelledby="offcanvasLeftLabel"> 
         <div class="offcanvas-header">
             <ul class="nav nav-pills me-1" id="pills-tab" role="tablist">
                 <li class="nav-item chapter-list-show" role="presentation">
@@ -107,7 +87,7 @@ article{
                                 {% csrf_token %}
                                 <input  type="hidden" name="book_id" value="{{ c.book_id }}">
                                 <input  type="hidden" name="chapter_id" value="{{ c.id  }}">
-                                <button class="list-group-item" type="submit" >
+                                <button class="list-group-item{% if chapter_id == c.id %} active{% endif %}" type="submit" data-chapter-id="{{ c.id }}">
                                     {{ c.title }}
                                 </button>
                             
@@ -133,62 +113,7 @@ article{
             
         </div>
     </div>
-    <div class="offcanvas offcanvas-bottom offcanvas-bottom-all h-auto col-12 " data-bs-scroll="true"  tabindex="-1" id="offcanvasBottom" aria-labelledby="offcanvasBottomLabel"> 
-        <div class="col-12 col-lg-6 mx-auto">
-            <div class="container-fluid">
-                <div class="row justify-content-between align-items-center">
-                    <div class="col-2 p-0">
-                        <p class="fs-8 m-0 text-center"><a class="prev-chapter" style="text-decoration: none;color:#333;">上一章</a></p>
-                    </div>
-                    <div class="progress col-8 p-0">
-                        <div class="progress-bar" role="progressbar" style="width: {{progess}}%" aria-valuenow="{{progess}}" aria-valuemin="0" aria-valuemax="100"></div>
-                    </div>
-                    <div class="col-2 p-0">
-                        <p class="fs-6 m-0 text-center"><a class="next-chapter" style="text-decoration: none;color:#333;">下一章</a></p>
-                    </div>
-                </div>
-            </div>
-            <ul class="nav nav-fill justify-content-center">
-                <li class="nav-item">
-                <a class="nav-link active p-0 py-2 chapter_list_btn" aria-current="page" href="#" >
-                    <i class="bi bi-list d-block mob-icon" style="transform: scale(1.2);" ></i>
-                        <span class="mob-icon-text">目录</span>
-                </a>
-                </li>
-                <li class="nav-item">
-                    <div class="div dropup ">
-                        <a class="nav-link active p-0 py-2" aria-current="page" href="#"  data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-app-indicator d-block mob-icon"></i>
-                            <span class="mob-icon-text">菜单</span>                    
-                        </a>
-                        <ul class="dropdown-menu   text-center" >
-                            <li><a class="dropdown-item search-btn"  href="#">搜索</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item bookmark-btn" href="#">书签</a></li>
-                        </ul>
-                    </div>
-                    
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link active p-0 py-2 back-btn" href="{% url 'reader:book_list' %}" aria-current="page" >
-                        <i class="bi bi-arrow-up-left-square d-block mob-icon" ></i>
-                        <span class="mob-icon-text">返回</span>                    
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link active p-0 py-2 setting-btn1" data-bs-toggle="offcanvas" href="#offcanvassetting" >
-                        <i class="bi bi bi-gear-wide-connected d-block mob-icon"></i>
-                        <span class="mob-icon-text">设置</span>                    
-                    </a>
-                </li>
-            </ul>
-            
-        
-        </div>
-        
-    </div>
-    
-    <div class="offcanvas offcanvas-bottom offcanvas-bottom-setting h-auto col-12 col-lg-3 col-xl-3 col-xxl-2" data-bs-scroll="true"  tabindex="-1" id="offcanvassetting" aria-labelledby="offcanvasBottomLabel"> 
+    <div class="offcanvas offcanvas-end offcanvas-bottom-setting h-auto col-lg-3 col-xl-3 col-xxl-2" data-bs-scroll="true"  tabindex="-1" id="offcanvassetting" aria-labelledby="offcanvasBottomLabel"> 
         <div class="col-12  mx-auto">
             <div class="container-fluid">
                 <div class="input-group  p-3  justify-content-center">
@@ -213,7 +138,7 @@ article{
         
     </div>
 
-    <div class="d-none d-lg-block" style="right: 20px; bottom:20px;position: fixed;">
+    <div style="right: 20px; bottom:20px;position: fixed;">
         
         <ul class="nav nav-pills nav-flush flex-column mb-auto text-center" style="font-size: 20px;">
             
@@ -237,7 +162,7 @@ article{
     </div>
     <!-- Scrollable modal -->
     <div class="modal myModal">
-        <div class="modal-dialog modal-dialog-scrollable modal-xl modal-fullscreen-lg-down	">
+        <div class="modal-dialog modal-dialog-scrollable modal-xl">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title"> </h5>
@@ -286,13 +211,14 @@ article{
 
 <script>
     var csrf_token = '{{ csrf_token }}'
-    var url_book_reader = "{% url 'reader:book_reader' book_id chapter_id %}"
     var last_words = parseInt({{last_words}})
     var user_setting_bg = "{{user_setting.read_bg}}"
     var url_update_setting = "{% url 'reader:update_setting' %}"
     var url_bookmark_save = "{% url 'reader:bookmark_save' %}"
     var book_id = '{{book_id}}'
-    var chapter_id='{{chapter_id}}'
+    var chapter_id = parseInt('{{chapter_id}}')
+    var chapter_ids = [{% for c in chapter_list %}{{ c.id }}{% if not forloop.last %},{% endif %}{% endfor %}];
+    var url_chapter_content = "{% url 'reader:chapter_content' 0 %}";
     var url_chapter_list = "{% url 'reader:chapter_list' book_id%}"
     
     var url_bookmark_list = "{% url 'reader:null'  %}"
