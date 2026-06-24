@@ -1,9 +1,21 @@
-
-<div class="list-group list-group-flush">
+<div class="list-group list-group-flush overflow-hidden">
     {% for item in list %}
-    <a class="list-group-item {% if request.resolver_match.kwargs.chapter_pk == item.chapter_pk %} active {% endif %}" href="{% url 'reader:book_reader' item.book_pk item.chapter_pk  %}" method="post">
-        {{ item.content }}
-    </a>
+    <form action="{% url 'reader:book_view' %}" method="POST">
+        {% csrf_token %}
+        <input type="hidden" name="book_id" value="{{ item.book_pk }}">
+        <input type="hidden" name="chapter_id" value="{{ item.chapter_pk }}">
+        <input type="hidden" name="words_read" value="{{ item.offset }}">
+        <button type="submit" class="list-group-item list-group-item-action text-wrap text-start {% if chapter_pk == item.chapter_pk %}active{% endif %}">
+            <small class="text-muted d-block mb-1">
+                <i class="bi bi-arrow-return-right me-1"></i>{{ item.chapter_title }}
+            </small>
+            <span class="text-break">{{ item.content }}</span>
+        </button>
+    </form>
+    {% empty %}
+        <div class="text-center text-muted py-4">
+            <i class="bi bi-search" style="font-size: 1.5rem;"></i>
+            <p class="mt-2 mb-0 small">未找到匹配内容</p>
+        </div>
     {% endfor %}
-
 </div>

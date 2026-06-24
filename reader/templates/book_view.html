@@ -80,26 +80,7 @@ article{
             
             <div class="tab-content" id="pills-tabContent">
                 <div class="tab-pane fade show active" id="pills-home" role="tabpanel" aria-labelledby="pills-home-tab">
-                    <div class="list-group">
-                        {% for c in chapter_list %}
-                        <div >
-                            <form method="POST" action="{% url 'reader:book_view' %}">
-                                {% csrf_token %}
-                                <input  type="hidden" name="book_id" value="{{ c.book_id }}">
-                                <input  type="hidden" name="chapter_id" value="{{ c.id  }}">
-                                <button class="list-group-item{% if chapter_id == c.id %} active{% endif %}" type="submit" data-chapter-id="{{ c.id }}">
-                                    {{ c.title }}
-                                </button>
-                            
-                            </form>
-
-                        </div>
-                        
-
-                        
-                        {% endfor %}
-
-                    </div>
+                    <div class="chapter_list_container"></div>
                 </div>
 
                 <div class="tab-pane fade text-wrap" id="pills-profile" role="tabpanel" aria-labelledby="pills-profile-tab">
@@ -165,7 +146,7 @@ article{
         <div class="modal-dialog modal-dialog-scrollable modal-xl">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title"> </h5>
+                    <h5 class="modal-title search-modal-title">全文搜索</h5>
                     <div style="margin: -0.5rem 0.5rem -0.5rem auto;">
                         <form class="col-6 col-lg-auto ms-2 me-2 me-lg-3 w-100" role="search" onsubmit="return false;">
                             <input type="search" class="form-control content-serarch" placeholder="搜索..." aria-label="Search" control-id="ControlID-2">
@@ -217,10 +198,13 @@ article{
     var url_bookmark_save = "{% url 'reader:bookmark_save' %}"
     var book_id = '{{book_id}}'
     var chapter_id = parseInt('{{chapter_id}}')
-    var chapter_ids = [{% for c in chapter_list %}{{ c.id }}{% if not forloop.last %},{% endif %}{% endfor %}];
+    var chapter_title = '{{chapter_title}}'
+
+    var url_book_reader = "{% url 'reader:book_view' %}";
     var url_chapter_content = "{% url 'reader:chapter_content' 0 %}";
-    var url_chapter_list = "{% url 'reader:chapter_list' book_id%}"
-    
+    var url_chapter_list_ajax = "{% url 'reader:chapter_list_ajax' book_id %}";
+    var chapter_ids = [{% for cid in chapter_ids %}{{cid}}{% if not forloop.last %},{% endif %}{% endfor %}];
+
     var url_bookmark_list = "{% url 'reader:null'  %}"
     {% if request.user.id %}
     var url_bookmark_list = "{% url 'reader:bookmark_list' request.user.id  book_id %}"

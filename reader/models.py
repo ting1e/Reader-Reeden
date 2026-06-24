@@ -59,6 +59,7 @@ class UserBookMark(models.Model):
     user_id = models.IntegerField()
     book_id = models.IntegerField()
     chapter_id = models.IntegerField()
+    chapter_title = models.CharField(max_length=256, default='')
     words_read = models.IntegerField()
     content = models.TextField()
     add_time = models.DateTimeField(default = timezone.now)

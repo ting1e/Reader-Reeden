@@ -1,12 +1,24 @@
-<div class="ul-list">
+<div class="list-group list-group-flush overflow-hidden">
     {% for m in bookmark_list %}
-        <a class="list-group-item bookmark_redirect" href="{% url 'reader:book_reader_offset'  m.book_id m.chapter_id m.words_read %}">
-            <div class=" text-break overflow-hidden book-tittle">
-                {{m.content}}
-            </div>
-            
-        </a>
-        {% endfor %}
-
+        <form action="{% url 'reader:book_view' %}" method="POST" class="overflow-hidden border-bottom pb-2 mb-2">
+            {% csrf_token %}
+            <input type="hidden" name="book_id" value="{{ m.book_id }}">
+            <input type="hidden" name="chapter_id" value="{{ m.chapter_id }}">
+            <input type="hidden" name="words_read" value="{{ m.words_read }}">
+            <button type="submit" class="list-group-item bookmark_redirect" style="background:none;border:none;width:100%;text-align:left;cursor:pointer;padding:0;">
+                <div class="d-flex align-items-center mb-1 overflow-hidden">
+                    <i class="bi bi-bookmark-fill text-primary me-2 small flex-shrink-0"></i>
+                    <span class="text-primary fw-bold small text-truncate">{{ m.chapter_title }}</span>
+                </div>
+                <div class="text-break book-tittle text-muted ps-4">
+                    {{ m.content }}
+                </div>
+            </button>
+        </form>
+    {% empty %}
+        <div class="text-center text-muted py-4">
+            <i class="bi bi-bookmark" style="font-size: 1.5rem;"></i>
+            <p class="mt-2 mb-0 small">暂无书签</p>
+        </div>
+    {% endfor %}
 </div>
-

@@ -45,7 +45,7 @@ document.onkeydown=function(e){    //对整个页面监听
 // 重新初始化分页（章节切换后可复用）
 function reinitPages() {
     page_width = $('article').width() + parseInt($('article').css('column-gap'))
-    page_num = parseInt(($('#marker').offset().left - $('article').offset().left) / page_width + 2)
+    page_num = parseInt(($('#marker').offset().left - $('article').offset().left) / page_width + 1)
     page_contents_len = new Array(page_num + 1).fill(0);
 
     $('article p').each((i, e) => {
@@ -67,34 +67,47 @@ function reinitPages() {
 }
 
 // 首次页面初始化
+var initial_last_words = last_words;
 reinitPages();
 
 
 
-// 上一章：优先使用缓存，缓存未命中则提交表单
+// 已移除：旧的上一章/下一章处理函数依赖侧边栏 DOM 中的 .list-group-item.active，
+// 现改为使用 chapter_ids 数组 + navigateToChapter 函数
+
+// 通过缓存或表单提交导航到目标章节
+function navigateToChapter(targetId) {
+    if (targetId === chapter_id) return;
+    if (chapterCache.has(targetId)) {
+        loadChapterFromCache(targetId);
+    } else {
+        // 缓存未命中：构建表单提交，整页刷新
+        var form = $('<form method="POST" style="display:none;">')
+            .attr('action', url_book_reader)
+            .append($('<input>').attr({type: 'hidden', name: 'csrfmiddlewaretoken', value: csrf_token}))
+            .append($('<input>').attr({type: 'hidden', name: 'book_id', value: book_id}))
+            .append($('<input>').attr({type: 'hidden', name: 'chapter_id', value: targetId}));
+        $('body').append(form);
+        form.submit();
+    }
+}
+
+// 上一章：使用 chapter_ids 数组定位
 $('.prev-chapter').click(function(e){
     e.preventDefault()
-    var prevButton = $('.list-group-item.active').closest('form').parent().prev().find('button.list-group-item')
-    if (!prevButton.length) return;
-    var targetId = parseInt(prevButton.attr('data-chapter-id'));
-    if (chapterCache.has(targetId)) {
-        loadChapterFromCache(targetId);
-    } else {
-        prevButton.closest('form').submit();
-    }
+    if (typeof chapter_ids === 'undefined') return;
+    var idx = chapter_ids.indexOf(chapter_id);
+    if (idx <= 0) return;
+    navigateToChapter(chapter_ids[idx - 1]);
 })
 
-// 下一章：优先使用缓存，缓存未命中则提交表单
+// 下一章：使用 chapter_ids 数组定位
 $('.next-chapter').click(function(e){
     e.preventDefault()
-    var nextButton = $('.list-group-item.active').closest('form').parent().next().find('button.list-group-item')
-    if (!nextButton.length) return;
-    var targetId = parseInt(nextButton.attr('data-chapter-id'));
-    if (chapterCache.has(targetId)) {
-        loadChapterFromCache(targetId);
-    } else {
-        nextButton.closest('form').submit();
-    }
+    if (typeof chapter_ids === 'undefined') return;
+    var idx = chapter_ids.indexOf(chapter_id);
+    if (idx === -1 || idx >= chapter_ids.length - 1) return;
+    navigateToChapter(chapter_ids[idx + 1]);
 })
 
 $('.page-item').click(function(e){
@@ -149,6 +162,8 @@ function save_record()
      url: url_book_reader,
      type: 'post',
      data: {
+         'book_id': book_id,
+         'chapter_id': chapter_id,
          'words': page_contents_len[parseInt($('.page-item.active').text()) - 1],
          csrfmiddlewaretoken: csrf_token
      },
@@ -161,20 +176,17 @@ function save_record()
 }
 
 
+// 恢复上一章翻页标记：跳转到最后一页
 if(localStorage.getItem('prev-chapter'))
 {
     $('.pages-container').children().last().click()
     localStorage.removeItem('prev-chapter')
-    save_record()
-}
-else
-{
-    save_record()
 }
 
+// 恢复阅读进度：跳转到 last_words 对应的页码
 for(var i=0;i<page_num+1;i++)
 {
-    if(page_contents_len[i]>last_words)
+    if(page_contents_len[i]>initial_last_words)
     {
         $('.page-item').each((idx,e)=>{
             if(parseInt($(e).text()) == i)
@@ -184,23 +196,28 @@ for(var i=0;i<page_num+1;i++)
     }
 }
 
+// 初始保存放在恢复之后，避免用错误页码覆盖正确的阅读进度
+save_record()
+
 $('.content-serarch').on("search", function() {
-    // console.log($('.content-serarch').val())
-    // console.log($(this).val())
+    var kwd = $(this).val();
+    if (!kwd) return;
     $.ajax({
      url: url_book_reader,
      type: 'post',
      data: {
-         'kwd': $(this).val(),
+         'book_id': book_id,
+         'chapter_id': chapter_id,
+         'kwd': kwd,
          csrfmiddlewaretoken: csrf_token
      },
-     // 上面data为提交数据，下面data形参指代的就是异步提交的返回结果data
      success: function (data){
-        $('.search-res').html(data)
-        // console.log($('.search-res .active'))
+        $('.search-res').html(data);
+        // 将搜索关键词同步到模态框内的搜索输入框
+        $('.modal .content-serarch').val(kwd);
+        // 滚动到当前章节匹配项（若有）
         if($('.search-res .active')[0])
-            $('.search-res').scrollTop($('.search-res .active').offset().top)
-    //  console.log(data);
+            $('.search-res .active')[0].scrollIntoView({ block: 'nearest' });
      }
 
     })
@@ -291,6 +308,7 @@ $('.bookmark-btn').click(function(){
      data: {
          'book_id':book_id,
          'chapter_id':chapter_id,
+         'chapter_title':chapter_title,
          'words_read':page_contents_len[parseInt($('.page-item.active').text()) - 1],
          'content':cont,
          csrfmiddlewaretoken: csrf_token
@@ -304,30 +322,16 @@ $('.bookmark-btn').click(function(){
 })
 
 $('.offcanvas-start').on('show.bs.offcanvas',function(){
-    // var act = $('.offcanvas-start .offcanvas-body .list-group-item.active ')
-    // if(act[0])
-    //     $('.offcanvas-start .offcanvas-body').scrollTop(act.offset().top - act.height()*4)
-    // $.ajax({
-    //     url: url_chapter_list,
-    //     type: 'get',
-    //     // 上面data为提交数据，下面data形参指代的就是异步提交的返回结果data
-    //     success: function (data){
-    //         $('.chapter_list_container').html(data)
-    //     // console.log(data);
-    //     }
-
-    //    })
+    // 首次打开时懒加载章节列表
+    loadChapterList();
+    // 加载书签列表
     $.ajax({
         url: url_bookmark_list,
         type: 'get',
-        // 上面data为提交数据，下面data形参指代的就是异步提交的返回结果data
         success: function (data){
             $('.bookmark_list_container').html(data)
-        // console.log(data);
         }
-
-       })
-
+    })
 })
 
 $('.bookmark-show').click(function(){
@@ -338,7 +342,38 @@ $('.bookmark-show').click(function(){
 
 
 
+// 章节列表是否已加载（懒加载标记）
+var chapterListLoaded = false;
+
+function loadChapterList() {
+    if (chapterListLoaded) return;
+    chapterListLoaded = true;
+    $.ajax({
+        url: url_chapter_list_ajax + '?chapter_id=' + chapter_id,
+        type: 'get',
+        success: function (data) {
+            if (data.success) {
+                $('.chapter_list_container').html(data.html);
+                // 更新 chapter_ids（服务端返回最新数据）
+                if (data.chapter_ids && data.chapter_ids.length > 0) {
+                    chapter_ids = data.chapter_ids;
+                }
+                // 滚动到当前章节
+                setTimeout(function () {
+                    var act = $('.offcanvas-start .offcanvas-body .list-group-item.active');
+                    if (act[0]) {
+                        var scrollOffset = act.offset().top - act.height() * 4;
+                        act.attr('offset', scrollOffset);
+                        $('.offcanvas-start .offcanvas-body').scrollTop(scrollOffset);
+                    }
+                }, 100);
+            }
+        }
+    });
+}
+
 $('.chapter-list-show').click(function(){
+    loadChapterList();
     setTimeout(function(){
         var act = $('.offcanvas-start .offcanvas-body .list-group-item.active ')
         if(act[0])
@@ -354,6 +389,16 @@ async function preloadChapter(chapterId) {
     if (chapterCache.has(chapterId)) return;
     try {
         const resp = await fetch(getChapterUrl(chapterId));
+        if (!resp.ok) {
+            console.warn('预加载章节失败:', chapterId, 'HTTP', resp.status);
+            return;
+        }
+        // 检查响应是否为 JSON，防止登录重定向返回 HTML
+        const contentType = resp.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+            console.warn('预加载章节失败:', chapterId, '非JSON响应');
+            return;
+        }
         const data = await resp.json();
         if (data.success) {
             chapterCache.set(chapterId, {
@@ -367,19 +412,36 @@ async function preloadChapter(chapterId) {
     }
 }
 
-// 预加载当前章节前后 range 章
+// 预加载当前章节前后 range 章（逐个串行，间隔 150ms，避免并发过多撑爆连接池）
 async function preloadAround(currentId, range) {
     const idx = chapter_ids.indexOf(currentId);
     if (idx === -1) return;
     const start = Math.max(0, idx - range);
     const end = Math.min(chapter_ids.length - 1, idx + range);
-    const toLoad = [];
     for (let i = start; i <= end; i++) {
         if (chapter_ids[i] !== currentId && !chapterCache.has(chapter_ids[i])) {
-            toLoad.push(preloadChapter(chapter_ids[i]));
+            await preloadChapter(chapter_ids[i]);
+            // 每个请求后暂停 150ms，防止瞬间大量并发
+            await new Promise(function(resolve) { return setTimeout(resolve, 150); });
         }
     }
-    await Promise.all(toLoad);
+}
+
+// 裁剪缓存：仅保留当前章节前后 range 章，释放远端章节内存
+function pruneCache(currentId, range) {
+    const idx = chapter_ids.indexOf(currentId);
+    if (idx === -1) return;
+    const keepStart = Math.max(0, idx - range);
+    const keepEnd = Math.min(chapter_ids.length - 1, idx + range);
+    const keepSet = new Set();
+    for (let i = keepStart; i <= keepEnd; i++) {
+        keepSet.add(chapter_ids[i]);
+    }
+    for (const key of chapterCache.keys()) {
+        if (!keepSet.has(key)) {
+            chapterCache.delete(key);
+        }
+    }
 }
 
 // 从缓存加载章节（内联替换，无需刷新页面）
@@ -399,10 +461,20 @@ function loadChapterFromCache(chapterId) {
 
     // 重新初始化分页
     reinitPages();
+
+    // 如果是上一章翻页（从页面边界触发），跳转到最后一页
+    if (localStorage.getItem('prev-chapter')) {
+        $('.pages-container').children().last().click();
+        localStorage.removeItem('prev-chapter');
+    }
+
     save_record();
 
-    // 预加载新的边界章节
-    preloadAround(chapterId, PRELOAD_RANGE);
+    // 预加载新的边界章节，并裁剪远端缓存
+    
+    setTimeout(function() {
+        preloadAround(chapterId, PRELOAD_RANGE).then(() => pruneCache(chapterId, PRELOAD_RANGE));
+    }, 1000);
 
     // 侧边栏滚动到当前章节
     var act = $('.offcanvas-start .offcanvas-body .list-group-item.active');
@@ -416,7 +488,8 @@ function loadChapterFromCache(chapterId) {
 }
 
 // 拦截侧边栏章节列表点击：缓存命中则内联切换
-$('.list-group').on('submit', 'form', function(e) {
+// 代理到 .chapter_list_container（页面加载时已存在），因为 .list-group 是 AJAX 动态加载的
+$('.chapter_list_container').on('submit', 'form', function(e) {
     var targetId = parseInt($(this).find('button.list-group-item').attr('data-chapter-id'));
     if (targetId === chapter_id) {
         e.preventDefault();
@@ -430,4 +503,22 @@ $('.list-group').on('submit', 'form', function(e) {
 });
 
 // 页面加载时预缓存前后10章
-preloadAround(chapter_id, PRELOAD_RANGE);
+setTimeout(function() {
+    preloadAround(chapter_id, PRELOAD_RANGE).then(() => pruneCache(chapter_id, PRELOAD_RANGE));
+}, 2000);
+
+// 离开页面前保存阅读进度，确保进度不会因关闭标签页而丢失
+window.addEventListener('beforeunload', function() {
+    var words = page_contents_len[parseInt($('.page-item.active').text()) - 1] || 0;
+    var data = new URLSearchParams();
+    data.append('book_id', book_id);
+    data.append('chapter_id', chapter_id);
+    data.append('words', words);
+    data.append('csrfmiddlewaretoken', csrf_token);
+    if (navigator.sendBeacon) {
+        navigator.sendBeacon(url_book_reader, data);
+    } else {
+        // 降级：同步 AJAX（已弃用但确保数据发送）
+        try { $.ajax({url: url_book_reader, type: 'post', data: data.toString(), async: false, contentType: 'application/x-www-form-urlencoded'}); } catch(e) {}
+    }
+});

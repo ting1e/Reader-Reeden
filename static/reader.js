@@ -2,7 +2,7 @@ var offcanvasLeft = new bootstrap.Offcanvas($('.offcanvas-start'))
 var offcanvasSetting = new bootstrap.Offcanvas($('.offcanvas-bottom-setting'))
 
 var page_width = $('article').width() + parseInt($('article').css('column-gap'))
-var page_num = parseInt(($('#marker').offset().left - $('article').offset().left)/ page_width +2)
+var page_num = parseInt(($('#marker').offset().left - $('article').offset().left)/ page_width +1)
 var page_contents_len = new Array(page_num + 1 ).fill(0);
 var modal = new bootstrap.Modal($(".myModal")) // Returns a Bootstrap modal instance
 
@@ -105,6 +105,8 @@ function save_record()
      url: url_book_reader,
      type: 'post',
      data: {
+         'book_id': book_id,
+         'chapter_id': chapter_id,
          'words': page_contents_len[parseInt($('.page-item.active').text()) - 1],
          csrfmiddlewaretoken: csrf_token
      },
@@ -141,22 +143,22 @@ for(var i=0;i<page_num+1;i++)
 }
 
 $('.content-serarch').on("search", function() {
-    // console.log($('.content-serarch').val())
-    // console.log($(this).val())
+    var kwd = $(this).val();
+    if (!kwd) return;
     $.ajax({
      url: url_book_reader,
      type: 'post',
      data: {
-         'kwd': $(this).val(),
+         'book_id': book_id,
+         'chapter_id': chapter_id,
+         'kwd': kwd,
          csrfmiddlewaretoken: csrf_token
      },
-     // 上面data为提交数据，下面data形参指代的就是异步提交的返回结果data
      success: function (data){
-        $('.search-res').html(data)
-        // console.log($('.search-res .active'))
+        $('.search-res').html(data);
+        $('.modal .content-serarch').val(kwd);
         if($('.search-res .active')[0])
-            $('.search-res').scrollTop($('.search-res .active').offset().top)
-    //  console.log(data);
+            $('.search-res .active')[0].scrollIntoView({ block: 'nearest' });
      }
 
     })
@@ -247,6 +249,7 @@ $('.bookmark-btn').click(function(){
      data: {
          'book_id':book_id,
          'chapter_id':chapter_id,
+         'chapter_title':chapter_title,
          'words_read':page_contents_len[parseInt($('.page-item.active').text()) - 1],
          'content':cont,
          csrfmiddlewaretoken: csrf_token

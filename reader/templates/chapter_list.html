@@ -1,12 +1,17 @@
-<!-- <ul>
-    {% for c in chapter_list %}
-    <li><a href="{% url 'reader:chapter_detail' c.id %}">{{ c.title }}</a></li>
-
-    {% endfor %}
-</ul> -->
-
 <div class="list-group">
-    {% for c in chapter_list %}
-    <a class="list-group-item {% if request.resolver_match.kwargs.chapter_pk == c.id %} active {% endif %}" href="{% url 'reader:book_reader' c.book_id c.id %}" method="post">{{ c.title }}</a>
-    {% endfor %}
+{% for c in chapter_list %}
+<div >
+    <form method="POST" action="{% url 'reader:book_view' %}">
+        {% csrf_token %}
+        <input  type="hidden" name="book_id" value="{{ c.book_id }}">
+        <input  type="hidden" name="chapter_id" value="{{ c.id  }}">
+        <button class="list-group-item{% if chapter_id == c.id %} active{% endif %}" type="submit" data-chapter-id="{{ c.id }}" style="width:90%">
+            {{ c.title }}
+        </button>
+    
+    </form>
+
+</div>
+
+{% endfor %}
 </div>
