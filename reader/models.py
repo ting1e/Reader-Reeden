@@ -12,6 +12,7 @@ import chardet
 class Book(models.Model):
     book_url = models.CharField(max_length=256)
     name = models.CharField(max_length=64)
+    file_name = models.CharField(max_length=256,default='')
     author = models.CharField(max_length=64)
     book_grp = models.IntegerField(default=0)
     intro  = models.CharField(max_length=512)
@@ -29,6 +30,9 @@ class Book(models.Model):
     upload_time = models.DateTimeField(default = timezone.now)
     share = models.BooleanField (default = False)
     charset = models.CharField(max_length=64)
+
+    md5 = models.CharField(max_length=32,default='')
+    local = models.BooleanField(default=False)
 
 class BookGroup(models.Model):
     group_name = models.CharField(max_length=64)
@@ -54,6 +58,7 @@ class UserSetting(models.Model):
     user_id = models.IntegerField()
     font_size = models.IntegerField(default=16)
     read_bg = models.CharField(max_length=256,default='#fff')
+    s3_setting = models.CharField(max_length=4096,default='"{\"accessKeyId\":\"YOUR_ACCESS_KEY\",\"secretAccessKey\":\"YOUR_SECRET_KEY\",\"region\":\"us-east-1\",\"endpoint\":\"https://s3.us-east-1.amazonaws.com\",\"bucket\":\"YOUR_BUCKET_NAME\",\"prefix\":\"YOUR_FOLDER_NAME/\"}"')
 
 class UserBookMark(models.Model):
     user_id = models.IntegerField()

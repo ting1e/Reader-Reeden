@@ -1,4 +1,4 @@
-/*global gettext, interpolate, ngettext*/
+/*global gettext, interpolate, ngettext, Actions*/
 'use strict';
 {
     function show(selector) {
@@ -172,13 +172,16 @@
                 if (document.querySelector('[name=action]').value) {
                     const text = list_editable_changed
                         ? gettext("You have selected an action, but you haven’t saved your changes to individual fields yet. Please click OK to save. You’ll need to re-run the action.")
-                        : gettext("You have selected an action, and you haven’t made any changes on individual fields. You’re probably looking for the Go button rather than the Save button.");
+                        : gettext("You have selected an action, and you haven’t made any changes on individual fields. You’re probably looking for the Run button rather than the Save button.");
                     if (!confirm(text)) {
                         event.preventDefault();
                     }
                 }
             });
         }
+        // Sync counter when navigating to the page, such as through the back
+        // button.
+        window.addEventListener('pageshow', (event) => updateCounter(actionCheckboxes, options));
     };
 
     // Call function fn when the DOM is loaded and ready. If it is already

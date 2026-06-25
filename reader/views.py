@@ -5,8 +5,164 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.contrib.auth import authenticate,login,logout
 from django.contrib.auth.decorators import login_required
 from django.template.loader import render_to_string
+from django.utils import timezone
 
 from . import form_book
+
+import os
+import json
+import datetime
+import hashlib
+import uuid
+
+def make_naive_utc(dt):
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        try:
+            from django.conf import settings
+            from django.utils import timezone
+            if not getattr(settings, 'USE_TZ', False):
+                dt = timezone.make_aware(dt)
+        except Exception:
+            pass
+    if dt.tzinfo is not None:
+        return dt.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+    return dt
+
+def get_file_md5(file_path):
+    with open(file_path, 'rb') as f:
+        return hashlib.md5(f.read()).hexdigest().upper()
+
+def get_element_index(text):
+    idx = 0
+    for c in text:
+        if ord(c) > 127:
+            idx += 2
+        else:
+            idx += 1
+    return idx
+
+def get_device_id():
+    node = uuid.getnode()
+    return str(uuid.UUID(int=node))
+
+def calculate_read_progress(book, chapter, words_read):
+    try:
+        chapter_list = Chapter.objects.filter(book_id=book.id).order_by('index')
+        all_chars = book.word_count
+        if all_chars <= 0:
+            return 0
+        read = 0.0
+        for ch in chapter_list:
+            if chapter.id == ch.id:
+                break
+            read += ch.end - ch.start
+        
+        try:
+            current_words = int(words_read)
+        except (TypeError, ValueError):
+            current_words = 0
+            
+        progress_val = int(((read + current_words) / all_chars) * 10000)
+        return min(max(0, progress_val), 10000)
+    except Exception:
+        return 0
+
+def save_progress_json(book, chapter, words_read):
+    try:
+        md5_val = get_file_md5(book.book_url)
+    except Exception as e:
+        print(f"Error calculating MD5: {e}")
+        return
+
+    device_id = get_device_id()
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+    now_iso = now_utc.isoformat().replace('+00:00', 'Z')
+    
+    from django.utils import timezone
+    dj_now = timezone.now()
+    if timezone.is_aware(dj_now):
+        dj_now = timezone.localtime(dj_now)
+    current_date_str = dj_now.strftime('%Y-%m-%d')
+    
+    try:
+        with open(book.book_url, 'r', encoding=book.charset) as f:
+            content = f.read()[chapter.start:chapter.end]
+            content_lines = content.split('\n')
+    except Exception as e:
+        print(f"Error reading book file: {e}")
+        return
+
+    try:
+        target_words = int(words_read)
+    except (TypeError, ValueError):
+        target_words = 0
+    accumulated = 0
+    paragraph_index = 0
+    element_index = 0
+
+    for idx, line in enumerate(content_lines):
+        line_len = len(line)
+        if accumulated + line_len >= target_words:
+            paragraph_index = idx
+            element_offset = target_words - accumulated
+            element_index = get_element_index(line[:element_offset])
+            break
+        accumulated += line_len
+    else:
+        if content_lines:
+            paragraph_index = len(content_lines) - 1
+            element_index = get_element_index(content_lines[-1])
+
+    temp_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'temp')
+    os.makedirs(temp_dir, exist_ok=True)
+    json_path = os.path.join(temp_dir, f"{md5_val}.json")
+    
+    old_data = None
+    if os.path.exists(json_path):
+        try:
+            with open(json_path, 'r', encoding='utf-8') as f:
+                old_data = json.load(f)
+        except Exception:
+            pass
+
+    # todayStats 保持原来的内容不变
+    if old_data and "todayStats" in old_data:
+        stats = old_data["todayStats"]
+    else:
+        stats = {
+            "date": current_date_str,
+            "devices": {
+                device_id: {
+                    "readSeconds": 0,
+                    "wordCount": 0,
+                    "hourly": {}
+                }
+            }
+        }
+
+    progress_val = calculate_read_progress(book, chapter, words_read)
+
+    new_data = {
+        "schemaVersion": 1,
+        "bookId": md5_val,
+        "sectionIndex": chapter.index,
+        "paragraphIndex": paragraph_index,
+        "elementIndex": element_index,
+        "readProgress": progress_val,
+        "lastReadTime": now_iso,
+        "deviceId": device_id,
+        "todayStats": stats,
+        "chapterId": chapter.id,
+        "wordsRead": target_words
+    }
+
+    try:
+        with open(json_path, 'w', encoding='utf-8') as f:
+            json.dump(new_data, f, ensure_ascii=False)
+    except Exception as e:
+        print(f"Error writing progress JSON: {e}")
 
 class BookListView(generic.ListView):
     template_name = 'book_list.html'
@@ -18,6 +174,49 @@ class BookListView(generic.ListView):
             return Book.objects.filter(share = False) | Book.objects.filter(uploader = self.request.user.id)
         else:
             return Book.objects.filter(share = True)
+        
+class BookListRemoteView(generic.ListView):
+    template_name = 'book_list_remote.html'
+    context_object_name = 'book_list_remote'
+
+    def get_queryset(self):
+        remote_files = []
+        if self.request.user.is_authenticated:
+            settings = UserSetting.objects.filter(user_id=self.request.user.id)
+            if len(settings) > 0:
+                s3_str = settings[0].s3_setting
+                try:
+                    s3_dict = json.loads(s3_str)
+                    if isinstance(s3_dict, str):
+                        s3_dict = json.loads(s3_dict)
+                    
+                    import boto3
+                    s3_client = boto3.client(
+                        's3',
+                        aws_access_key_id=s3_dict.get('accessKeyId'),
+                        aws_secret_access_key=s3_dict.get('secretAccessKey'),
+                        region_name=s3_dict.get('region'),
+                        endpoint_url=s3_dict.get('endpoint')
+                    )
+                    
+                    bucket = s3_dict.get('bucket')
+                    prefix = s3_dict.get('prefix', '')
+                    if prefix and not prefix.endswith('/'):
+                        prefix += '/'
+                    target_prefix = prefix + 'books/'
+                    
+                    response = s3_client.list_objects_v2(Bucket=bucket, Prefix=target_prefix)
+                    if 'Contents' in response:
+                        local_books_set = set(Book.objects.values_list('file_name', flat=True))
+                        for obj in response['Contents']:
+                            if obj['Key'] != target_prefix:
+                                filename = obj['Key'][len(target_prefix):]
+                                is_in_db = filename in local_books_set
+                                remote_files.append({'name': filename, 'in_db': is_in_db})
+                    
+                except Exception as e:
+                    print("Error parsing S3 settings or connecting to S3:", e)
+        return remote_files
         
 
 
@@ -46,7 +245,16 @@ def BookView(request):
         else:
             records[0].chapter_id = _chapter_id
             records[0].words_read = int(words_read)
+            records[0].read_time = timezone.now()
             records[0].save()
+
+        try:
+            book = Book.objects.get(id=_book_id)
+            chapter = Chapter.objects.get(id=_chapter_id)
+            save_progress_json(book, chapter, words_read)
+        except Exception as e:
+            print(f"Failed to save progress JSON: {e}")
+
         return HttpResponse('success')
 
     # ---- POST: 关键词搜索 (AJAX) ----
@@ -81,13 +289,97 @@ def BookView(request):
 
     # POST: chapter_id 已在上面从表单获取；未指定则使用阅读记录或第一章
     if not chapter_id and request.user.is_authenticated and 0==offset:
+        db_record = None
         last = UserBookRecord.objects.filter(
             user_id=request.user.id, book_id=book_id
         ).order_by('-read_time')
         if last.exists():
-            chapter_id = last[0].chapter_id
-            offset = last[0].words_read
+            db_record = last[0]
 
+        file_record = None
+        try:
+            md5_val = get_file_md5(_book.book_url)
+            temp_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'temp')
+            json_path = os.path.join(temp_dir, f"{md5_val}.json")
+            if os.path.exists(json_path):
+                with open(json_path, 'r', encoding='utf-8') as f:
+                    file_record = json.load(f)
+        except Exception as e:
+            print("Error reading progress file on open:", e)
+
+        use_file = False
+        if file_record and db_record:
+            try:
+                file_time_str = file_record.get("lastReadTime")
+                if file_time_str:
+                    file_time = datetime.datetime.fromisoformat(file_time_str.replace('Z', '+00:00'))
+                    file_time = make_naive_utc(file_time)
+                    db_time = make_naive_utc(db_record.read_time)
+                    print(file_time, db_time)
+                    if file_time > db_time:
+                        use_file = True
+            except Exception:
+                pass
+        elif file_record and not db_record:
+            use_file = True
+
+        # 默认优先使用数据库记录，否则使用第一章
+        if db_record:
+            chapter_id = db_record.chapter_id
+            offset = db_record.words_read
+        else:
+            chapter_id = _book.first_chapter_id
+            offset = 0
+
+        if use_file and "sectionIndex" in file_record:
+            section_index = int(file_record["sectionIndex"])
+            cur_chapter = Chapter.objects.filter(book_id=book_id, index=section_index).first()
+            if cur_chapter:
+                chapter_id = cur_chapter.id
+                paragraph_index = file_record.get("paragraphIndex", 0)
+                element_index = file_record.get("elementIndex", 0)
+                
+                with open(_book.book_url, 'r', encoding=_book.charset) as f:
+                    content = f.read()[cur_chapter.start:cur_chapter.end]
+                    content_lines = content.split('\n')
+                
+                accumulated = 0
+                for idx in range(min(paragraph_index, len(content_lines))):
+                    accumulated += len(content_lines[idx])
+                
+                element_offset = 0
+                if paragraph_index < len(content_lines):
+                    current_line = content_lines[paragraph_index]
+                    idx_val = 0
+                    for c in current_line:
+                        if idx_val >= element_index:
+                            break
+                        if ord(c) > 127:
+                            idx_val += 2
+                        else:
+                            idx_val += 1
+                        element_offset += 1
+                offset = accumulated + element_offset
+
+            # 同步更新/新增数据库进度记录
+            if db_record:
+                db_record.chapter_id = chapter_id
+                db_record.words_read = offset
+                db_record.read_time = timezone.now()
+                db_record.save()
+            else:
+                UserBookRecord(
+                    user_id=request.user.id,
+                    book_id=book_id,
+                    chapter_id=chapter_id,
+                    words_read=offset,
+                    read_time=timezone.now()
+                ).save()
+        elif not use_file and db_record:
+            # 既然数据库更新，就把最新进度同步到 md5.json
+            ch_obj = Chapter.objects.get(id=chapter_id)
+            save_progress_json(_book, ch_obj, offset)
+                
     if not chapter_id:
         chapter_id = _book.first_chapter_id
 
@@ -290,9 +582,14 @@ def chapter_list_ajax(request, book_id):
         return JsonResponse({'success': False, 'error': 'no permission'})
     chapter_list = Chapter.objects.filter(book_id=book_id)
     chapter_ids = list(chapter_list.values_list('id', flat=True))
+    chapter_id_param = request.GET.get('chapter_id')
+    try:
+        chapter_id_param = int(chapter_id_param)
+    except (TypeError, ValueError):
+        chapter_id_param = None
     html = render_to_string('chapter_list.html', {
         'chapter_list': chapter_list,
-        'chapter_id': request.GET.get('chapter_id'),
+        'chapter_id': chapter_id_param,
     }, request=request)
     return JsonResponse({
         'success': True,

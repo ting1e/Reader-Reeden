@@ -7,7 +7,7 @@
             <input type="hidden" name="chapter_id" value="{{ c.id }}">
             <button
                 class="list-group-item w-full text-left px-3 py-2 rounded-lg text-sm transition-colors duration-150 cursor-pointer border-0
-                                {% if chapter_id == c.id %} bg-primary text-primary-content font-medium{% else %} text-base-content/70 hover:bg-base-300{% endif %}"
+                                {% if chapter_id == c.id %} active bg-base-300 font-medium{% else %} text-base-content/70 hover:bg-base-300{% endif %}"
                 type="submit" data-chapter-id="{{ c.id }}">
                 {{ c.title }}
             </button>

@@ -83,14 +83,14 @@ article{
 
 /* 兼容 Firefox */
 .custom-scrollbar {
-    scrollbar-width: thin;
+    scrollbar-width: auto;
     scrollbar-color: rgba(156, 163, 175, 0.5) transparent; /* 对应 Tailwind 的 gray-400 */
 }
 
 /* 兼容 Chrome / Edge / Safari */
 .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 12px;
+    height: 12px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {

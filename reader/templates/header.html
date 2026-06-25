@@ -3,6 +3,7 @@
     <div role="tablist" class="tabs tabs-border flex-1 ">
       {% with request.resolver_match.url_name as url_name %}
       <a role="tab" href="{% url 'reader:book_list'%}" class="text-base tab {% if url_name == 'book_list' %} tab-active{% endif %}">书库</a>
+      <a role="tab" href="{% url 'reader:book_list_remote'%}" class="text-base tab {% if url_name == 'book_list_remote' %} tab-active{% endif %}">远程书库</a>
       {% if request.user.is_authenticated %}
       <a role="tab" href="#" class="tab text-base ">进度</a>
       {% endif %}
@@ -10,6 +11,10 @@
 
       <a role="tab" class="tab">Tab 1</a>
       <a role="tab" class="tab">Tab 3</a>
+      {% if 'book_view' in request.resolver_match.url_name %}
+        <a role="tab" class="text-base tab  tab-active">阅读中</a>
+      {% endif %}
+
     </div>
    
     

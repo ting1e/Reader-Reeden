@@ -1,17 +1,17 @@
 <div class="flex flex-col gap-1">
     {% for m in bookmark_list %}
-    <form action="{% url 'reader:book_view' %}" method="POST"
-        class="border-b border-base-300 pb-2 mb-2 last:border-b-0 last:pb-0 last:mb-0">
+    <form action="{% url 'reader:book_view' %}" method="POST">
         {% csrf_token %}
         <input type="hidden" name="book_id" value="{{ m.book_id }}">
         <input type="hidden" name="chapter_id" value="{{ m.chapter_id }}">
         <input type="hidden" name="words_read" value="{{ m.words_read }}">
-        <button type="submit" class="list-group-item w-full text-left cursor-pointer p-0 bg-transparent border-0">
+        <button type="submit"
+            class="list-group-item w-full text-left cursor-pointer px-3 py-2 rounded-lg text-sm transition-colors duration-150 border-0 text-base-content/70 hover:bg-base-300">
             <div class="flex items-center gap-2 mb-1 overflow-hidden">
-                <i class="bi bi-bookmark-fill text-primary flex-shrink-0 text-sm"></i>
-                <span class="text-primary font-bold text-sm truncate">{{ m.chapter_title }}</span>
+                <i class="bi bi-bookmark-fill flex-shrink-0 text-xs"></i>
+                <span class="font-bold text-sm truncate">{{ m.chapter_title }}</span>
             </div>
-            <div class="break-words book-tittle text-base-content/50 text-sm pl-6">
+            <div class="break-words book-tittle text-base-content/50 text-sm pl-5">
                 {{ m.content }}
             </div>
         </button>

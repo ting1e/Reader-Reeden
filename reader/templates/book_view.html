@@ -60,20 +60,22 @@ article{
 
         <!-- Settings Toast -->
         <div id="offcanvassetting" class="toast toast-top toast-end" style="display:none; z-index: 1080;">
-            <div class="alert shadow-lg bg-base-100 border border-base-300 p-4" style="min-width: 260px;">
-                <div class="flex flex-col gap-3">
-                    <div class="flex items-center justify-center gap-2">
-                        <button class="btn btn-outline btn-sm dec-font update-setting" type="button">A-</button>
-                        <span class="font-value text-center w-16 font-medium text-sm"> </span>
-                        <button class="btn btn-outline btn-sm inc-font update-setting" type="button">A+</button>
+            <div class="alert shadow-lg bg-base-100 border border-base-300 p-6 relative" style="min-width: 340px;">
+                <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2 setting-close" type="button">✕</button>
+                <div class="flex flex-col gap-4 w-full">
+                    <h3 class="text-base font-bold text-center">阅读设置</h3>
+                    <div class="flex items-center justify-center gap-3">
+                        <button class="btn btn-outline dec-font update-setting" type="button">A-</button>
+                        <span class="font-value text-center w-16 font-semibold text-lg"> </span>
+                        <button class="btn btn-outline inc-font update-setting" type="button">A+</button>
                     </div>
 
-                    <ul class="flex justify-center gap-2" style="height: 40px;">
-                        <li class="w-8 h-8 rounded border cursor-pointer bg-setting read-white update-setting" style="background: #fff;"></li>
-                        <li class="w-8 h-8 rounded border cursor-pointer bg-setting read-blue update-setting" style="background: #c3d4e6;"></li>
-                        <li class="w-8 h-8 rounded border cursor-pointer bg-setting read-green update-setting" style="background: #c8e8c8;"></li>
-                        <li class="w-8 h-8 rounded border cursor-pointer bg-setting read-yellow update-setting" style="background: #c4b395"></li>
-                        <li class="w-8 h-8 rounded border cursor-pointer bg-setting read-black update-setting" style="background: #000"></li>
+                    <ul class="flex justify-center gap-3" style="height: 48px;">
+                        <li class="w-10 h-10 rounded-lg border-2 cursor-pointer bg-setting read-white update-setting" style="background: #fff;"></li>
+                        <li class="w-10 h-10 rounded-lg border-2 cursor-pointer bg-setting read-blue update-setting" style="background: #c3d4e6;"></li>
+                        <li class="w-10 h-10 rounded-lg border-2 cursor-pointer bg-setting read-green update-setting" style="background: #c8e8c8;"></li>
+                        <li class="w-10 h-10 rounded-lg border-2 cursor-pointer bg-setting read-yellow update-setting" style="background: #c4b395"></li>
+                        <li class="w-10 h-10 rounded-lg border-2 cursor-pointer bg-setting read-black update-setting" style="background: #000"></li>
                     </ul>
                 </div>
             </div>
@@ -139,10 +141,11 @@ article{
   </div>
 
   <!-- Drawer side panel (formerly offcanvas) -->
-  <div class="drawer-side z-40" id="drawer-side">
-    <label for="drawer-left" aria-label="关闭侧栏" class="drawer-overlay" style="background: transparent;"></label>
+  <div class="drawer-side z-40" id="drawer-side" style="pointer-events: none;">
+    <label aria-label="关闭侧栏" class="drawer-overlay" style="background: transparent; pointer-events: none;"></label>
     
-    <div class="flex flex-col w-80 h-screen bg-base-100 text-base-content rounded-r-2xl shadow-2xl border-r border-base-200">        
+    <div class="flex flex-col w-80 h-screen bg-base-100 text-base-content rounded-r-2xl shadow-2xl border-r border-base-200 relative" style="pointer-events: auto;">        
+        <label for="drawer-left" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2 z-10" aria-label="关闭侧栏">✕</label>
         <div class="p-4 pb-0 shrink-0">
             <div role="tablist" class="tabs tabs-border">
                 <a role="tab" class="tab flex-1 tab-active chapter-list-show" data-tab="chapters">目录</a>
@@ -150,7 +153,7 @@ article{
             </div>
         </div>
 
-        <div class="flex-1 overflow-y-auto min-h-0 mt-2 p-4 custom-scrollbar">
+        <div id="chapter-scroll-container" class="flex-1 overflow-y-auto min-h-0 mt-2 p-4 custom-scrollbar">
             
             <div id="tab-chapters">
                 <div class="chapter_list_container"></div>  

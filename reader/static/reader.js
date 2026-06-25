@@ -17,12 +17,7 @@ function getChapterUrl(chapterId) {
 }
 
 $('.chapter_list_btn').click(function(e){
-    var act = $('#drawer-side .list-group-item.active');
-    if(act[0]) {
-        if (!act.attr('offset'))
-            act.attr('offset', act.offset().top - act.height()*4);
-        $('#drawer-side').scrollTop(act.offset().top - act.height()*4);
-    }
+    scrollToActiveChapter();
 });
 
 document.onkeydown=function(e){
@@ -165,7 +160,6 @@ for(var i=0;i<page_num+1;i++) {
     }
 }
 
-save_record();
 
 $('.content-serarch').on("search", function() {
     var kwd = $(this).val();
@@ -228,6 +222,11 @@ $('.setting-btn').click(function(){
     } else {
         showSettingsToast();
     }
+});
+
+$('.setting-close').click(function(){
+    if (window.settingToastTimer) clearTimeout(window.settingToastTimer);
+    $('#offcanvassetting').hide();
 });
 
 $('.inc-font').click(function(){
@@ -294,17 +293,21 @@ $('.bookmark-btn').click(function(){
 // Drawer toggle listener (replaces offcanvas show.bs.offcanvas)
 $(drawerCheckbox).on('change', function(e) {
     if (this.checked) {
-        document.documentElement.style.overflow = 'hidden';
         loadChapterList();
         $.ajax({
             url: url_bookmark_list,
             type: 'get',
             success: function (data){
                 $('.bookmark_list_container').html(data);
+                // 前端高亮当前章节的书签
+                $('.bookmark_list_container .list-group-item').each(function() {
+                    var bmChapterId = $(this).closest('form').find('input[name="chapter_id"]').val();
+                    if (parseInt(bmChapterId) === chapter_id) {
+                        $(this).addClass('active bg-base-300 font-medium').removeClass('text-base-content/70');
+                    }
+                });
             }
         });
-    } else {
-        document.documentElement.style.overflow = '';
     }
 });
 
@@ -318,10 +321,33 @@ $('.bookmark-show').click(function(){
 });
 
 var chapterListLoaded = false;
+var chapterListCacheVersion = 'v5';
+var chapterListCacheKey = 'chapterList_' + book_id + '_' + chapterListCacheVersion;
 
 function loadChapterList() {
     if (chapterListLoaded) return;
     chapterListLoaded = true;
+
+    // 尝试从 sessionStorage 读取缓存
+    var cached = sessionStorage.getItem(chapterListCacheKey);
+    if (cached) {
+        try {
+            var cacheData = JSON.parse(cached);
+            $('.chapter_list_container').html(cacheData.html);
+            if (cacheData.chapter_ids && cacheData.chapter_ids.length > 0) {
+                chapter_ids = cacheData.chapter_ids;
+            }
+            // 更新当前章节高亮
+            $('.chapter_list_container .list-group-item').removeClass('active bg-base-300 font-medium').addClass('text-base-content/70');
+            $('.chapter_list_container .list-group-item[data-chapter-id="' + chapter_id + '"]').addClass('active bg-base-300 font-medium').removeClass('text-base-content/70');
+            scrollToActiveChapter();
+            return;
+        } catch (e) {
+            sessionStorage.removeItem(chapterListCacheKey);
+        }
+    }
+
+    // 无缓存，发起请求
     $.ajax({
         url: url_chapter_list_ajax + '?chapter_id=' + chapter_id,
         type: 'get',
@@ -331,17 +357,41 @@ function loadChapterList() {
                 if (data.chapter_ids && data.chapter_ids.length > 0) {
                     chapter_ids = data.chapter_ids;
                 }
-                setTimeout(function () {
-                    var act = $('#drawer-side .list-group-item.active');
-                    if (act[0]) {
-                        var scrollOffset = act.offset().top - act.height() * 4;
-                        act.attr('offset', scrollOffset);
-                        $('#drawer-side').scrollTop(scrollOffset);
-                    }
-                }, 100);
+                // 写入 sessionStorage 缓存
+                try {
+                    sessionStorage.setItem(chapterListCacheKey, JSON.stringify({
+                        html: data.html,
+                        chapter_ids: data.chapter_ids || []
+                    }));
+                } catch (e) {
+                    console.warn('目录缓存写入失败:', e);
+                }
+                scrollToActiveChapter();
             }
         }
     });
+}
+
+function scrollToActiveChapter() {
+    var drawerSide = document.getElementById('drawer-side');
+
+    function doScroll() {
+        var act = document.querySelector('#chapter-scroll-container .list-group-item.active');
+        if (act) {
+            act.scrollIntoView({ block: 'center' });
+        }
+    }
+
+    // 如果 drawer 正在做过渡动画，等动画结束后再滚动
+    if (drawerSide) {
+        var handler = function() {
+            drawerSide.removeEventListener('transitionend', handler);
+            setTimeout(doScroll, 50);
+        };
+        drawerSide.addEventListener('transitionend', handler);
+    }
+    // 兜底：500ms 后强制滚动（防止 transitionend 未触发）
+    setTimeout(doScroll, 500);
 }
 
 $('.chapter-list-show').click(function(){
@@ -352,11 +402,7 @@ $('.chapter-list-show').click(function(){
     $('#tab-chapters').removeClass('hidden');
 
     loadChapterList();
-    setTimeout(function(){
-        var act = $('#drawer-side .list-group-item.active');
-        if(act[0])
-            $('#drawer-side').scrollTop(act.attr('offset'));
-    }, 250);
+    scrollToActiveChapter();
 })
 
 // ===== 章节缓存：预加载 & 内联切换 =====
@@ -423,8 +469,8 @@ function loadChapterFromCache(chapterId) {
     $('.article-container').html(cached.chapter_view);
     chapter_id = chapterId;
 
-    $('.list-group-item').removeClass('active bg-primary text-primary-content font-medium');
-    $('.list-group-item[data-chapter-id="' + chapterId + '"]').addClass('active bg-primary text-primary-content font-medium');
+    $('.list-group-item').removeClass('active bg-base-300 font-medium').addClass('text-base-content/70');
+    $('.list-group-item[data-chapter-id="' + chapterId + '"]').addClass('active bg-base-300 font-medium').removeClass('text-base-content/70');
 
     reinitPages();
 
@@ -439,12 +485,7 @@ function loadChapterFromCache(chapterId) {
         preloadAround(chapterId, PRELOAD_RANGE).then(() => pruneCache(chapterId, PRELOAD_RANGE));
     }, 1000);
 
-    var act = $('#drawer-side .list-group-item.active');
-    if (act[0]) {
-        var scrollTop = act.offset().top - act.height() * 4;
-        act.attr('offset', scrollTop);
-        $('#drawer-side').scrollTop(scrollTop);
-    }
+    scrollToActiveChapter();
 
     return true;
 }

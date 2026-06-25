@@ -123,12 +123,8 @@ if(localStorage.getItem('prev-chapter'))
 {
     $('.pages-container').children().last().click()
     localStorage.removeItem('prev-chapter')
-    save_record()
 }
-else
-{
-    save_record()
-}
+
 
 for(var i=0;i<page_num+1;i++)
 {
