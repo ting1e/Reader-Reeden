@@ -1,24 +1,25 @@
-<div class="list-group list-group-flush overflow-hidden">
+<div class="flex flex-col gap-1">
     {% for m in bookmark_list %}
-        <form action="{% url 'reader:book_view' %}" method="POST" class="overflow-hidden border-bottom pb-2 mb-2">
-            {% csrf_token %}
-            <input type="hidden" name="book_id" value="{{ m.book_id }}">
-            <input type="hidden" name="chapter_id" value="{{ m.chapter_id }}">
-            <input type="hidden" name="words_read" value="{{ m.words_read }}">
-            <button type="submit" class="list-group-item bookmark_redirect" style="background:none;border:none;width:100%;text-align:left;cursor:pointer;padding:0;">
-                <div class="d-flex align-items-center mb-1 overflow-hidden">
-                    <i class="bi bi-bookmark-fill text-primary me-2 small flex-shrink-0"></i>
-                    <span class="text-primary fw-bold small text-truncate">{{ m.chapter_title }}</span>
-                </div>
-                <div class="text-break book-tittle text-muted ps-4">
-                    {{ m.content }}
-                </div>
-            </button>
-        </form>
+    <form action="{% url 'reader:book_view' %}" method="POST"
+        class="border-b border-base-300 pb-2 mb-2 last:border-b-0 last:pb-0 last:mb-0">
+        {% csrf_token %}
+        <input type="hidden" name="book_id" value="{{ m.book_id }}">
+        <input type="hidden" name="chapter_id" value="{{ m.chapter_id }}">
+        <input type="hidden" name="words_read" value="{{ m.words_read }}">
+        <button type="submit" class="list-group-item w-full text-left cursor-pointer p-0 bg-transparent border-0">
+            <div class="flex items-center gap-2 mb-1 overflow-hidden">
+                <i class="bi bi-bookmark-fill text-primary flex-shrink-0 text-sm"></i>
+                <span class="text-primary font-bold text-sm truncate">{{ m.chapter_title }}</span>
+            </div>
+            <div class="break-words book-tittle text-base-content/50 text-sm pl-6">
+                {{ m.content }}
+            </div>
+        </button>
+    </form>
     {% empty %}
-        <div class="text-center text-muted py-4">
-            <i class="bi bi-bookmark" style="font-size: 1.5rem;"></i>
-            <p class="mt-2 mb-0 small">暂无书签</p>
-        </div>
+    <div class="text-center text-base-content/50 py-8">
+        <i class="bi bi-bookmark text-2xl"></i>
+        <p class="mt-2 text-sm">暂无书签</p>
+    </div>
     {% endfor %}
 </div>

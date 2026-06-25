@@ -1,4 +1,3 @@
-
 .book-tittle{
     overflow:hidden;
 	text-overflow:ellipsis;
@@ -8,7 +7,6 @@
 	-webkit-box-align: center;
 	-webkit-line-clamp:3;
 }
-
 
 article{
     columns: calc(100vw - 32px) 1;
@@ -20,11 +18,6 @@ article{
 .article-container{
     overflow-x: hidden;
 }
-
-.desktop-only-fixed{
-    position: fixed;
-}
-
 
 /*uploadify CSS Document */
 .uploadify-button{
@@ -47,11 +40,11 @@ article{
 }
 .uploadfile{
 	width:0;
-	}
+}
 .uploadify-queue .uploadify-queue-item{
 	list-style-type:none;
 	margin-top:10px;
-	}
+}
 .uploadbtn,.delfilebtn{
 	display:inline-block;
 	border:1px solid #999;
@@ -61,18 +54,15 @@ article{
     font-size:12px;
 	color:#666;
 	text-decoration:none;
-	}
-.uploadbtn{
-	display: none;/*默认不显示上传按钮，非自动上传时用js控制显示*/
 }
-.disabledbtn{
-
+.uploadbtn{
+	display: none;
 }
 .up_filename,.progressnum,.delfilebtn,.uploadbtn,.up_percent{
 	font-size:12px;
 	color:#666;
 	margin-left:10px;
-	}
+}
 .uploadify-progress{
 	 display:inline-block;
 	 width:600px;
@@ -82,31 +72,36 @@ article{
 	 border:2px groove #666;
 	 vertical-align:middle;
 	 padding:0;
-	 }
+}
 .uploadify-progress-bar{
 	width:0;
 	height:100%;
 	border-radius:20px;
 	background-color: #0099FF;
-	}
-
-
-.form-signin {width: 100%;max-width: 330px;padding: 15px;margin: 0 auto;}
-.form-signin .checkbox {font-weight: 400;}
-.form-signin .form-control {position: relative;box-sizing: border-box;height: auto;padding: 10px;font-size: 16px;}
-.form-signin .form-control:focus {z-index: 2;}
-.form-signin input[type="email"] {margin-bottom: -1px;border-bottom-right-radius: 0;border-bottom-left-radius: 0;}
-.form-signin input[type="password"] {margin-bottom: 10px;border-top-left-radius: 0;border-top-right-radius: 0;}
-
-.noa{
-	display: block;
-	color:#666;
-	text-decoration:none;
 }
 
-button {
-	all: unset;
-	display: block;
-	width: 100%;
-	cursor: pointer;
+
+/* 兼容 Firefox */
+.custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(156, 163, 175, 0.5) transparent; /* 对应 Tailwind 的 gray-400 */
+}
+
+/* 兼容 Chrome / Edge / Safari */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background-color: rgba(156, 163, 175, 0.5); /* 稳妥的通用灰色 */
+    border-radius: 9999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(156, 163, 175, 0.8); /* hover 时加深 */
 }

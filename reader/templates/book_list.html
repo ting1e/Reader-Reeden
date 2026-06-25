@@ -1,40 +1,35 @@
 
-
 {% extends "base.html" %}
 
 {% block title %}Reader{% endblock %}
 
 {% block content %}
 
-
-
 <main>
   {% include 'header.html' %}
 
-  <div class="container">
-    <div class="row">
+  <div class="container mx-auto px-4">
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
       {% load static %}
       {% for book in book_list %}
-      <div class="col-2" >
+      <div>
         <form method="POST" action="{% url 'reader:book_view' %}">
           {% csrf_token %}
-          <input  type="hidden" name="book_id" value="{{ book.id }}">
-          <button class="card mb-4 border-0 p-0" type="submit" ><div class="card mb-4 border-0" >
-            <img src="{% static 'images/1.jpg' %}" class="w-100 h-100 mb-0 me-0"> 
-            <div class="text-break w-100 overflow-hidden mt-2 book-tittle">
-                  {{ book.name }}
-                
-                </div>
+          <input type="hidden" name="book_id" value="{{ book.id }}">
+          <button class="card card-compact bg-base-100 shadow-sm hover:shadow-md transition-shadow duration-150 w-full border-0 text-left cursor-pointer" type="submit">
+           <img src="{% static 'images/book.png' %}" alt="{{ book.name }}">
+            <div class="card-body p-2">
+              <div class="text-base-content/80 break-words overflow-hidden book-tittle text-sm">
+                {{ book.name }}
+              </div>
+            </div>
           </button>
-      
         </form>
-        
-        </a>
       </div>
       {% endfor %}
     </div>
   </div>
-  
+
 </main>
 {% endblock %}
 

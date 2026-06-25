@@ -1,21 +1,22 @@
-<div class="list-group list-group-flush overflow-hidden">
+<div class="flex flex-col gap-1">
     {% for item in list %}
     <form action="{% url 'reader:book_view' %}" method="POST">
         {% csrf_token %}
         <input type="hidden" name="book_id" value="{{ item.book_pk }}">
         <input type="hidden" name="chapter_id" value="{{ item.chapter_pk }}">
         <input type="hidden" name="words_read" value="{{ item.offset }}">
-        <button type="submit" class="list-group-item list-group-item-action text-wrap text-start {% if chapter_pk == item.chapter_pk %}active{% endif %}">
-            <small class="text-muted d-block mb-1">
+        <button type="submit" class="list-group-item w-full text-left px-3 py-2 rounded-lg transition-colors duration-150 cursor-pointer border-0
+            {% if chapter_pk == item.chapter_pk %}bg-primary text-primary-content{% else %}text-base-content/70 hover:bg-base-300{% endif %}">
+            <small class="text-base-content/50 block mb-1 text-xs">
                 <i class="bi bi-arrow-return-right me-1"></i>{{ item.chapter_title }}
             </small>
-            <span class="text-break">{{ item.content }}</span>
+            <span class="break-words text-sm">{{ item.content }}</span>
         </button>
     </form>
     {% empty %}
-        <div class="text-center text-muted py-4">
-            <i class="bi bi-search" style="font-size: 1.5rem;"></i>
-            <p class="mt-2 mb-0 small">未找到匹配内容</p>
+        <div class="text-center text-base-content/50 py-8">
+            <i class="bi bi-search text-2xl"></i>
+            <p class="mt-2 text-sm">未找到匹配内容</p>
         </div>
     {% endfor %}
 </div>

@@ -306,5 +306,5 @@ def ret_null(request):
 
 
 def test_requset(request):
-    form_book.handle_local_book(request,'temp/《遮天》（精校版全本）作者：辰东.txt')
+    form_book.handle_local_book(request,'/home/ubuntu/Reader-Reeden/temp/《诛仙》（校对版全本）作者：萧鼎.txt')
     return HttpResponse('done')

@@ -1,90 +1,74 @@
-<header class="p-3 mb-3 border-bottom px-0">
-    <div class="container">
-      <div class="d-flex flex-wrap align-items-center justify-content-start ">
-        {% with request.resolver_match.url_name as url_name %}
-        <ul class="nav nav-pills col-auto me-lg-auto mb-2 mb-md-0 d-flex">
-                <li class="nav-item" ><a href="{% url 'reader:book_list'%}" class="nav-link {% if url_name == 'book_list' %}active{% endif %}">书库</a></li>
-                {% if request.user.is_authenticated %}
-                <li class="nav-item"><a href="#" class="nav-link {% if url_name == 'upload_file' %}active{% endif %}">进度</a></li>
-                {% endif %}
-                <!-- <li class="nav-item"><a href="#" class="nav-link">阅读记录</a></li>
-                <li class="nav-item"><a href="#" class="nav-link">FAQs</a></li>
-                <li class="nav-item"><a href="#" class="nav-link">About</a></li> -->
-        </ul>
-        {% endwith %}
+<header class="bg-base-100 shadow-sm w-full mb-4">
+  <div class="navbar container mx-auto px-4">
+    <div role="tablist" class="tabs tabs-border flex-1 ">
+      {% with request.resolver_match.url_name as url_name %}
+      <a role="tab" href="{% url 'reader:book_list'%}" class="text-base tab {% if url_name == 'book_list' %} tab-active{% endif %}">书库</a>
+      {% if request.user.is_authenticated %}
+      <a role="tab" href="#" class="tab text-base ">进度</a>
+      {% endif %}
+      {% endwith %}
 
-        <form class="col-6 col-lg-auto ms-2 me-2 me-lg-3" role="search" Onsubmit="return false;">
-          <input type="search" class="form-control content-serarch" placeholder="搜索..." aria-label="Search" control-id="ControlID-2">
-        </form>
-
-        {% if request.user.is_authenticated %}
-          <div class="dropdown text-end">
-            <a href="#" class="d-block link-dark text-decoration-none dropdown-toggle" id="dropdownUser1" data-bs-toggle="dropdown" aria-expanded="false">
-              <img  src="https://i0.hdslb.com/bfs/face/member/noface.jpg@240w_240h_1c_1s.webp" alt-src="https://i0.hdslb.com/bfs/face/member/noface.jpg@240w_240h_1c_1s.webp" alt="mdo" width="32" height="32" class="rounded-circle">
-            </a>
-            <ul class="dropdown-menu text-small" aria-labelledby="dropdownUser1">
-              <li><a class="dropdown-item" href="#">书籍管理</a></li>
-              <!-- <li><a class="dropdown-item" href="#">Settings</a></li>
-              <li><a class="dropdown-item" href="#">Profile</a></li> -->
-              <li><hr class="dropdown-divider"></li>
-              <li><a class="dropdown-item" href="{% url 'reader:logout' %}">Sign out</a></li>
-            </ul>
-          </div>
-        {% else %}
-          <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#exampleModal">
-            登录
-          </button>
-          <!-- Modal -->
-          <div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-          <div class="modal-dialog modal-dialog-centered">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title" id="exampleModalLabel">登录</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body text-center">
-              <form class="form-signin login_form" Onsubmit="return false;">
-                <h1 class="h5 mb-3 font-weight-normal">请输入用户名和密码</h1>
-                {% csrf_token %}
-                <input type="text" name="username" class="form-control" placeholder="用户名" >
-                <input type="password" name="password" class="form-control"  placeholder="密码" >
-                <button class="btn btn-primary btn-block w-100 login_btn mt-2 mb-4">登录</button>
-                <div class = "login_msg  alert-danger"></div>
-              </form> 
-              <script>
-                    $('.login_btn').click(e=> {
-                      $.ajax({
-                        url: "{% url 'reader:login' %}", 
-                        type: 'post',
-                        data: $('.login_form').serialize(),
-                        // 上面data为提交数据，下面data形参指代的就是异步提交的返回结果data
-                        success: function (data){
-                          if(data != 'success')
-                          {
-                            $('.login_msg').text(data)
-                            $('.login_msg').addClass('alert alert-danger')
-                          }
-                          else
-                          {
-                            location.reload();
-                          }
-
-                        console.log(data);       
-                        }
-                      })
-
-                    })
-                </script>
-            
-            </div>
-            
-          </div>
-          </div>
-          </div>
-        {% endif%}
-      </div>
+      <a role="tab" class="tab">Tab 1</a>
+      <a role="tab" class="tab">Tab 3</a>
     </div>
-  </header>
+   
+    
+    <div class="flex gap-2">
+      <input type="text" placeholder="Search" class="input input-bordered w-24 md:w-auto content-serarch" />
+      
+      {% if request.user.is_authenticated %}
+      <div class="dropdown dropdown-end">
+        <div tabindex="0" role="button" class="btn btn-ghost btn-circle avatar">
+          <div class="w-10 rounded-full">
+            <img src="https://i0.hdslb.com/bfs/face/member/noface.jpg@240w_240h_1c_1s.webp" alt="avatar" />
+          </div>
+        </div>
+        <ul tabindex="-1" class="menu menu-sm dropdown-content bg-base-100 rounded-box z-1 mt-3 w-52 p-2 shadow">
+          <li><a href="#">书籍管理</a></li>
+          <li><a href="{% url 'reader:logout' %}">Sign out</a></li>
+        </ul>
+      </div>
+      {% else %}
+      <button type="button" class="btn btn-primary" onclick="login_modal.showModal()">登录</button>
 
+      <dialog id="login_modal" class="modal">
+        <div class="modal-box">
+          <form method="dialog">
+            <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+          </form>
+          <h3 class="text-lg font-bold mb-2">登录</h3>
+          <form class="login_form" onsubmit="return false;">
+            <p class="mb-3 text-sm text-base-content/60">请输入用户名和密码</p>
+            {% csrf_token %}
+            <input type="text" name="username" class="input input-bordered w-full mb-2" placeholder="用户名" required />
+            <input type="password" name="password" class="input input-bordered w-full mb-4" placeholder="密码" required />
+            <button class="btn btn-primary w-full login_btn" type="button">登录</button>
+            <div class="login_msg mt-2 hidden"></div>
+          </form>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+          <button>close</button>
+        </form>
+      </dialog>
 
-  <div class="b-example-divider"></div>
+      <script>
+        $('.login_btn').click(e => {
+          $.ajax({
+            url: "{% url 'reader:login' %}",
+            type: 'post',
+            data: $('.login_form').serialize(),
+            success: function (data) {
+              if (data != 'success') {
+                $('.login_msg').text(data).removeClass('hidden').addClass('alert alert-error');
+              } else {
+                location.reload();
+              }
+            }
+          })
+        })
+      </script>
+      {% endif %}
+    </div>
+    
+  </div>
+</header>

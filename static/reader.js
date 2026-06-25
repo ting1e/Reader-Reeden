@@ -1,5 +1,5 @@
 var offcanvasLeft = new bootstrap.Offcanvas($('.offcanvas-start'))
-var offcanvasSetting = new bootstrap.Offcanvas($('.offcanvas-bottom-setting'))
+var offcanvasSetting = new bootstrap.Toast(document.getElementById('offcanvassetting'))
 
 var page_width = $('article').width() + parseInt($('article').css('column-gap'))
 var page_num = parseInt(($('#marker').offset().left - $('article').offset().left)/ page_width +1)
@@ -170,7 +170,7 @@ $('.search-btn').click(function(){
 })
 
 
-$('#offcanvassetting').on('show.bs.offcanvas', function () {
+$('#offcanvassetting').on('show.bs.toast', function () {
     $('.font-value').text(parseInt($('article').css('font-size')))
     // $().addClass('bodder border-4 border-secondary')
 
@@ -234,7 +234,7 @@ $('.update-setting').click(function(){
 })
 
 $('.setting-btn').click(function(){
-    offcanvasSetting.toggle()
+    document.getElementById('offcanvassetting').classList.contains('show') ? offcanvasSetting.hide() : offcanvasSetting.show()
 })
 
 $('.bookmark-btn').click(function(){

@@ -21,169 +21,151 @@ article{
     {% endif %}
 {% endif %}
 
-
-.offcanvas-backdrop.show {
-    opacity: 0;
-}
-
 </style>
 
-<main class="vh-100">
-    
-    
-    {% include 'header.html' %}
+<div class="drawer">
+  <input id="drawer-left" type="checkbox" class="drawer-toggle" />
 
-    <div class="container">
-        <div class="article-container">
-            {{chapter_view|safe}}
+  <div class="drawer-content">
+    <main class="min-h-screen">
+
+        {% include 'header.html' %}
+
+        <div class="container mx-auto px-4">
+            <div class="article-container">
+                {{chapter_view|safe}}
+            </div>
+
+            <div class="page-nav py-3">
+                <nav aria-label="Page navigation">
+                    <div class="join flex justify-between w-full">
+                        <div class="flex gap-0">
+                            <button class="btn btn-outline btn-sm join-item prev-chapter" type="button">上一章</button>
+                            <button class="btn btn-outline btn-sm join-item page-item prev-page" type="button">上一页</button>
+                        </div>
+
+                        <div class="pages-container join justify-center flex">
+
+                        </div>
+
+                        <div class="flex gap-0">
+                            <button class="btn btn-outline btn-sm join-item page-item next-page" type="button">下一页</button>
+                            <button class="btn btn-outline btn-sm join-item next-chapter" type="button">下一章</button>
+                        </div>
+                    </div>
+                </nav>
+            </div>
+
         </div>
-    
-        <div class="page-nav">
-            <nav aria-label="Page navigation example w-100">
-                <ul class="pagination d-flex justify-content-between">
-                    <div class="d-flex">
-                        <li class="page-item "><a class="page-link prev-chapter" href="#">上一章</a></li>
-                        <li class="page-item prev-page"><a class="page-link " href="#">上一页</a></li>
 
+        <!-- Settings Toast -->
+        <div id="offcanvassetting" class="toast toast-top toast-end" style="display:none; z-index: 1080;">
+            <div class="alert shadow-lg bg-base-100 border border-base-300 p-4" style="min-width: 260px;">
+                <div class="flex flex-col gap-3">
+                    <div class="flex items-center justify-center gap-2">
+                        <button class="btn btn-outline btn-sm dec-font update-setting" type="button">A-</button>
+                        <span class="font-value text-center w-16 font-medium text-sm"> </span>
+                        <button class="btn btn-outline btn-sm inc-font update-setting" type="button">A+</button>
                     </div>
 
-                    <div class="pages-container d-flex justify-content-center">
-
-                    </div>
-
-                    <div class="d-flex">
-                        <li class="page-item next-page"><a class="page-link" href="#">下一页</a></li>
-                        <li class="page-item float-end"><a class="page-link next-chapter" href="#">下一章</a></li>
-                    </div>
-                </ul>
-            </nav>
+                    <ul class="flex justify-center gap-2" style="height: 40px;">
+                        <li class="w-8 h-8 rounded border cursor-pointer bg-setting read-white update-setting" style="background: #fff;"></li>
+                        <li class="w-8 h-8 rounded border cursor-pointer bg-setting read-blue update-setting" style="background: #c3d4e6;"></li>
+                        <li class="w-8 h-8 rounded border cursor-pointer bg-setting read-green update-setting" style="background: #c8e8c8;"></li>
+                        <li class="w-8 h-8 rounded border cursor-pointer bg-setting read-yellow update-setting" style="background: #c4b395"></li>
+                        <li class="w-8 h-8 rounded border cursor-pointer bg-setting read-black update-setting" style="background: #000"></li>
+                    </ul>
+                </div>
+            </div>
         </div>
-    
-        
-    </div>
-    
-    <div class="offcanvas offcanvas-start col-lg-3" data-bs-scroll="false" data-bs-backdrop="false" tabindex="-1" id="offcanvasLeft" aria-labelledby="offcanvasLeftLabel"> 
-        <div class="offcanvas-header">
-            <ul class="nav nav-pills me-1" id="pills-tab" role="tablist">
-                <li class="nav-item chapter-list-show" role="presentation">
-                <a class="nav-link active" id="pills-home-tab" data-bs-toggle="pill" href="#pills-home" role="tab" aria-controls="pills-home" aria-selected="true">目录</a>
+
+        <!-- Floating action buttons -->
+        <div style="right: 20px; bottom: 20px; position: fixed; z-index: 50;">
+            <ul class="flex flex-col gap-2">
+                <li>
+                    <label for="drawer-left" class="btn btn-square btn-sm bg-base-100 border border-base-300 shadow-md hover:bg-base-200 chapter_list_btn" aria-label="目录">
+                        <i class="bi bi-list text-lg"></i>
+                    </label>
                 </li>
-                <li class="nav-item bookmark-show" role="presentation">
-                <a class="nav-link" id="pills-profile-tab" data-bs-toggle="pill" href="#pills-profile" role="tab" aria-controls="pills-profile" aria-selected="false">书签</a>
+                <li>
+                    <a href="#" class="btn btn-square btn-sm bg-base-100 border border-base-300 shadow-md hover:bg-base-200 bookmark-btn" aria-label="书签">
+                        <i class="bi bi-bookmark-star text-lg"></i>
+                    </a>
                 </li>
-                
+                <li>
+                    <a href="#" class="btn btn-square btn-sm bg-base-100 border border-base-300 shadow-md hover:bg-base-200 setting-btn" aria-label="设置">
+                        <i class="bi bi-gear text-lg"></i>
+                    </a>
+                </li>
             </ul>
-            <input class="w-auto">
-            <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
         </div>
-        <div class="offcanvas-body ">  
-            
-            <div class="tab-content" id="pills-tabContent">
-                <div class="tab-pane fade show active" id="pills-home" role="tabpanel" aria-labelledby="pills-home-tab">
-                    <div class="chapter_list_container"></div>
-                </div>
 
-                <div class="tab-pane fade text-wrap" id="pills-profile" role="tabpanel" aria-labelledby="pills-profile-tab">
-                    <div class="bookmark_list_container">
-                    </div>
-                    
+        <!-- Search Modal -->
+        <dialog class="modal myModal">
+            <div class="modal-box max-w-4xl">
+                <form method="dialog">
+                    <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+                </form>
+                <h3 class="text-lg font-bold mb-3 search-modal-title">全文搜索</h3>
+                <div class="mb-3">
+                    <form role="search" onsubmit="return false;">
+                        <input type="search" class="input input-bordered w-full content-serarch" placeholder="搜索..." aria-label="Search">
+                    </form>
+                </div>
+                <div class="search-res max-h-96 overflow-y-auto">
                 </div>
             </div>
+            <form method="dialog" class="modal-backdrop">
+                <button>close</button>
+            </form>
+        </dialog>
 
-            
-            
-        </div>
-    </div>
-    <div class="offcanvas offcanvas-end offcanvas-bottom-setting h-auto col-lg-3 col-xl-3 col-xxl-2" data-bs-scroll="true"  tabindex="-1" id="offcanvassetting" aria-labelledby="offcanvasBottomLabel"> 
-        <div class="col-12  mx-auto">
-            <div class="container-fluid">
-                <div class="input-group  p-3  justify-content-center">
-                    <button class="btn btn-outline-secondary dec-font update-setting" type="button">A-</button>
-                    <span class="form-control flex-grow-0 w-25 font-value text-center"> </span>
-                    <!-- <span type="text" class="form-control flex-grow-0 w-25 font-value text-center" > -->
-                    <button class="btn btn-outline-secondary inc-font update-setting" type="button">A+</button>
+        <!-- Settings Modal (unused, kept for compatibility) -->
+        <dialog class="modal setting_modal">
+            <div class="modal-box">
+                <form method="dialog">
+                    <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+                </form>
+                <h3 class="text-lg font-bold">设置</h3>
+                <div class="py-4">
+                    <p>Modal body text goes here.</p>
                 </div>
-                
-                <ul class="nav nav-fill justify-content-center text-light pb-2" style="height: 80px;">
-                    <li class="nav-item rounded m-2 border bg-setting read-white update-setting" style="background: #fff;"></li>
-                    <li class="nav-item rounded m-2 border bg-setting read-blue update-setting" style="background: #c3d4e6;"></li>
-                    <li class="nav-item rounded m-2 border bg-setting read-green update-setting" style="background: #c8e8c8;"></li>
-                    <li class="nav-item rounded m-2 border bg-setting read-yellow update-setting" style="background: #c4b395"></li>
-                    <li class="nav-item rounded m-2 border bg-setting read-black update-setting" style="background: #000"></li>
-
-                </ul>
             </div>
-            
-           
-        </div>
-        
-    </div>
+            <form method="dialog" class="modal-backdrop">
+                <button>close</button>
+            </form>
+        </dialog>
+    </main>
+  </div>
 
-    <div style="right: 20px; bottom:20px;position: fixed;">
-        
-        <ul class="nav nav-pills nav-flush flex-column mb-auto text-center" style="font-size: 20px;">
-            
-            <li class="nav-item">
-                <a href="#" class="nav-link  px-2 py-1 active border-bottom chapter_list_btn" aria-current="page" title="" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-original-title="Home">
-                    <i class="bi bi-list"></i>
-                </a>
-            </li>
-            <li class="nav-item">
-                <a href="#" class="nav-link  px-2 py-1 active border-bottom bookmark-btn" >
-                    <i class="bi bi-bookmark-star"></i>
-                </a>
-            </li>
-            <li class="nav-item">
-                <a href="#" class="nav-link  px-2 py-1 active border-bottom setting-btn" aria-current="page" title=""  >
-                    <i class="bi bi-gear"></i>
-                </a>
-            </li>
-          </ul>
-
-    </div>
-    <!-- Scrollable modal -->
-    <div class="modal myModal">
-        <div class="modal-dialog modal-dialog-scrollable modal-xl">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title search-modal-title">全文搜索</h5>
-                    <div style="margin: -0.5rem 0.5rem -0.5rem auto;">
-                        <form class="col-6 col-lg-auto ms-2 me-2 me-lg-3 w-100" role="search" onsubmit="return false;">
-                            <input type="search" class="form-control content-serarch" placeholder="搜索..." aria-label="Search" control-id="ControlID-2">
-                        </form>
-                    </div>
-                
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" style="margin: -0.5rem -0.5rem -0.5rem 0.5rem;"></button>
-                </div>
-                <div class="modal-body search-res">
-                <!-- <p>Modal /body text goes here.</p> -->
-                </div>
-                
-            </div>
-        </div>
-    </div>
-
-   
-
-    <div class="modal setting_modal">
-        <div class="modal-dialog modal-dialog-scrollable  modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">设置</h5>
-                    
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" style="margin: -0.5rem -0.5rem -0.5rem 0.5rem;"></button>
-                </div>
-                <div class="modal-body">
-                <p>Modal body text goes here.</p>
-                </div>
-                
-            </div>
-        </div>
-    </div>
-</main>
-
-
+  <!-- Drawer side panel (formerly offcanvas) -->
+  <div class="drawer-side z-40" id="drawer-side">
+    <label for="drawer-left" aria-label="关闭侧栏" class="drawer-overlay" style="background: transparent;"></label>
     
+    <div class="flex flex-col w-80 h-screen bg-base-100 text-base-content rounded-r-2xl shadow-2xl border-r border-base-200">        
+        <div class="p-4 pb-0 shrink-0">
+            <div role="tablist" class="tabs tabs-border">
+                <a role="tab" class="tab flex-1 tab-active chapter-list-show" data-tab="chapters">目录</a>
+                <a role="tab" class="tab flex-1 bookmark-show" data-tab="bookmarks">书签</a>
+            </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto min-h-0 mt-2 p-4 custom-scrollbar">
+            
+            <div id="tab-chapters">
+                <div class="chapter_list_container"></div>  
+
+            </div>
+            
+            <div id="tab-bookmarks" class="hidden">
+                <div class="bookmark_list_container"></div>
+            </div>
+            
+        </div>
+    </div>
+</div>
+</div>
+
 {% endblock %}
 
 {% block body-bottom %}
@@ -210,9 +192,8 @@ article{
     var url_bookmark_list = "{% url 'reader:bookmark_list' request.user.id  book_id %}"
     {% endif %}
     </script>
-    
+
     <script src="{% static 'reader.js' %}"></script>
-    
-    
+
+
     {% endblock %}
-    

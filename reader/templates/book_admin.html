@@ -6,24 +6,32 @@
 
 {% block content %}
 
-
-
 <main>
   {% include 'header.html' %}
 
-  <div class="container">
-    <div class="row">
-        <ul  class="list-group">
+  <div class="container mx-auto px-4 py-4">
+    <div class="overflow-x-auto">
+      <table class="table table-zebra">
+        <thead>
+          <tr>
+            <th>书名</th>
+            <th class="text-right">操作</th>
+          </tr>
+        </thead>
+        <tbody>
             {% for book in book_list %}
-            <li class="list-group-item float-right">{{ book.title }} 
-                <a class="btn btn-danger float-end" href="{% url 'reader:book_del' book.id %}">删除</a>
-                
-            </li>
+            <tr>
+              <td>{{ book.title }}</td>
+              <td class="text-right">
+                <a class="btn btn-error btn-sm text-white" href="{% url 'reader:book_del' book.id %}">删除</a>
+              </td>
+            </tr>
             {% endfor %}
-          </ul>
+          </tbody>
+      </table>
     </div>
   </div>
-  
+
 </main>
 {% endblock %}
 

@@ -1,17 +1,17 @@
-<div class="list-group">
-{% for c in chapter_list %}
-<div >
-    <form method="POST" action="{% url 'reader:book_view' %}">
-        {% csrf_token %}
-        <input  type="hidden" name="book_id" value="{{ c.book_id }}">
-        <input  type="hidden" name="chapter_id" value="{{ c.id  }}">
-        <button class="list-group-item{% if chapter_id == c.id %} active{% endif %}" type="submit" data-chapter-id="{{ c.id }}" style="width:90%">
-            {{ c.title }}
-        </button>
-    
-    </form>
-
-</div>
-
-{% endfor %}
+<div class="flex flex-col gap-1">
+    {% for c in chapter_list %}
+    <div>
+        <form method="POST" action="{% url 'reader:book_view' %}">
+            {% csrf_token %}
+            <input type="hidden" name="book_id" value="{{ c.book_id }}">
+            <input type="hidden" name="chapter_id" value="{{ c.id }}">
+            <button
+                class="list-group-item w-full text-left px-3 py-2 rounded-lg text-sm transition-colors duration-150 cursor-pointer border-0
+                                {% if chapter_id == c.id %} bg-primary text-primary-content font-medium{% else %} text-base-content/70 hover:bg-base-300{% endif %}"
+                type="submit" data-chapter-id="{{ c.id }}">
+                {{ c.title }}
+            </button>
+        </form>
+    </div>
+    {% endfor %}
 </div>
