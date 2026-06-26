@@ -10,6 +10,9 @@ urlpatterns = [
     # path('<int:pk>/results/', views.ResultsView.as_view(), name='results'),
     path('books/', views.BookListView.as_view(), name='book_list'),
     path('books_remote/', views.BookListRemoteView.as_view(), name='book_list_remote'),
+    path('open_remote/', views.open_remote_book, name='open_remote_book'),
+    path('book_admin/', views.book_admin, name='book_admin'),
+    path('book_local_del/<int:pk>/', views.book_local_del, name='book_local_del'),
 
     path('login/', views.login_auth, name='login'),
     path('logout/', views.logout_view, name='logout'),

@@ -210,9 +210,6 @@ function showSettingsToast() {
     });
 
     toast.show();
-    // Auto-hide after 8 seconds
-    if (window.settingToastTimer) clearTimeout(window.settingToastTimer);
-    window.settingToastTimer = setTimeout(function() { toast.hide(); }, 8000);
 }
 
 $('.setting-btn').click(function(){
@@ -225,7 +222,6 @@ $('.setting-btn').click(function(){
 });
 
 $('.setting-close').click(function(){
-    if (window.settingToastTimer) clearTimeout(window.settingToastTimer);
     $('#offcanvassetting').hide();
 });
 

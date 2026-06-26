@@ -59,6 +59,7 @@ class UserSetting(models.Model):
     font_size = models.IntegerField(default=16)
     read_bg = models.CharField(max_length=256,default='#fff')
     s3_setting = models.CharField(max_length=4096,default='"{\"accessKeyId\":\"YOUR_ACCESS_KEY\",\"secretAccessKey\":\"YOUR_SECRET_KEY\",\"region\":\"us-east-1\",\"endpoint\":\"https://s3.us-east-1.amazonaws.com\",\"bucket\":\"YOUR_BUCKET_NAME\",\"prefix\":\"YOUR_FOLDER_NAME/\"}"')
+    chapter_rule = models.CharField(max_length=1024, default=r'^[ 　\t]{0,4}(?:序章|楔子|正文(?!完|结)|终章|后记|尾声|番外|第\s{0,4}[\d〇零一二两三四五六七八九十百千万壹贰叁肆伍陆柒捌玖拾佰仟廿卅]+?\s{0,4}(?:章|折|节(?!课)|卷|集(?![合和])|部(?![分赛游])|篇(?!张))).{0,30}$')
 
 class UserBookMark(models.Model):
     user_id = models.IntegerField()

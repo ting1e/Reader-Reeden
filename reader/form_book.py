@@ -4,6 +4,7 @@ from django.views import generic
 from django.shortcuts import get_object_or_404, redirect, render
 from django.contrib.auth import authenticate,login,logout
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
 import os
 
 
@@ -13,6 +14,8 @@ def handle_local_book(request,url):
     file_name = os.path.basename(url).replace('.txt','')
     book = Book(book_url = url)
     book.name = file_name
+    book.file_name = os.path.basename(url)
+    book.local = True
     if request.user.is_authenticated:
         book.uploader = request.user.id
 
@@ -21,48 +24,63 @@ def handle_local_book(request,url):
         charset = chardet.detect(f.read()[:5000])["encoding"] 
     book.charset = charset
     
-    # book.save()
     with open(url,'r',encoding=charset) as f:
         data = f.read()
         pat = u'^[ 　\t]{0,4}(?:序章|楔子|正文(?!完|结)|终章|后记|尾声|番外|第\s{0,4}[\d〇零一二两三四五六七八九十百千万壹贰叁肆伍陆柒捌玖拾佰仟廿卅]+?\s{0,4}(?:章|折|节(?!课)|卷|集(?![合和])|部(?![分赛游])|篇(?!张))).{0,30}$'
-        # pat = u'(?<=[　\s])(?:序章|序言|卷首语|扉页|楔子|正文(?!完|结)|终章|后记|尾声|番外|第?\s{0,4}[\d〇零一二两三四五六七八九十百千万壹贰叁肆伍陆柒捌玖拾佰仟]+?\s{0,4}(?:章|节(?!课)|卷|集(?![合和])|部(?![分赛游])|篇(?!张))).{0,30}$'
+        if request.user.is_authenticated:
+            setting = UserSetting.objects.filter(user_id=request.user.id).first()
+            if setting and setting.chapter_rule:
+                pat = setting.chapter_rule
         book.rule = pat
         
-        pattern = re.compile(pat)
+        pattern = re.compile(pat, re.MULTILINE)
         match = pattern.finditer(data)
 
         wc = len(data)
         book.word_count = wc
-        book.save()
+        with transaction.atomic():
+            book.save()
 
-        offset = 0
-        total_ch_num = 0
-        chpt_name = '前言'
-        for chpt in match:
-            
-            tit_st = chpt.span()[0]
-            if offset == 0:
-                book.first_chapter_title = chpt.group()
-                book.intro = data[:min(tit_st,512)]
-                chapter = Chapter(title=chpt_name,book_id = book.id,book_url=url,index=total_ch_num,start=offset,end=tit_st)
-                chapter.save()
-                book.first_chapter_id = chapter.id
-                offset = tit_st
-                chpt_name = str(chpt.group())
-            else:
-                chapter = Chapter(title=chpt_name,book_id = book.id,book_url=url,index=total_ch_num,start=offset,end=tit_st)
-                chapter.save()
-                offset = tit_st
-                chpt_name = str(chpt.group())
+            chapters_to_create = []
+            offset = 0
+            total_ch_num = 0
+            chpt_name = '前言'
+            has_match = False
+            for chpt in match:
+                has_match = True
+                tit_st = chpt.span()[0]
+                if offset == 0:
+                    book.first_chapter_title = chpt.group()
+                    book.intro = data[:min(tit_st,512)]
+                    chapters_to_create.append(Chapter(title=chpt_name,book_id = book.id,book_url=url,index=total_ch_num,start=offset,end=tit_st))
+                    offset = tit_st
+                    chpt_name = str(chpt.group())
+                else:
+                    chapters_to_create.append(Chapter(title=chpt_name,book_id = book.id,book_url=url,index=total_ch_num,start=offset,end=tit_st))
+                    offset = tit_st
+                    chpt_name = str(chpt.group())
 
-            total_ch_num+=1
-        book.last_chapter_title = chpt_name
-        chapter = Chapter(title=chpt_name,book_id = book.id,book_url=url,index=total_ch_num,start=offset,end=wc)
-        chapter.save()
-        book.last_chapter_id = chapter.id
+                total_ch_num+=1
 
-        book.total_chapter_num = total_ch_num
-        book.save()
+            if not has_match:
+                chapters_to_create.append(Chapter(title=chpt_name,book_id = book.id,book_url=url,index=0,start=0,end=wc))
+                created = Chapter.objects.bulk_create(chapters_to_create)
+                book.first_chapter_title = chpt_name
+                book.first_chapter_id = created[0].id
+                book.last_chapter_title = chpt_name
+                book.last_chapter_id = created[0].id
+                book.total_chapter_num = 0
+                book.save()
+                return 'true'
+
+            chapters_to_create.append(Chapter(title=chpt_name,book_id = book.id,book_url=url,index=total_ch_num,start=offset,end=wc))
+            created = Chapter.objects.bulk_create(chapters_to_create)
+
+            book.first_chapter_id = created[0].id
+            book.last_chapter_title = chpt_name
+            book.last_chapter_id = created[-1].id
+            book.total_chapter_num = total_ch_num
+            book.save()
         return 'true'
     
     return 'error'

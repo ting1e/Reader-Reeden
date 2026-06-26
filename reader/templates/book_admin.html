@@ -1,38 +1,57 @@
 
-
 {% extends "base.html" %}
 
-{% block title %}Reader{% endblock %}
+{% block title %}书籍管理{% endblock %}
 
 {% block content %}
 
 <main>
   {% include 'header.html' %}
 
-  <div class="container mx-auto px-4 py-4">
+  <div class="container mx-auto px-4">
+    <h2 class="text-xl font-bold mb-4">书籍管理</h2>
+
+    {% if book_list %}
     <div class="overflow-x-auto">
       <table class="table table-zebra">
         <thead>
           <tr>
             <th>书名</th>
-            <th class="text-right">操作</th>
+            <th class="hidden sm:table-cell">字数</th>
+            <th class="hidden sm:table-cell">章节</th>
+            <th class="hidden md:table-cell">上传时间</th>
+            <th>操作</th>
           </tr>
         </thead>
         <tbody>
-            {% for book in book_list %}
-            <tr>
-              <td>{{ book.title }}</td>
-              <td class="text-right">
-                <a class="btn btn-error btn-sm text-white" href="{% url 'reader:book_del' book.id %}">删除</a>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
+          {% load static %}
+          {% for book in book_list %}
+          <tr>
+            <td class="break-words max-w-xs">{{ book.name }}</td>
+            <td class="hidden sm:table-cell">{{ book.word_count }}</td>
+            <td class="hidden sm:table-cell">{{ book.total_chapter_num }}</td>
+            <td class="hidden md:table-cell">{{ book.upload_time|date:"Y-m-d H:i" }}</td>
+            <td>
+              <form method="POST" action="{% url 'reader:book_local_del' book.id %}" class="inline"
+                    onsubmit="return confirm('确定删除《{{ book.name|escapejs }}》？\n\n只会删除本地文件和数据库记录，不会影响 S3 云端的书籍和进度。')">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-error btn-outline">
+                  <i class="bi bi-trash"></i> 删除
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
       </table>
     </div>
+    {% else %}
+    <div class="text-base-content/50 py-8 text-center">暂无本地书籍</div>
+    {% endif %}
   </div>
 
 </main>
+
 {% endblock %}
 
 {% block body-bottom %}

@@ -1,4 +1,5 @@
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
+from django.urls import reverse
 from .models import *
 from django.views import generic
 from django.shortcuts import get_object_or_404, redirect, render
@@ -14,6 +15,44 @@ import json
 import datetime
 import hashlib
 import uuid
+
+from django.conf import settings
+
+BASE_DIR = str(settings.BASE_DIR)
+
+def get_progress_dir():
+    d = os.path.join(BASE_DIR, 'local', 'book_progress')
+    os.makedirs(d, exist_ok=True)
+    return d
+
+def get_local_books_dir():
+    d = os.path.join(BASE_DIR, 'local', 'books')
+    os.makedirs(d, exist_ok=True)
+    return d
+
+def get_s3_config(user):
+    if not user.is_authenticated:
+        return None
+    setting = UserSetting.objects.filter(user_id=user.id).first()
+    if not setting:
+        return None
+    try:
+        s3_dict = json.loads(setting.s3_setting)
+        if isinstance(s3_dict, str):
+            s3_dict = json.loads(s3_dict)
+    except Exception:
+        return None
+    prefix = s3_dict.get('prefix', '')
+    if prefix and not prefix.endswith('/'):
+        prefix += '/'
+    return {
+        'access_key': s3_dict.get('accessKeyId'),
+        'secret_key': s3_dict.get('secretAccessKey'),
+        'region': s3_dict.get('region'),
+        'endpoint': s3_dict.get('endpoint'),
+        'bucket': s3_dict.get('bucket'),
+        'prefix': prefix,
+    }
 
 def make_naive_utc(dt):
     if dt is None:
@@ -115,8 +154,7 @@ def save_progress_json(book, chapter, words_read):
             paragraph_index = len(content_lines) - 1
             element_index = get_element_index(content_lines[-1])
 
-    temp_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'temp')
-    os.makedirs(temp_dir, exist_ok=True)
+    temp_dir = get_progress_dir()
     json_path = os.path.join(temp_dir, f"{md5_val}.json")
     
     old_data = None
@@ -217,7 +255,60 @@ class BookListRemoteView(generic.ListView):
                 except Exception as e:
                     print("Error parsing S3 settings or connecting to S3:", e)
         return remote_files
-        
+
+
+@login_required(login_url='reader:index')
+def open_remote_book(request):
+    """点击远程书籍：已在本地则直接打开，否则从 S3 下载到 local/books、
+    下载进度到 local/book_progress、入库分章后打开。"""
+    book_name = request.GET.get('name', '') if request.method == 'GET' else request.POST.get('name', '')
+    if not book_name:
+        return redirect('reader:book_list_remote')
+
+    existing = Book.objects.filter(file_name=book_name).first()
+    if existing:
+        return redirect(f"{reverse('reader:book_view')}?book_id={existing.id}")
+
+    cfg = get_s3_config(request.user)
+    if not cfg:
+        return HttpResponse('S3 未配置')
+
+    import boto3
+    s3_client = boto3.client(
+        's3',
+        aws_access_key_id=cfg['access_key'],
+        aws_secret_access_key=cfg['secret_key'],
+        region_name=cfg['region'],
+        endpoint_url=cfg['endpoint'],
+    )
+    bucket = cfg['bucket']
+    prefix = cfg['prefix']
+    s3_key = f'{prefix}books/{book_name}'
+
+    local_path = os.path.join(get_local_books_dir(), book_name)
+    try:
+        s3_client.download_file(bucket, s3_key, local_path)
+    except Exception as e:
+        print(f"Error downloading book from S3: {e}")
+        return HttpResponse(f'下载失败: {e}')
+
+    result = form_book.handle_local_book(request, local_path)
+    if result != 'true':
+        return HttpResponse('分章失败')
+
+    book = Book.objects.filter(file_name=book_name).first()
+    if not book:
+        return HttpResponse('入库失败')
+
+    try:
+        md5_val = get_file_md5(local_path)
+        progress_key = f'{prefix}book_progress/{md5_val}.json'
+        local_progress_path = os.path.join(get_progress_dir(), f'{md5_val}.json')
+        s3_client.download_file(bucket, progress_key, local_progress_path)
+    except Exception as e:
+        print(f"Error downloading progress from S3: {e}")
+
+    return redirect(f"{reverse('reader:book_view')}?book_id={book.id}")
 
 
 def BookView(request):
@@ -265,7 +356,7 @@ def BookView(request):
             return keyword_search(request, int(_book_id), int(_chapter_id), str(request.POST['kwd']))
         return HttpResponse('')
 
-    # ---- 确定 book_id：POST 表单
+    # ---- 确定 book_id：POST 表单 or GET 参数
     chapter_id = None
     book_id = None
     offset = 0
@@ -275,6 +366,14 @@ def BookView(request):
         if _ch:
             chapter_id = int(_ch)
         _off = request.POST.get('words_read')
+        if _off:
+            offset = int(_off)
+    elif request.method == 'GET' and 'book_id' in request.GET:
+        book_id = int(request.GET.get('book_id'))
+        _ch = request.GET.get('chapter_id')
+        if _ch:
+            chapter_id = int(_ch)
+        _off = request.GET.get('offset')
         if _off:
             offset = int(_off)
 
@@ -299,8 +398,7 @@ def BookView(request):
         file_record = None
         try:
             md5_val = get_file_md5(_book.book_url)
-            temp_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'temp')
-            json_path = os.path.join(temp_dir, f"{md5_val}.json")
+            json_path = os.path.join(get_progress_dir(), f"{md5_val}.json")
             if os.path.exists(json_path):
                 with open(json_path, 'r', encoding='utf-8') as f:
                     file_record = json.load(f)
@@ -508,15 +606,47 @@ def logout_view(request):
     return redirect('reader:book_list')
     # Redirect to a success page.
 
-def book_del(request,pk):
-    _book = get_object_or_404(Book,id = pk)
-    if request.user.is_superuser or request.user.id == _book.uploader:
-        chapter_list = Chapter.objects.filter(book_id = pk)
-        for i in chapter_list:
-            Content.objects.filter(id=i.content_id).delete()
-        chapter_list.delete()
-        UserBookRecord.objects.filter(book_id = pk).delete()
-        Book.objects.filter(id = pk).delete()
+@login_required(login_url='reader:index')
+def book_admin(request):
+    """书籍管理：列出所有本地书籍"""
+    if request.user.is_superuser:
+        book_list = Book.objects.all().order_by('-upload_time')
+    else:
+        book_list = Book.objects.filter(uploader=request.user.id).order_by('-upload_time')
+    return render(request, 'book_admin.html', {'book_list': book_list})
+
+
+@login_required(login_url='reader:index')
+def book_local_del(request, pk):
+    """删除本地书籍：只删除本地文件、进度、数据库记录，不触碰 S3"""
+    _book = get_object_or_404(Book, id=pk)
+    if not (request.user.is_superuser or request.user.id == _book.uploader):
+        return redirect('reader:book_admin')
+
+    try:
+        md5_val = get_file_md5(_book.book_url)
+    except Exception:
+        md5_val = None
+
+    try:
+        if os.path.exists(_book.book_url):
+            os.remove(_book.book_url)
+    except Exception as e:
+        print(f"Error deleting local book file: {e}")
+
+    if md5_val:
+        progress_path = os.path.join(get_progress_dir(), f'{md5_val}.json')
+        try:
+            if os.path.exists(progress_path):
+                os.remove(progress_path)
+        except Exception as e:
+            print(f"Error deleting progress file: {e}")
+
+    Chapter.objects.filter(book_id=pk).delete()
+    UserBookRecord.objects.filter(book_id=pk).delete()
+    UserBookMark.objects.filter(book_id=pk).delete()
+    Book.objects.filter(id=pk).delete()
+
     return redirect('reader:book_admin')
 
 

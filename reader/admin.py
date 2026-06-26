@@ -9,6 +9,7 @@ class UserSettingForm(ModelForm):
         fields = '__all__'
         widgets = {
             's3_setting': Textarea(attrs={'rows': 15, 'cols': 100}),
+            'chapter_rule': Textarea(attrs={'rows': 6, 'cols': 100}),
         }
 
 class UserSettingAdmin(admin.ModelAdmin):

@@ -13,24 +13,23 @@
       {% load static %}
       {% for book in book_list_remote %}
       <div>
-        <div class="card card-compact bg-base-100 shadow-sm hover:shadow-md transition-shadow duration-150 w-full border-0 text-left cursor-pointer">
-         <figure class="relative">
-           <img src="{% static 'images/book.png' %}" alt="{{ book.name }}">
-           {% if not book.in_db %}
-           <!-- 云朵下载图标（表示仅在云端，未在数据库中） -->
-           <div class="absolute bottom-1 right-1 bg-base-100/80 rounded-full p-1 shadow-sm">
-             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-primary" viewBox="0 0 20 20" fill="currentColor">
-               <path d="M5.5 16a3.5 3.5 0 01-.369-6.98 4 4 0 117.759-1.549V8a3.5 3.5 0 111.47 6.678l-8.86.322z" />
-             </svg>
-           </div>
-           {% endif %}
-         </figure>
-          <div class="card-body p-2">
-            <div class="text-base-content/80 break-words overflow-hidden book-tittle text-sm">
-              {{ book.name }}
+        <a href="{% url 'reader:open_remote_book' %}?name={{ book.name|urlencode }}" class="block">
+          <div class="card card-compact bg-base-100 shadow-sm hover:shadow-md transition-shadow duration-150 w-full border-0 text-left cursor-pointer">
+           <figure class="relative">
+             <img src="{% static 'images/book.png' %}" alt="{{ book.name }}">
+             {% if not book.in_db %}
+              <div class="absolute bottom-1 right-1">
+                <i class="bi bi-cloud text-base-content text-xl leading-none"></i>
+              </div>
+             {% endif %}
+           </figure>
+            <div class="card-body p-2">
+              <div class="text-base-content/80 break-words overflow-hidden book-tittle text-sm">
+                {{ book.name }}
+              </div>
             </div>
           </div>
-        </div>
+        </a>
       </div>
       {% endfor %}
     </div>
