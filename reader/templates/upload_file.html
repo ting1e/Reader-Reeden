@@ -1,61 +1,72 @@
 
-
-
-
 {% extends "base.html" %}
 
-{% block title %}Reader{% endblock %}
+{% block title %}上传书籍{% endblock %}
 
 {% block content %}
+
 <main>
   {% include 'header.html' %}
 
+  <div class="container mx-auto px-4 py-4">
+    <h2 class="text-2xl font-bold mb-2">上传书籍</h2>
+    <p class="text-sm text-base-content/60 mb-6">仅支持 .txt 文本文件，单文件最大 50MB。上传后自动分章，仅保存在本地。</p>
 
-<div class="container">
- {{notice}}
-    
-    <div id="upload"></div>
-    <!-- {% csrf_token %} -->
-    <!-- <button id="btn2">upload</button> -->
-    
-    {% load static %}
-    <script type="text/javascript" src="{% static 'jquery.Huploadify.js' %}"></script>
-    
-    <script>
-        console.log()
-        var up = $('#upload').Huploadify({
-            auto:true,
-            fileTypeExts:'*.txt',
-            multi:true,
-            formData: {csrfmiddlewaretoken: '{{ csrf_token }}'},
-            progressData:'percentage',
-            fileSizeLimit:50000,
-            showUploadedPercent:true,
-            showUploadedSize:true,
-            removeTimeout:9999999,
-            uploader:"{% url 'reader:upload_file'%}",
-            onUploadStart:function(){
-                console.log('开始上传');
-                },
-            onInit:function(){
-                console.log('初始化');
-                },
-            onUploadComplete:function(){
-                console.log('上传完成');
-                },
-            onCancel:function(file){
-                console.log(file);
-            }
-        });
-        // $('#btn2').click(function(){
-        // 	up.upload('*');
-        // });
-    </script>
-</div>
+    {% if notice %}
+    <div class="alert alert-warning mb-4">
+      <span>{{ notice }}</span>
+    </div>
+    {% endif %}
+
+    <div class="card bg-base-100 shadow-sm border border-base-200">
+      <div class="card-body">
+        <div id="upload" class="min-h-[120px]"></div>
+      </div>
+    </div>
+
+    <div class="mt-6 flex justify-end">
+      <a href="{% url 'reader:book_admin' %}" class="btn btn-outline btn-sm">返回书籍管理</a>
+    </div>
+  </div>
+
 </main>
+
 {% endblock %}
 
-
 {% block body-bottom %}
+
+{% load static %}
+
+<script type="text/javascript" src="{% static 'jquery.Huploadify.js' %}"></script>
+
+<script>
+    var up = $('#upload').Huploadify({
+        auto:true,
+        fileTypeExts:'*.txt',
+        multi:true,
+        formData: {csrfmiddlewaretoken: '{{ csrf_token }}'},
+        progressData:'percentage',
+        fileSizeLimit:50000,
+        showUploadedPercent:true,
+        showUploadedSize:true,
+        removeTimeout:9999999,
+        uploader:"{% url 'reader:upload_file'%}",
+        onUploadStart:function(){
+            console.log('开始上传');
+        },
+        onInit:function(){
+            console.log('初始化');
+        },
+        onUploadComplete:function(){
+            console.log('上传完成');
+        },
+        onQueueComplete:function(){
+            console.log('全部上传完成');
+        },
+        onCancel:function(file){
+            console.log(file);
+        }
+    });
+</script>
 
 {% endblock %}

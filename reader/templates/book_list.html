@@ -8,21 +8,38 @@
 <main>
   {% include 'header.html' %}
 
-  <div class="container mx-auto px-4">
-    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+  <div class="container mx-auto px-4 py-4">
+
+    <div class="flex items-center gap-2 mb-8 sort-bar">
+      <span class="text-sm text-base-content/60">排序：</span>
+      <div class="join">
+        <button class="btn btn-sm join-item sort-btn" data-sort="name">名称</button>
+        <button class="btn btn-sm join-item sort-btn" data-sort="time">时间</button>
+        <button class="btn btn-sm join-item sort-btn" data-sort="progress">进度</button>
+        <button class="btn btn-sm join-item sort-btn" data-sort="recent">最近阅读</button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-5 book-grid">
       {% load static %}
       {% for book in book_list %}
-      <div>
+      <div class="book-item"
+           data-book-name="{% if book.file_name %}{{ book.file_name }}{% else %}{{ book.name }}{% endif %}"
+           data-sort-name="{% if book.file_name %}{{ book.file_name }}{% else %}{{ book.name }}{% endif %}"
+           data-sort-time="{{ book.upload_time|date:"U" }}"
+           data-sort-progress="{{ book.progress_value }}"
+           data-sort-recent="{% if book.read_time %}{{ book.read_time|date:"U" }}{% else %}0{% endif %}">
         <form method="POST" action="{% url 'reader:book_view' %}">
           {% csrf_token %}
           <input type="hidden" name="book_id" value="{{ book.id }}">
           <button class="card card-compact bg-base-100 shadow-sm hover:shadow-md transition-shadow duration-150 w-full border-0 text-left cursor-pointer" type="submit">
-           <img src="{% static 'images/book.png' %}" alt="{{ book.name }}">
-            <div class="card-body p-2">
-              <div class="text-base-content/80 break-words overflow-hidden book-tittle text-sm">
-                {{ book.name }}
-              </div>
-            </div>
+            <figure class="relative">
+              <img src="{% static 'images/book3.png' %}" alt="{{ book.file_name|default:book.name }}">
+              <div class="absolute top-0 left-0 px-1.5 py-1  bg-black/50 text-white text-xs leading-none">{{ book.progress_value|floatformat:2 }}%</div>
+              <figcaption class="absolute inset-x-0 bottom-0 p-2 bg-black/50 text-white text-sm break-words overflow-hidden book-tittle">
+                {% if book.file_name %}{{ book.file_name }}{% else %}{{ book.name }}{% endif %}
+              </figcaption>
+            </figure>
           </button>
         </form>
       </div>
@@ -31,8 +48,79 @@
   </div>
 
 </main>
+
 {% endblock %}
 
 {% block body-bottom %}
+<script>
+(function() {
+    var defaultDir = {name: 'asc', time: 'desc', progress: 'desc', recent: 'desc'};
+    var STORAGE_KEY = 'book_list_sort';
+    var currentSort = null;
+    var currentDir = null;
 
+    function saveSortState() {
+        if (currentSort) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({sort: currentSort, dir: currentDir}));
+        }
+    }
+
+    function loadSortState() {
+        try {
+            var s = JSON.parse(localStorage.getItem(STORAGE_KEY));
+            if (s && s.sort && defaultDir[s.sort] !== undefined) {
+                return s;
+            }
+        } catch (e) {}
+        return null;
+    }
+
+    function applySort(sortKey, dir) {
+        if (arguments.length >= 2) {
+            currentSort = sortKey;
+            currentDir = dir;
+        } else if (currentSort === sortKey) {
+            currentDir = currentDir === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSort = sortKey;
+            currentDir = defaultDir[sortKey] || 'asc';
+        }
+        var $grid = $('.book-grid');
+        var $items = $grid.children('.book-item').get();
+        $items.sort(function(a, b) {
+            var av = $(a).data('sort-' + currentSort);
+            var bv = $(b).data('sort-' + currentSort);
+            if (currentSort === 'name') {
+                return currentDir === 'asc'
+                    ? String(av).localeCompare(String(bv))
+                    : String(bv).localeCompare(String(av));
+            }
+            av = parseFloat(av) || 0;
+            bv = parseFloat(bv) || 0;
+            return currentDir === 'asc' ? av - bv : bv - av;
+        });
+        $.each($items, function(i, el) { $grid.append(el); });
+
+        $('.sort-btn').each(function() {
+            var active = $(this).data('sort') === currentSort;
+            $(this).toggleClass('btn-active', active);
+            var label = $(this).text().replace(/[▲▼]\s*$/, '').trim();
+            $(this).text(label);
+            if (active) {
+                $(this).text(label + (currentDir === 'asc' ? ' ▲' : ' ▼'));
+            }
+        });
+        saveSortState();
+    }
+
+    $('.sort-btn').click(function() {
+        applySort($(this).data('sort'));
+    });
+
+    var saved = loadSortState();
+    if (saved) {
+        applySort(saved.sort, saved.dir);
+    }
+})();
+</script>
 {% endblock %}

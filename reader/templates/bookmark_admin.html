@@ -1,0 +1,60 @@
+
+{% extends "base.html" %}
+
+{% block title %}书签管理{% endblock %}
+
+{% block content %}
+
+<main>
+  {% include 'header.html' %}
+
+  <div class="container mx-auto px-4">
+    <h2 class="text-2xl font-bold mb-4">书签管理</h2>
+
+    {% if bookmark_list %}
+    <div class="overflow-x-auto">
+      <table class="table table-zebra text-base">
+        <thead>
+          <tr>
+            <th>书名</th>
+            <th>章节</th>
+            <th class="hidden md:table-cell">内容</th>
+            <th class="hidden sm:table-cell">添加时间</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for m in bookmark_list %}
+          <tr>
+            <td class="break-words max-w-xs">
+              {{ m.book_obj.name|default:"(已删除)" }}
+            </td>
+            <td class="break-words max-w-xs">{{ m.chapter_title }}</td>
+            <td class="hidden md:table-cell break-words max-w-sm text-base-content/70">{{ m.content|truncatechars:60 }}</td>
+            <td class="hidden sm:table-cell">{{ m.add_time|date:"Y-m-d H:i" }}</td>
+            <td>
+              <form method="POST" action="{% url 'reader:bookmark_del' m.id %}" class="inline"
+                    onsubmit="return confirm('确定删除该条书签？\n《{{ m.chapter_title|escapejs }}')">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-error btn-outline">
+                  <i class="bi bi-trash"></i> 删除
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-base-content/50 py-8 text-center">暂无书签</div>
+    {% endif %}
+  </div>
+
+</main>
+
+{% endblock %}
+
+{% block body-bottom %}
+
+{% endblock %}

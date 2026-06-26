@@ -33,6 +33,7 @@ class Book(models.Model):
 
     md5 = models.CharField(max_length=32,default='')
     local = models.BooleanField(default=False)
+    local_only = models.BooleanField(default=False)
 
 class BookGroup(models.Model):
     group_name = models.CharField(max_length=64)
@@ -53,11 +54,13 @@ class UserBookRecord(models.Model):
     chapter_id = models.IntegerField()
     read_time = models.DateTimeField(default = timezone.now)
     words_read = models.IntegerField()
+    progress = models.FloatField(default=0)
 
 class UserSetting(models.Model):
     user_id = models.IntegerField()
     font_size = models.IntegerField(default=16)
     read_bg = models.CharField(max_length=256,default='#fff')
+    read_mode = models.CharField(max_length=16, default='page')
     s3_setting = models.CharField(max_length=4096,default='"{\"accessKeyId\":\"YOUR_ACCESS_KEY\",\"secretAccessKey\":\"YOUR_SECRET_KEY\",\"region\":\"us-east-1\",\"endpoint\":\"https://s3.us-east-1.amazonaws.com\",\"bucket\":\"YOUR_BUCKET_NAME\",\"prefix\":\"YOUR_FOLDER_NAME/\"}"')
     chapter_rule = models.CharField(max_length=1024, default=r'^[ 　\t]{0,4}(?:序章|楔子|正文(?!完|结)|终章|后记|尾声|番外|第\s{0,4}[\d〇零一二两三四五六七八九十百千万壹贰叁肆伍陆柒捌玖拾佰仟廿卅]+?\s{0,4}(?:章|折|节(?!课)|卷|集(?![合和])|部(?![分赛游])|篇(?!张))).{0,30}$')
 

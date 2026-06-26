@@ -8,7 +8,7 @@ from django.db import transaction
 import os
 
 
-def handle_local_book(request,url):
+def handle_local_book(request,url,local_only=False):
     if str(url)[-4:]!='.txt':
         return
     file_name = os.path.basename(url).replace('.txt','')
@@ -16,6 +16,7 @@ def handle_local_book(request,url):
     book.name = file_name
     book.file_name = os.path.basename(url)
     book.local = True
+    book.local_only = local_only
     if request.user.is_authenticated:
         book.uploader = request.user.id
 
@@ -86,6 +87,75 @@ def handle_local_book(request,url):
         return 'true'
     
     return 'error'
+
+
+def rechapter_book(book, user=None):
+    """对已存在的书籍重新分章，保留 book id，删除旧章节并重建。"""
+    url = book.book_url
+    if not url or str(url)[-4:] != '.txt':
+        return 'error'
+
+    charset = book.charset or 'utf-8'
+    with open(url, 'r', encoding=charset) as f:
+        data = f.read()
+        pat = book.rule or u'^[ 　\t]{0,4}(?:序章|楔子|正文(?!完|结)|终章|后记|尾声|番外|第\s{0,4}[\d〇零一二两三四五六七八九十百千万壹贰叁肆伍陆柒捌玖拾佰仟廿卅]+?\s{0,4}(?:章|折|节(?!课)|卷|集(?![合和])|部(?![分赛游])|篇(?!张))).{0,30}$'
+        if user and user.is_authenticated:
+            setting = UserSetting.objects.filter(user_id=user.id).first()
+            if setting and setting.chapter_rule:
+                pat = setting.chapter_rule
+        book.rule = pat
+
+        pattern = re.compile(pat, re.MULTILINE)
+        match = pattern.finditer(data)
+
+        wc = len(data)
+        book.word_count = wc
+        with transaction.atomic():
+            Chapter.objects.filter(book_id=book.id).delete()
+
+            chapters_to_create = []
+            offset = 0
+            total_ch_num = 0
+            chpt_name = '前言'
+            has_match = False
+            for chpt in match:
+                has_match = True
+                tit_st = chpt.span()[0]
+                if offset == 0:
+                    book.first_chapter_title = chpt.group()
+                    book.intro = data[:min(tit_st, 512)]
+                    chapters_to_create.append(Chapter(title=chpt_name, book_id=book.id, book_url=url, index=total_ch_num, start=offset, end=tit_st))
+                    offset = tit_st
+                    chpt_name = str(chpt.group())
+                else:
+                    chapters_to_create.append(Chapter(title=chpt_name, book_id=book.id, book_url=url, index=total_ch_num, start=offset, end=tit_st))
+                    offset = tit_st
+                    chpt_name = str(chpt.group())
+
+                total_ch_num += 1
+
+            if not has_match:
+                chapters_to_create.append(Chapter(title=chpt_name, book_id=book.id, book_url=url, index=0, start=0, end=wc))
+                Chapter.objects.bulk_create(chapters_to_create)
+                created = list(Chapter.objects.filter(book_id=book.id).order_by('index'))
+                book.first_chapter_title = chpt_name
+                book.first_chapter_id = created[0].id
+                book.last_chapter_title = chpt_name
+                book.last_chapter_id = created[0].id
+                book.total_chapter_num = 0
+                book.save()
+                return 'true'
+
+            chapters_to_create.append(Chapter(title=chpt_name, book_id=book.id, book_url=url, index=total_ch_num, start=offset, end=wc))
+            Chapter.objects.bulk_create(chapters_to_create)
+            created = list(Chapter.objects.filter(book_id=book.id).order_by('index'))
+
+            book.first_chapter_id = created[0].id
+            book.last_chapter_title = chpt_name
+            book.last_chapter_id = created[-1].id
+            book.total_chapter_num = total_ch_num
+            book.save()
+        return 'true'
 
 
 

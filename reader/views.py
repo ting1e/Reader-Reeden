@@ -1,4 +1,4 @@
-from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.urls import reverse
 from .models import *
 from django.views import generic
@@ -27,6 +27,11 @@ def get_progress_dir():
 
 def get_local_books_dir():
     d = os.path.join(BASE_DIR, 'local', 'books')
+    os.makedirs(d, exist_ok=True)
+    return d
+
+def get_upload_dir():
+    d = os.path.join(BASE_DIR, 'local', 'upload')
     os.makedirs(d, exist_ok=True)
     return d
 
@@ -108,7 +113,40 @@ def calculate_read_progress(book, chapter, words_read):
     except Exception:
         return 0
 
+def get_books_progress(user, books):
+    """批量返回 {book_id: 进度百分比(0-100)}，基于用户的最新阅读记录。"""
+    result = {}
+    if not books:
+        return result
+    for b in books:
+        result[b.id] = 0
+    if not user.is_authenticated:
+        return result
+    book_ids = [b.id for b in books]
+    records = UserBookRecord.objects.filter(
+        user_id=user.id, book_id__in=book_ids
+    ).order_by('-read_time')
+    latest = {}
+    for r in records:
+        if r.book_id not in latest:
+            latest[r.book_id] = r
+    if not latest:
+        return result
+    book_map = {b.id: b for b in books}
+    for book_id, rec in latest.items():
+        book = book_map.get(book_id)
+        if book is not None:
+            book.read_time = rec.read_time
+        try:
+            progress_val = round(float(rec.progress), 2)
+        except (TypeError, ValueError):
+            progress_val = 0
+        result[book_id] = min(max(0, progress_val), 100)
+    return result
+
 def save_progress_json(book, chapter, words_read):
+    if getattr(book, 'local_only', False):
+        return
     try:
         md5_val = get_file_md5(book.book_url)
     except Exception as e:
@@ -233,6 +271,8 @@ def _get_s3_client(cfg):
 
 def sync_progress_to_s3(request, book):
     """若本地进度比 S3 上的新（或 S3 无进度），则上传本地进度到 S3。"""
+    if getattr(book, 'local_only', False):
+        return
     cfg = get_s3_config(request.user)
     if not cfg or not book or not getattr(book, 'book_url', None):
         return
@@ -257,7 +297,6 @@ def sync_progress_to_s3(request, book):
         client = _get_s3_client(cfg)
         try:
             resp = client.get_object(Bucket=cfg['bucket'], Key=s3_key)
-            import io
             remote_data = json.load(resp['Body'])
             remote_time = _parse_progress_time(remote_data)
         except Exception as e:
@@ -279,6 +318,17 @@ class BookListView(generic.ListView):
             return Book.objects.filter(share = False) | Book.objects.filter(uploader = self.request.user.id)
         else:
             return Book.objects.filter(share = True)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        books = list(context['book_list'])
+        progress = get_books_progress(self.request.user, books)
+        for book in books:
+            book.progress_value = progress.get(book.id, 0)
+            if not hasattr(book, 'read_time') or book.read_time is None:
+                book.read_time = 0
+        context['book_list'] = books
+        return context
         
 class BookListRemoteView(generic.ListView):
     template_name = 'book_list_remote.html'
@@ -286,41 +336,32 @@ class BookListRemoteView(generic.ListView):
 
     def get_queryset(self):
         remote_files = []
-        if self.request.user.is_authenticated:
-            settings = UserSetting.objects.filter(user_id=self.request.user.id)
-            if len(settings) > 0:
-                s3_str = settings[0].s3_setting
-                try:
-                    s3_dict = json.loads(s3_str)
-                    if isinstance(s3_dict, str):
-                        s3_dict = json.loads(s3_dict)
-                    
-                    import boto3
-                    s3_client = boto3.client(
-                        's3',
-                        aws_access_key_id=s3_dict.get('accessKeyId'),
-                        aws_secret_access_key=s3_dict.get('secretAccessKey'),
-                        region_name=s3_dict.get('region'),
-                        endpoint_url=s3_dict.get('endpoint')
-                    )
-                    
-                    bucket = s3_dict.get('bucket')
-                    prefix = s3_dict.get('prefix', '')
-                    if prefix and not prefix.endswith('/'):
-                        prefix += '/'
-                    target_prefix = prefix + 'books/'
-                    
-                    response = s3_client.list_objects_v2(Bucket=bucket, Prefix=target_prefix)
-                    if 'Contents' in response:
-                        local_books_set = set(Book.objects.values_list('file_name', flat=True))
-                        for obj in response['Contents']:
-                            if obj['Key'] != target_prefix:
-                                filename = obj['Key'][len(target_prefix):]
-                                is_in_db = filename in local_books_set
-                                remote_files.append({'name': filename, 'in_db': is_in_db})
-                    
-                except Exception as e:
-                    print("Error parsing S3 settings or connecting to S3:", e)
+        cfg = get_s3_config(self.request.user)
+        if cfg:
+            target_prefix = cfg['prefix'] + 'books/'
+            try:
+                client = _get_s3_client(cfg)
+                response = client.list_objects_v2(Bucket=cfg['bucket'], Prefix=target_prefix)
+                if 'Contents' in response:
+                    local_books_set = set(Book.objects.values_list('file_name', flat=True))
+                    for obj in response['Contents']:
+                        if obj['Key'] != target_prefix:
+                            filename = obj['Key'][len(target_prefix):]
+                            remote_files.append({'name': filename, 'in_db': filename in local_books_set})
+            except Exception as e:
+                print("Error parsing S3 settings or connecting to S3:", e)
+        in_db_names = [f['name'] for f in remote_files if f.get('in_db')]
+        name_progress = {}
+        if in_db_names:
+            db_books = list(Book.objects.filter(file_name__in=in_db_names))
+            progress = get_books_progress(self.request.user, db_books)
+            name_to_id = {b.file_name: b.id for b in db_books}
+            for name in in_db_names:
+                bid = name_to_id.get(name)
+                if bid is not None:
+                    name_progress[name] = progress.get(bid, 0)
+        for f in remote_files:
+            f['progress'] = name_progress.get(f['name'], 0)
         return remote_files
 
 
@@ -413,33 +454,60 @@ def BookView(request):
     GET  view/?book_id=X         — 打开书籍，自动恢复阅读进度
     POST view/                   — 表单提交（章节导航、保存进度、关键词搜索）
     """
+    # ---- 解析 book_id：POST 表单 or GET 参数（统一在最前面解析，供后续权限校验与各分支使用）----
+    book_id = None
+    if request.method == 'POST' and 'book_id' in request.POST:
+        try:
+            book_id = int(request.POST.get('book_id'))
+        except (TypeError, ValueError):
+            book_id = None
+    elif request.method == 'GET' and 'book_id' in request.GET:
+        try:
+            book_id = int(request.GET.get('book_id'))
+        except (TypeError, ValueError):
+            book_id = None
+
+    if not book_id:
+        return HttpResponse('get')
+
+    # ---- 权限检查（所有分支共用，防止越权访问他人私有书籍）----
+    _book = get_object_or_404(Book, id=book_id)
+    if not (_book.share == True or _book.uploader == request.user.id or request.user.is_superuser):
+        return redirect('reader:index')
+
     # ---- POST: 保存阅读进度 (AJAX) ----
-    if request.method == 'POST' and 'words' in request.POST \
-            and 'book_id' in request.POST and 'chapter_id' in request.POST:
+    if request.method == 'POST' and 'words' in request.POST and 'chapter_id' in request.POST:
         if not request.user.is_authenticated:
             return HttpResponse('not login')
-        _book_id = request.POST.get('book_id')
         _chapter_id = request.POST.get('chapter_id')
         words_read = request.POST.get('words')
-        records = UserBookRecord.objects.filter(user_id=request.user.id, book_id=_book_id).order_by('-read_time')
+        try:
+            chapter = Chapter.objects.get(id=_chapter_id)
+        except Chapter.DoesNotExist:
+            chapter = None
+        progress_val = 0
+        if chapter:
+            progress_val = calculate_read_progress(_book, chapter, words_read) / 100.0
+        records = UserBookRecord.objects.filter(user_id=request.user.id, book_id=book_id).order_by('-read_time')
         if len(records) == 0:
             UserBookRecord(
                 user_id=request.user.id,
-                book_id=_book_id,
+                book_id=book_id,
                 chapter_id=_chapter_id,
-                words_read=int(words_read)
+                words_read=int(words_read),
+                progress=progress_val
             ).save()
         else:
             records[0].chapter_id = _chapter_id
             records[0].words_read = int(words_read)
+            records[0].progress = progress_val
             records[0].read_time = timezone.now()
             records[0].save()
 
         try:
-            book = Book.objects.get(id=_book_id)
-            chapter = Chapter.objects.get(id=_chapter_id)
-            save_progress_json(book, chapter, words_read)
-            sync_progress_to_s3(request, book)
+            if chapter:
+                save_progress_json(_book, chapter, words_read)
+                sync_progress_to_s3(request, _book)
         except Exception as e:
             print(f"Failed to save progress JSON: {e}")
 
@@ -447,18 +515,15 @@ def BookView(request):
 
     # ---- POST: 关键词搜索 (AJAX) ----
     if request.method == 'POST' and 'kwd' in request.POST:
-        _book_id = request.POST.get('book_id')
         _chapter_id = request.POST.get('chapter_id')
-        if _book_id and _chapter_id:
-            return keyword_search(request, int(_book_id), int(_chapter_id), str(request.POST['kwd']))
+        if _chapter_id:
+            return keyword_search(request, book_id, int(_chapter_id), str(request.POST['kwd']))
         return HttpResponse('')
 
-    # ---- 确定 book_id：POST 表单 or GET 参数
+    # ---- 确定 chapter_id / offset：POST 表单 or GET 参数 ----
     chapter_id = None
-    book_id = None
     offset = 0
     if request.method == 'POST' and 'book_id' in request.POST:
-        book_id = int(request.POST.get('book_id'))
         _ch = request.POST.get('chapter_id')
         if _ch:
             chapter_id = int(_ch)
@@ -466,22 +531,12 @@ def BookView(request):
         if _off:
             offset = int(_off)
     elif request.method == 'GET' and 'book_id' in request.GET:
-        book_id = int(request.GET.get('book_id'))
         _ch = request.GET.get('chapter_id')
         if _ch:
             chapter_id = int(_ch)
         _off = request.GET.get('offset')
         if _off:
             offset = int(_off)
-
-    if not book_id:
-        return HttpResponse('get')
-
-    # ---- 权限检查 ----
-    _book = get_object_or_404(Book, id=book_id)
-    if not (_book.share == True or _book.uploader == request.user.id or request.user.is_superuser == 1):
-        return redirect('reader:index')
-    
 
     # POST: chapter_id 已在上面从表单获取；未指定则使用阅读记录或第一章
     if not chapter_id and request.user.is_authenticated and 0==offset:
@@ -493,26 +548,29 @@ def BookView(request):
             db_record = last[0]
 
         file_record = None
-        try:
-            md5_val = get_file_md5(_book.book_url)
-            json_path = os.path.join(get_progress_dir(), f"{md5_val}.json")
-            if os.path.exists(json_path):
-                with open(json_path, 'r', encoding='utf-8') as f:
-                    file_record = json.load(f)
-        except Exception as e:
-            print("Error reading progress file on open:", e)
+        md5_val = None
+        if not getattr(_book, 'local_only', False):
+            try:
+                md5_val = get_file_md5(_book.book_url)
+                json_path = os.path.join(get_progress_dir(), f"{md5_val}.json")
+                if os.path.exists(json_path):
+                    with open(json_path, 'r', encoding='utf-8') as f:
+                        file_record = json.load(f)
+            except Exception as e:
+                print("Error reading progress file on open:", e)
 
         # 从 S3 获取远程进度
         remote_record = None
-        cfg = get_s3_config(request.user)
-        if cfg and md5_val:
-            s3_key = f"{cfg['prefix']}book_progress/{md5_val}.json"
-            try:
-                client = _get_s3_client(cfg)
-                resp = client.get_object(Bucket=cfg['bucket'], Key=s3_key)
-                remote_record = json.load(resp['Body'])
-            except Exception:
-                remote_record = None
+        if not getattr(_book, 'local_only', False):
+            cfg = get_s3_config(request.user)
+            if cfg and md5_val:
+                s3_key = f"{cfg['prefix']}book_progress/{md5_val}.json"
+                try:
+                    client = _get_s3_client(cfg)
+                    resp = client.get_object(Bucket=cfg['bucket'], Key=s3_key)
+                    remote_record = json.load(resp['Body'])
+                except Exception:
+                    remote_record = None
 
         # 比较三个来源的时间：本地文件、数据库、S3 远程
         file_time = _parse_progress_time(file_record)
@@ -585,9 +643,11 @@ def BookView(request):
             ch_obj = Chapter.objects.get(id=chapter_id) if chapter_id else None
             if ch_obj:
                 save_progress_json(_book, ch_obj, offset)
+            sync_progress_val = calculate_read_progress(_book, ch_obj, offset) / 100.0 if ch_obj else 0
             if db_record:
                 db_record.chapter_id = chapter_id
                 db_record.words_read = offset
+                db_record.progress = sync_progress_val
                 db_record.read_time = timezone.now()
                 db_record.save()
             else:
@@ -596,6 +656,7 @@ def BookView(request):
                     book_id=book_id,
                     chapter_id=chapter_id,
                     words_read=offset,
+                    progress=sync_progress_val,
                     read_time=timezone.now()
                 ).save()
             # 如果选中的不是 remote，则上传到 S3；如果选中 remote，本地和 DB 已经同步
@@ -613,15 +674,20 @@ def BookView(request):
         content = f.read()[cur_chpt.start:cur_chpt.end]
         content = content.split('\n')
 
+    # 跳过内容中与章节标题重复的第一行（标题已由 <h3> 显示）
+    display_lines = content
+    if display_lines and display_lines[0].strip() == cur_chpt.title.strip():
+        display_lines = display_lines[1:]
+
     chapter_view = render_to_string('chapter_view.html', {
         'chapter_title': cur_chpt.title,
-        'content_lines': content
+        'content_lines': display_lines
     })
 
     context = {
         'chapter_title': cur_chpt.title,
         'chapter_ids': chapter_ids,
-        'content_lines': content,
+        'content_lines': display_lines,
         'progess': 20,
         'book_id': book_id,
         'chapter_id': cur_chpt.id,
@@ -631,7 +697,7 @@ def BookView(request):
     if request.user.is_authenticated:
         context['user_setting'], _ = UserSetting.objects.get_or_create(
             user_id=request.user.id,
-            defaults={'font_size': 16, 'read_bg': '#fff'}
+            defaults={'font_size': 16, 'read_bg': '#fff', 'read_mode': 'page'}
         )
 
     return render(request, 'book_view.html', context)
@@ -641,14 +707,17 @@ def BookView(request):
 def chapter_content(request, chapter_id):
     chapter = get_object_or_404(Chapter, pk=chapter_id)
     _book = get_object_or_404(Book, id=chapter.book_id)
-    if not (_book.share == True or _book.uploader == request.user.id or request.user.is_superuser == 1):
+    if not (_book.share == True or _book.uploader == request.user.id or request.user.is_superuser):
         return JsonResponse({'success': False, 'error': 'no permission'})
     with open(_book.book_url, 'r', encoding=_book.charset) as f:
         content = f.read()[chapter.start:chapter.end]
         content = content.split('\n')
+    display_lines = content
+    if display_lines and display_lines[0].strip() == chapter.title.strip():
+        display_lines = display_lines[1:]
     chapter_view = render_to_string('chapter_view.html', {
         'chapter_title': chapter.title,
-        'content_lines': content
+        'content_lines': display_lines
     })
     return JsonResponse({
         'success': True,
@@ -660,21 +729,6 @@ def chapter_content(request, chapter_id):
 
 
 
-class ChapterListView(generic.ListView):
-    template_name = 'chapter_list.html'
-    context_object_name = 'chapter_list'
-
-    def get_queryset(self):
-        _book =  get_object_or_404(Book,id = self.kwargs['pk'])
-        if _book.uploader == 0:
-            return Chapter.objects.filter(book_id=self.kwargs['pk'])
-        if self.request.user.is_authenticated and self.request.user.id == _book.uploader :
-            return Chapter.objects.filter(book_id=self.kwargs['pk'])
-        return Chapter.objects.none()
-
-        
-        
-
 class BookmarkListView(generic.ListView):
     template_name = 'bookmark_list.html'
     context_object_name = 'bookmark_list'
@@ -685,42 +739,43 @@ class BookmarkListView(generic.ListView):
         else:
             return UserBookMark.objects.none()
 
-class ChapterDetailView(generic.DetailView):
-    # template_name = 'chapter_detail.html'
-    # model: Content
-
-    def get_queryset(self):
-        # return Content.objects.filter(pk=self.kwargs['pk'])
-        return
-
 class IndexView(BookListView):
     template_name = 'book_list.html'
 
 
-def progress(book_id, chapter_id):
-    chapter_list = Chapter.objects.filter(book_id=book_id).order_by('index')
-    book = Book.objects.filter(id=book_id)[0]
-    all_chars = book.word_count
-    read = 0.0
-    for ch in chapter_list:
-        if chapter_id == ch.id:
-            break
-        read += ch.end - ch.start
-    return read / all_chars * 100
+@login_required(login_url='reader:index')
+def bookmark_admin(request):
+    """书签管理：列出当前用户的所有书签"""
+    marks = list(UserBookMark.objects.filter(user_id=request.user.id).order_by('-add_time'))
+    book_ids = [m.book_id for m in marks]
+    book_map = {b.id: b for b in Book.objects.filter(id__in=book_ids)}
+    for m in marks:
+        m.book_obj = book_map.get(m.book_id)
+    return render(request, 'bookmark_admin.html', {'bookmark_list': marks})
+
+
+@login_required(login_url='reader:index')
+def bookmark_del(request, pk):
+    """删除单条书签"""
+    mark = get_object_or_404(UserBookMark, pk=pk)
+    if not (request.user.is_superuser or request.user.id == mark.user_id):
+        return redirect('reader:bookmark_admin')
+    mark.delete()
+    return redirect('reader:bookmark_admin')
+
 
 def login_auth(request):
     if request.method == 'POST':
-        username = request.POST['username']
-        password = request.POST['password']
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        if not username or not password:
+            return HttpResponse('请输出正确的用户名或密码')
         user = authenticate(username=username, password=password)
-        setting = UserSetting.objects.filter(user_id = user.id)
-        if len(setting) == 0:
-            UserSetting(user_id = user.id).save()
-        if user is not None:
-            login(request, user)
-            return HttpResponse('success')  
-        else:
-            return HttpResponse('请输出正确的用户名或密码')  
+        if user is None:
+            return HttpResponse('请输出正确的用户名或密码')
+        UserSetting.objects.get_or_create(user_id=user.id, defaults={'font_size': 16, 'read_bg': '#fff', 'read_mode': 'page'})
+        login(request, user)
+        return HttpResponse('success')
 
     return HttpResponse('fk off')  
 
@@ -734,9 +789,12 @@ def logout_view(request):
 def book_admin(request):
     """书籍管理：列出所有本地书籍"""
     if request.user.is_superuser:
-        book_list = Book.objects.all().order_by('-upload_time')
+        book_list = list(Book.objects.all().order_by('-upload_time'))
     else:
-        book_list = Book.objects.filter(uploader=request.user.id).order_by('-upload_time')
+        book_list = list(Book.objects.filter(uploader=request.user.id).order_by('-upload_time'))
+    progress = get_books_progress(request.user, book_list)
+    for book in book_list:
+        book.progress_value = progress.get(book.id, 0)
     return render(request, 'book_admin.html', {'book_list': book_list})
 
 
@@ -774,6 +832,84 @@ def book_local_del(request, pk):
     return redirect('reader:book_admin')
 
 
+@login_required(login_url='reader:index')
+def book_rechapter(request, pk):
+    """重新分章：删除旧章节并重建，根据 progress 重算阅读记录和书签的章节定位。"""
+    _book = get_object_or_404(Book, id=pk)
+    if not (request.user.is_superuser or request.user.id == _book.uploader):
+        return redirect('reader:book_admin')
+
+    result = form_book.rechapter_book(_book, request.user)
+    if result != 'true':
+        return HttpResponse('重新分章失败')
+
+    new_chapters = list(Chapter.objects.filter(book_id=pk).order_by('index'))
+    if not new_chapters:
+        return redirect('reader:book_admin')
+
+    total_chars = _book.word_count
+    if total_chars <= 0:
+        total_chars = sum(ch.end - ch.start for ch in new_chapters)
+
+    def offset_to_chapter(offset):
+        """根据全书字符偏移量，找到对应的新章节和章内偏移。"""
+        for ch in new_chapters:
+            if offset < ch.end:
+                in_chapter = max(0, offset - ch.start)
+                return ch, in_chapter
+        return new_chapters[-1], max(0, new_chapters[-1].end - new_chapters[-1].start)
+
+    # 根据 progress 重算阅读记录
+    records = UserBookRecord.objects.filter(book_id=pk)
+    for rec in records:
+        try:
+            progress_val = float(rec.progress)
+        except (TypeError, ValueError):
+            progress_val = 0
+        target_offset = int(progress_val / 100.0 * total_chars)
+        ch, in_chapter = offset_to_chapter(target_offset)
+        rec.chapter_id = ch.id
+        rec.words_read = in_chapter
+        rec.save()
+
+    # 根据 progress 重算书签的章节定位
+    bookmarks = UserBookMark.objects.filter(book_id=pk)
+    for bm in bookmarks:
+        try:
+            progress_val = float(bm.words_read) / float(total_chars) * 100 if total_chars > 0 else 0
+        except (TypeError, ValueError):
+            progress_val = 0
+        # 书签的 words_read 存的是全书偏移量，重新映射到新章节
+        target_offset = bm.words_read
+        ch, in_chapter = offset_to_chapter(target_offset)
+        bm.chapter_id = ch.id
+        bm.words_read = in_chapter
+        # 更新章节标题
+        bm.chapter_title = ch.title
+        bm.save()
+
+    return redirect('reader:book_admin')
+
+
+@login_required(login_url='reader:index')
+def upload_file(request):
+    """上传书籍：保存到 local/upload，分章入库，标记 local_only=True"""
+    if request.method == 'POST' and request.FILES.get('file'):
+        f = request.FILES['file']
+        if not f.name.endswith('.txt'):
+            return HttpResponse('仅支持 .txt 文件')
+        upload_dir = get_upload_dir()
+        local_path = os.path.join(upload_dir, f.name)
+        with open(local_path, 'wb') as dest:
+            for chunk in f.chunks():
+                dest.write(chunk)
+        result = form_book.handle_local_book(request, local_path, local_only=True)
+        if result == 'true':
+            return HttpResponse('success')
+        return HttpResponse('分章失败')
+    return render(request, 'upload_file.html')
+
+
 class search_item:
     def __init__(self,book,chapter,cont,off,title,index):
         self.book_pk = book
@@ -804,35 +940,53 @@ def keyword_search(request,book_pk,chapter_pk,kwd):
 
 @login_required(login_url='reader:index')
 def update_setting(request):
-    if request.method == 'POST':
-       
-        settings = UserSetting.objects.filter(user_id = request.user.id)
-        if len(settings) == 0:
-            setting = UserSetting(user_id = request.user.id,font_size = request.POST['font_size'],read_bg = request.POST['read_bg'])
-            setting.save()
-        else:
-            settings[0].font_size = request.POST['font_size']
-            settings[0].read_bg = request.POST['read_bg']
-            settings[0].save()
-        return HttpResponse('ok')  
-    return HttpResponse('not login')  
+    if request.method != 'POST':
+        return HttpResponse('not login')
+    UserSetting.objects.update_or_create(
+        user_id=request.user.id,
+        defaults={
+            'font_size': request.POST.get('font_size'),
+            'read_bg': request.POST.get('read_bg'),
+            'read_mode': request.POST.get('read_mode', 'page'),
+        },
+    )
+    return HttpResponse('ok')  
 
 @login_required(login_url='reader:index')
 def bookmark_save(request):
-    if not request.user.is_authenticated:
-        return HttpResponse('not login')  
-    
-    if request.method == 'POST':
-        user_bookmark = UserBookMark(user_id = request.user.id,book_id = request.POST['book_id'],chapter_id = request.POST['chapter_id'],
-            chapter_title = request.POST.get('chapter_title', ''), words_read = request.POST['words_read'],content =request.POST['content'] )
-        user_bookmark.save()
-        return HttpResponse('ok')  
+    if request.method != 'POST':
+        return HttpResponse('method not allowed')
+
+    book_id = request.POST.get('book_id')
+    chapter_id = request.POST.get('chapter_id')
+    if not book_id or not chapter_id:
+        return HttpResponse('invalid params')
+
+    _book = get_object_or_404(Book, id=book_id)
+    if not (_book.share == True or _book.uploader == request.user.id or request.user.is_superuser):
+        return HttpResponse('no permission')
+
+    try:
+        words_read = int(request.POST.get('words_read', 0) or 0)
+    except (TypeError, ValueError):
+        words_read = 0
+
+    user_bookmark = UserBookMark(
+        user_id=request.user.id,
+        book_id=book_id,
+        chapter_id=chapter_id,
+        chapter_title=request.POST.get('chapter_title', ''),
+        words_read=words_read,
+        content=request.POST.get('content', ''),
+    )
+    user_bookmark.save()
+    return HttpResponse('ok')  
 
     
 def chapter_list_ajax(request, book_id):
     """AJAX 返回书籍的章节列表 HTML，仅在用户打开目录时请求"""
     _book = get_object_or_404(Book, id=book_id)
-    if not (_book.share == True or _book.uploader == request.user.id or request.user.is_superuser == 1):
+    if not (_book.share == True or _book.uploader == request.user.id or request.user.is_superuser):
         return JsonResponse({'success': False, 'error': 'no permission'})
     chapter_list = Chapter.objects.filter(book_id=book_id)
     chapter_ids = list(chapter_list.values_list('id', flat=True))

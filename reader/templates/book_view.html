@@ -18,6 +18,18 @@ article{
     main{
         color:rgb(90, 90, 90);
     }
+    {% elif 'rgb(195, 212, 230)' in user_setting.read_bg %}
+    main{
+        color:#1f3a5a;
+    }
+    {% elif 'rgb(200, 232, 200)' in user_setting.read_bg %}
+    main{
+        color:#1f3a1f;
+    }
+    {% elif 'rgb(196, 179, 149)' in user_setting.read_bg %}
+    main{
+        color:#3a2a1a;
+    }
     {% endif %}
 {% endif %}
 
@@ -59,16 +71,20 @@ article{
         </div>
 
         <!-- Settings Toast -->
-        <div id="offcanvassetting" class="toast toast-top toast-end" style="display:none; z-index: 1080;">
+        <div id="offcanvassetting" class="toast toast-top toast-end mt-16" style="display:none; z-index: 1080;">
             <div class="alert shadow-lg bg-base-100 border border-base-300 p-6 relative" style="min-width: 340px;">
                 <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2 setting-close" type="button">✕</button>
                 <div class="flex flex-col gap-4 w-full">
                     <h3 class="text-base font-bold text-center">阅读设置</h3>
+                    <div class="divider my-0 h-0"></div>
+
                     <div class="flex items-center justify-center gap-3">
                         <button class="btn btn-outline dec-font update-setting" type="button">A-</button>
                         <span class="font-value text-center w-16 font-semibold text-lg"> </span>
                         <button class="btn btn-outline inc-font update-setting" type="button">A+</button>
                     </div>
+
+                    <div class="divider my-0 h-0"></div>
 
                     <ul class="flex justify-center gap-3" style="height: 48px;">
                         <li class="w-10 h-10 rounded-lg border-2 cursor-pointer bg-setting read-white update-setting" style="background: #fff;"></li>
@@ -77,6 +93,28 @@ article{
                         <li class="w-10 h-10 rounded-lg border-2 cursor-pointer bg-setting read-yellow update-setting" style="background: #c4b395"></li>
                         <li class="w-10 h-10 rounded-lg border-2 cursor-pointer bg-setting read-black update-setting" style="background: #000"></li>
                     </ul>
+
+                    <div class="divider my-0 h-0"></div>
+
+                    <div class="flex items-center justify-center gap-3">
+                        <span class="text-sm text-base-content/70">阅读方式</span>
+                        <div class="join">
+                            <button class="btn btn-sm join-item mode-setting mode-page" type="button" data-mode="page">翻页</button>
+                            <button class="btn btn-sm join-item mode-setting mode-slide" type="button" data-mode="slide">滑动</button>
+                        </div>
+                    </div>
+
+                    <div class="divider my-0 h-0"></div>
+
+                    <div class="flex items-center justify-center gap-3 flex-wrap">
+                        <span class="text-sm text-base-content/70">自动阅读</span>
+                        <input type="checkbox" class="toggle toggle-sm" id="auto-read-toggle">
+                        <span class="text-sm text-base-content/70">速度</span>
+                        <input type="range" min="0.1" max="5" step="0.1" value="2" class="range range-xs w-28 [--range-fill:0]" id="auto-read-speed">
+                        <span class="text-xs w-8 text-center" id="auto-read-speed-val">2</span>
+                    </div>
+
+                    <div class="divider my-0 h-0"></div>
                 </div>
             </div>
         </div>
@@ -179,6 +217,7 @@ article{
     var csrf_token = '{{ csrf_token }}'
     var last_words = parseInt({{last_words}})
     var user_setting_bg = "{{user_setting.read_bg}}"
+    var user_setting_mode = "{{user_setting.read_mode|default:'page'}}"
     var url_update_setting = "{% url 'reader:update_setting' %}"
     var url_bookmark_save = "{% url 'reader:bookmark_save' %}"
     var book_id = '{{book_id}}'
