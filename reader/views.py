@@ -202,6 +202,73 @@ def save_progress_json(book, chapter, words_read):
     except Exception as e:
         print(f"Error writing progress JSON: {e}")
 
+def _parse_progress_time(obj):
+    """从进度 dict 中解析 lastReadTime 为 naive UTC datetime，失败返回 None。"""
+    if not obj:
+        return None
+    t = obj.get("lastReadTime")
+    if not t:
+        return None
+    try:
+        return make_naive_utc(datetime.datetime.fromisoformat(str(t).replace('Z', '+00:00')))
+    except Exception:
+        return None
+
+def _get_s3_client(cfg):
+    import boto3
+    from botocore.config import Config
+    s3_config = Config(
+        request_checksum_calculation='WHEN_REQUIRED',
+        response_checksum_validation='WHEN_REQUIRED'
+    )
+
+    return boto3.client(
+        's3',
+        aws_access_key_id=cfg['access_key'],
+        aws_secret_access_key=cfg['secret_key'],
+        region_name=cfg['region'],
+        endpoint_url=cfg['endpoint'],
+        config=s3_config  # 注入兼容性配置
+    )
+
+def sync_progress_to_s3(request, book):
+    """若本地进度比 S3 上的新（或 S3 无进度），则上传本地进度到 S3。"""
+    cfg = get_s3_config(request.user)
+    if not cfg or not book or not getattr(book, 'book_url', None):
+        return
+    try:
+        md5_val = get_file_md5(book.book_url)
+    except Exception as e:
+        print(f"sync_progress_to_s3 MD5 error: {e}")
+        return
+    local_path = os.path.join(get_progress_dir(), f'{md5_val}.json')
+    if not os.path.exists(local_path):
+        return
+    try:
+        with open(local_path, 'r', encoding='utf-8') as f:
+            local_data = json.load(f)
+    except Exception:
+        local_data = None
+    local_time = _parse_progress_time(local_data)
+    if local_time is None:
+        return
+    s3_key = f"{cfg['prefix']}book_progress/{md5_val}.json"
+    try:
+        client = _get_s3_client(cfg)
+        try:
+            resp = client.get_object(Bucket=cfg['bucket'], Key=s3_key)
+            import io
+            remote_data = json.load(resp['Body'])
+            remote_time = _parse_progress_time(remote_data)
+        except Exception as e:
+            remote_time = None
+        if remote_time is None or local_time > remote_time:
+            with open(local_path, 'rb') as pf:
+                body = pf.read()
+            client.put_object(Bucket=cfg['bucket'], Key=s3_key, Body=body, ContentLength=len(body))
+    except Exception as e:
+        print(f"sync_progress_to_s3 upload error: {e}")
+
 class BookListView(generic.ListView):
     template_name = 'book_list.html'
     context_object_name = 'book_list'
@@ -304,9 +371,38 @@ def open_remote_book(request):
         md5_val = get_file_md5(local_path)
         progress_key = f'{prefix}book_progress/{md5_val}.json'
         local_progress_path = os.path.join(get_progress_dir(), f'{md5_val}.json')
-        s3_client.download_file(bucket, progress_key, local_progress_path)
+
+        # 先把远端进度读到临时内存，与本地进度按时间对比，保留较新的版本
+        try:
+            resp = s3_client.get_object(Bucket=bucket, Key=progress_key)
+            remote_data = json.load(resp['Body'])
+        except Exception as e:
+            print(f"Remote progress not found or fetch error: {e}")
+            remote_data = None
+
+        remote_time = _parse_progress_time(remote_data)
+        local_data = None
+        if os.path.exists(local_progress_path):
+            try:
+                with open(local_progress_path, 'r', encoding='utf-8') as lf:
+                    local_data = json.load(lf)
+            except Exception:
+                local_data = None
+        local_time = _parse_progress_time(local_data)
+
+        # 本地较新：把本地进度回传到 S3；远端较新或本地无：使用远端覆盖本地
+        if remote_time is None and local_time is not None:
+            with open(local_progress_path, 'rb') as pf:
+                body = pf.read()
+            s3_client.put_object(Bucket=bucket, Key=progress_key, Body=body, ContentLength=len(body))
+        elif remote_time is not None and (local_time is None or remote_time > local_time):
+            try:
+                with open(local_progress_path, 'w', encoding='utf-8') as lf:
+                    json.dump(remote_data, lf, ensure_ascii=False)
+            except Exception as e:
+                print(f"Error writing remote progress to local: {e}")
     except Exception as e:
-        print(f"Error downloading progress from S3: {e}")
+        print(f"Error syncing progress from S3: {e}")
 
     return redirect(f"{reverse('reader:book_view')}?book_id={book.id}")
 
@@ -343,6 +439,7 @@ def BookView(request):
             book = Book.objects.get(id=_book_id)
             chapter = Chapter.objects.get(id=_chapter_id)
             save_progress_json(book, chapter, words_read)
+            sync_progress_to_s3(request, book)
         except Exception as e:
             print(f"Failed to save progress JSON: {e}")
 
@@ -405,61 +502,89 @@ def BookView(request):
         except Exception as e:
             print("Error reading progress file on open:", e)
 
-        use_file = False
-        if file_record and db_record:
+        # 从 S3 获取远程进度
+        remote_record = None
+        cfg = get_s3_config(request.user)
+        if cfg and md5_val:
+            s3_key = f"{cfg['prefix']}book_progress/{md5_val}.json"
             try:
-                file_time_str = file_record.get("lastReadTime")
-                if file_time_str:
-                    file_time = datetime.datetime.fromisoformat(file_time_str.replace('Z', '+00:00'))
-                    file_time = make_naive_utc(file_time)
-                    db_time = make_naive_utc(db_record.read_time)
-                    print(file_time, db_time)
-                    if file_time > db_time:
-                        use_file = True
+                client = _get_s3_client(cfg)
+                resp = client.get_object(Bucket=cfg['bucket'], Key=s3_key)
+                remote_record = json.load(resp['Body'])
             except Exception:
-                pass
-        elif file_record and not db_record:
-            use_file = True
+                remote_record = None
 
-        # 默认优先使用数据库记录，否则使用第一章
-        if db_record:
-            chapter_id = db_record.chapter_id
-            offset = db_record.words_read
-        else:
+        # 比较三个来源的时间：本地文件、数据库、S3 远程
+        file_time = _parse_progress_time(file_record)
+        db_time = make_naive_utc(db_record.read_time) if db_record else None
+        remote_time = _parse_progress_time(remote_record)
+
+        # 选出最新的来源
+        best_record = None
+        best_source = None
+        times = [
+            (file_time, 'file', file_record),
+            (db_time, 'db', db_record),
+            (remote_time, 'remote', remote_record),
+        ]
+        for t, source, rec in times:
+            if t is None or rec is None:
+                continue
+            if best_record is None or t > best_record[0]:
+                best_record = (t, source, rec)
+
+        # 默认使用第一章
+        if best_record is None:
             chapter_id = _book.first_chapter_id
             offset = 0
+        else:
+            best_source = best_record[1]
+            if best_source == 'db':
+                chapter_id = best_record[2].chapter_id
+                offset = best_record[2].words_read
+            else:
+                # file 或 remote：使用 sectionIndex/paragraphIndex/elementIndex
+                rec = best_record[2]
+                if "sectionIndex" in rec:
+                    section_index = int(rec["sectionIndex"])
+                    cur_chapter = Chapter.objects.filter(book_id=book_id, index=section_index).first()
+                    if cur_chapter:
+                        chapter_id = cur_chapter.id
+                        paragraph_index = rec.get("paragraphIndex", 0)
+                        element_index = rec.get("elementIndex", 0)
 
-        if use_file and "sectionIndex" in file_record:
-            section_index = int(file_record["sectionIndex"])
-            cur_chapter = Chapter.objects.filter(book_id=book_id, index=section_index).first()
-            if cur_chapter:
-                chapter_id = cur_chapter.id
-                paragraph_index = file_record.get("paragraphIndex", 0)
-                element_index = file_record.get("elementIndex", 0)
-                
-                with open(_book.book_url, 'r', encoding=_book.charset) as f:
-                    content = f.read()[cur_chapter.start:cur_chapter.end]
-                    content_lines = content.split('\n')
-                
-                accumulated = 0
-                for idx in range(min(paragraph_index, len(content_lines))):
-                    accumulated += len(content_lines[idx])
-                
-                element_offset = 0
-                if paragraph_index < len(content_lines):
-                    current_line = content_lines[paragraph_index]
-                    idx_val = 0
-                    for c in current_line:
-                        if idx_val >= element_index:
-                            break
-                        if ord(c) > 127:
-                            idx_val += 2
-                        else:
-                            idx_val += 1
-                        element_offset += 1
-                offset = accumulated + element_offset
+                        with open(_book.book_url, 'r', encoding=_book.charset) as f:
+                            content = f.read()[cur_chapter.start:cur_chapter.end]
+                            content_lines = content.split('\n')
 
-            # 同步更新/新增数据库进度记录
+                        accumulated = 0
+                        for idx in range(min(paragraph_index, len(content_lines))):
+                            accumulated += len(content_lines[idx])
+
+                        element_offset = 0
+                        if paragraph_index < len(content_lines):
+                            current_line = content_lines[paragraph_index]
+                            idx_val = 0
+                            for c in current_line:
+                                if idx_val >= element_index:
+                                    break
+                                if ord(c) > 127:
+                                    idx_val += 2
+                                else:
+                                    idx_val += 1
+                                element_offset += 1
+                        offset = accumulated + element_offset
+                    else:
+                        chapter_id = _book.first_chapter_id
+                        offset = 0
+                else:
+                    chapter_id = _book.first_chapter_id
+                    offset = 0
+
+            # 同步到本地文件、数据库、S3（确保三者一致）
+            ch_obj = Chapter.objects.get(id=chapter_id) if chapter_id else None
+            if ch_obj:
+                save_progress_json(_book, ch_obj, offset)
             if db_record:
                 db_record.chapter_id = chapter_id
                 db_record.words_read = offset
@@ -473,10 +598,9 @@ def BookView(request):
                     words_read=offset,
                     read_time=timezone.now()
                 ).save()
-        elif not use_file and db_record:
-            # 既然数据库更新，就把最新进度同步到 md5.json
-            ch_obj = Chapter.objects.get(id=chapter_id)
-            save_progress_json(_book, ch_obj, offset)
+            # 如果选中的不是 remote，则上传到 S3；如果选中 remote，本地和 DB 已经同步
+            if best_source != 'remote':
+                sync_progress_to_s3(request, _book)
                 
     if not chapter_id:
         chapter_id = _book.first_chapter_id

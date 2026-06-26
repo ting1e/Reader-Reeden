@@ -64,7 +64,8 @@ def handle_local_book(request,url):
 
             if not has_match:
                 chapters_to_create.append(Chapter(title=chpt_name,book_id = book.id,book_url=url,index=0,start=0,end=wc))
-                created = Chapter.objects.bulk_create(chapters_to_create)
+                Chapter.objects.bulk_create(chapters_to_create)
+                created = list(Chapter.objects.filter(book_id=book.id).order_by('index'))
                 book.first_chapter_title = chpt_name
                 book.first_chapter_id = created[0].id
                 book.last_chapter_title = chpt_name
@@ -74,7 +75,8 @@ def handle_local_book(request,url):
                 return 'true'
 
             chapters_to_create.append(Chapter(title=chpt_name,book_id = book.id,book_url=url,index=total_ch_num,start=offset,end=wc))
-            created = Chapter.objects.bulk_create(chapters_to_create)
+            Chapter.objects.bulk_create(chapters_to_create)
+            created = list(Chapter.objects.filter(book_id=book.id).order_by('index'))
 
             book.first_chapter_id = created[0].id
             book.last_chapter_title = chpt_name
