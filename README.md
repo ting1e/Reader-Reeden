@@ -172,6 +172,7 @@ CSRF_TRUSTED_ORIGINS = ['https://your-domain.com']
 ```
 Reader-Reeden/
 ├── local/
+│   ├── db.sqlite3       # SQLite 数据库
 │   ├── books/           # S3 下载的 .txt 书籍
 │   ├── upload/          # 本地上传的 .txt 书籍（纯本地）
 │   └── book_progress/   # 阅读进度 JSON
@@ -185,5 +186,4 @@ Reader-Reeden/
 │   └── migrations/      # 数据库迁移
 ├── mysite/              # 项目配置
 ├── demo/                # 截图
-└── db.sqlite3
 ```
