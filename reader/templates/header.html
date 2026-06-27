@@ -26,6 +26,10 @@
         <a role="tab" class="text-base tab tab-active">个人设置</a>
       {% endif %}
 
+      {% if request.resolver_match.url_name == 'font_admin' %}
+        <a role="tab" class="text-base tab tab-active">字体管理</a>
+      {% endif %}
+
     </div>
    
     
@@ -45,9 +49,15 @@
           <li><a href="{% url 'reader:upload_file' %}">上传书籍</a></li>
           <li><a href="{% url 'reader:book_admin' %}">书籍管理</a></li>
           <li><a href="{% url 'reader:bookmark_admin' %}">书签管理</a></li>
+          <li><a href="{% url 'reader:font_admin' %}">字体管理</a></li>
           <li><a href="{% url 'reader:user_settings' %}">个人设置</a></li>
           <li><a href="/admin/">后台管理</a></li>
-          <li><a href="{% url 'reader:logout' %}">登出</a></li>
+          <li>
+            <form method="POST" action="{% url 'reader:logout' %}">
+              {% csrf_token %}
+              <button type="submit" class="w-full text-left">登出</button>
+            </form>
+          </li>
         </ul>
       </div>
       {% else %}

@@ -20,6 +20,7 @@
             <th class="hidden sm:table-cell">字数</th>
             <th class="hidden sm:table-cell">章节</th>
             <th>进度</th>
+            <th>共享</th>
             <th class="hidden md:table-cell">上传时间</th>
             <th>操作</th>
           </tr>
@@ -32,6 +33,14 @@
             <td class="hidden sm:table-cell">{{ book.word_count }}</td>
             <td class="hidden sm:table-cell">{{ book.total_chapter_num }}</td>
             <td>{{ book.progress_value|floatformat:2 }}%</td>
+            <td>
+              <form method="POST" action="{% url 'reader:book_share_toggle' book.id %}" class="inline">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-xs {% if book.share %}btn-success{% else %}btn-ghost{% endif %} btn-outline">
+                  {% if book.share %}已共享{% else %}私有{% endif %}
+                </button>
+              </form>
+            </td>
             <td class="hidden md:table-cell">{{ book.upload_time|date:"Y-m-d H:i" }}</td>
             <td>
               <div class="flex gap-1">

@@ -1,0 +1,114 @@
+
+{% extends "base.html" %}
+
+{% block title %}字体管理{% endblock %}
+
+{% block content %}
+
+<main>
+  {% include 'header.html' %}
+
+  <div class="container mx-auto px-4">
+    <h2 class="text-2xl font-bold mb-4">字体管理</h2>
+
+    {% if msg %}
+    <div class="alert alert-success mb-4 text-sm">{{ msg }}</div>
+    {% endif %}
+    {% if err %}
+    <div class="alert alert-error mb-4 text-sm">{{ err }}</div>
+    {% endif %}
+
+    <!-- 本地字体 -->
+    <div class="mb-8">
+      <h3 class="text-lg font-bold mb-3">本地字体</h3>
+      {% if local_fonts %}
+      <div class="overflow-x-auto">
+        <table class="table table-zebra text-base">
+          <thead>
+            <tr>
+              <th>字体名</th>
+              <th>格式</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for font in local_fonts %}
+            <tr>
+              <td class="break-words max-w-xs">{{ font.name }}</td>
+              <td>{{ font.ext }}</td>
+              <td>
+                <form method="POST" action="{% url 'reader:font_del' font.file_name %}" class="inline"
+                      onsubmit="return confirm('确定删除本地字体 {{ font.name|escapejs }}？')">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-sm btn-error btn-outline">
+                    <i class="bi bi-trash"></i> 删除
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="text-base-content/50 py-4 text-center">暂无本地字体</div>
+      {% endif %}
+    </div>
+
+    <!-- S3 字体库 -->
+    <div>
+      <h3 class="text-lg font-bold mb-3">S3 字体库</h3>
+      {% if s3_error %}
+      <div class="text-base-content/50 py-4 text-center">{{ s3_error }}</div>
+      {% elif s3_fonts %}
+      <div class="overflow-x-auto">
+        <table class="table table-zebra text-base">
+          <thead>
+            <tr>
+              <th>字体文件</th>
+              <th>状态</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for font in s3_fonts %}
+            <tr>
+              <td class="break-words max-w-xs">{{ font.name }}</td>
+              <td>
+                {% if font.in_local %}
+                <span class="badge badge-success badge-sm">已下载</span>
+                {% else %}
+                <span class="badge badge-ghost badge-sm">未下载</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if not font.in_local %}
+                <form method="POST" action="{% url 'reader:font_download' %}" class="inline"
+                      onsubmit="return confirm('确定从 S3 下载 {{ font.name|escapejs }}？')">
+                  {% csrf_token %}
+                  <input type="hidden" name="name" value="{{ font.name }}">
+                  <button type="submit" class="btn btn-sm btn-outline">
+                    <i class="bi bi-download"></i> 下载
+                  </button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="text-base-content/50 py-4 text-center">S3 字体库为空</div>
+      {% endif %}
+    </div>
+
+  </div>
+
+</main>
+
+{% endblock %}
+
+{% block body-bottom %}
+
+{% endblock %}

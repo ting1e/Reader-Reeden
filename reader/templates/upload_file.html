@@ -10,7 +10,7 @@
 
   <div class="container mx-auto px-4 py-4">
     <h2 class="text-2xl font-bold mb-2">上传书籍</h2>
-    <p class="text-sm text-base-content/60 mb-6">仅支持 .txt 文本文件，单文件最大 50MB。上传后自动分章，仅保存在本地。</p>
+    <p class="text-sm text-base-content/60 mb-6">仅支持 .txt 文本文件，单文件最大 100MB。上传后自动分章，仅保存在本地。</p>
 
     {% if notice %}
     <div class="alert alert-warning mb-4">
@@ -46,7 +46,7 @@
         multi:true,
         formData: {csrfmiddlewaretoken: '{{ csrf_token }}'},
         progressData:'percentage',
-        fileSizeLimit:50000,
+        fileSizeLimit:102400,
         showUploadedPercent:true,
         showUploadedSize:true,
         removeTimeout:9999999,

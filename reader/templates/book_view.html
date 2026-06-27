@@ -6,6 +6,13 @@
 {% block content %}
 <style>
 
+{% for font in local_fonts %}
+@font-face {
+    font-family: '{{ font.name }}';
+    src: url("{% url 'reader:font_file' font.file_name %}") format('{{ font.format }}');
+}
+{% endfor %}
+
 {% if user_setting %}
 main{
     background:{{user_setting.read_bg}};
@@ -14,6 +21,11 @@ main{
 article{
     font-size:{{user_setting.font_size}}px;
 }
+{% if user_setting.font_family %}
+article{
+    font-family: '{{ user_setting.font_family }}', sans-serif;
+}
+{% endif %}
     {% if 'rgb(0, 0, 0)' in user_setting.read_bg %}
     main{
         color:rgb(90, 90, 90);
@@ -31,6 +43,16 @@ article{
         color:#3a2a1a;
     }
     {% endif %}
+{% if user_setting.font_color %}
+article{ color: {{ user_setting.font_color }}; }
+{% endif %}
+article{ letter-spacing: {{ user_setting.letter_spacing|default:'0' }}px; }
+{% if user_setting.line_height %}
+article{ line-height: {{ user_setting.line_height }}; }
+{% endif %}
+{% if user_setting.font_weight %}
+article{ font-weight: {{ user_setting.font_weight }}; }
+{% endif %}
 {% endif %}
 
 </style>
@@ -72,49 +94,116 @@ article{
 
         <!-- Settings Toast -->
         <div id="offcanvassetting" class="toast toast-top toast-end mt-16" style="display:none; z-index: 1080;">
-            <div class="alert shadow-lg bg-base-100 border border-base-300 p-6 relative" style="min-width: 340px;">
+            <div class="alert shadow-lg bg-base-100 border border-base-300 p-5 relative" style="min-width: 300px; max-height: 80vh; overflow-y: auto;">
                 <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2 setting-close" type="button">✕</button>
-                <div class="flex flex-col gap-4 w-full">
+                <div class="flex flex-col gap-3 w-full">
                     <h3 class="text-base font-bold text-center">阅读设置</h3>
-                    <div class="divider my-0 h-0"></div>
 
-                    <div class="flex items-center justify-center gap-3">
-                        <button class="btn btn-outline dec-font update-setting" type="button">A-</button>
-                        <span class="font-value text-center w-16 font-semibold text-lg"> </span>
-                        <button class="btn btn-outline inc-font update-setting" type="button">A+</button>
-                    </div>
+                    <!-- 背景 -->
+                    <div class="flex flex-col gap-2.5">
+                        <div class="text-sm font-bold uppercase tracking-widest text-base-content/40 border-b border-base-200 pb-1">背景</div>
 
-                    <div class="divider my-0 h-0"></div>
-
-                    <ul class="flex justify-center gap-3" style="height: 48px;">
-                        <li class="w-10 h-10 rounded-lg border-2 cursor-pointer bg-setting read-white update-setting" style="background: #fff;"></li>
-                        <li class="w-10 h-10 rounded-lg border-2 cursor-pointer bg-setting read-blue update-setting" style="background: #c3d4e6;"></li>
-                        <li class="w-10 h-10 rounded-lg border-2 cursor-pointer bg-setting read-green update-setting" style="background: #c8e8c8;"></li>
-                        <li class="w-10 h-10 rounded-lg border-2 cursor-pointer bg-setting read-yellow update-setting" style="background: #c4b395"></li>
-                        <li class="w-10 h-10 rounded-lg border-2 cursor-pointer bg-setting read-black update-setting" style="background: #000"></li>
-                    </ul>
-
-                    <div class="divider my-0 h-0"></div>
-
-                    <div class="flex items-center justify-center gap-3">
-                        <span class="text-sm text-base-content/70">阅读方式</span>
-                        <div class="join">
-                            <button class="btn btn-sm join-item mode-setting mode-page" type="button" data-mode="page">翻页</button>
-                            <button class="btn btn-sm join-item mode-setting mode-slide" type="button" data-mode="slide">滑动</button>
+                        <div class="flex items-center justify-between gap-3">
+                            <span class="text-base text-base-content/70 shrink-0 w-10">背景色</span>
+                            <ul class="flex gap-2">
+                                <li class="w-8 h-8 rounded-lg border-2 cursor-pointer bg-setting read-white update-setting" style="background: #fff;"></li>
+                                <li class="w-8 h-8 rounded-lg border-2 cursor-pointer bg-setting read-blue update-setting" style="background: #c3d4e6;"></li>
+                                <li class="w-8 h-8 rounded-lg border-2 cursor-pointer bg-setting read-green update-setting" style="background: #c8e8c8;"></li>
+                                <li class="w-8 h-8 rounded-lg border-2 cursor-pointer bg-setting read-yellow update-setting" style="background: #c4b395"></li>
+                                <li class="w-8 h-8 rounded-lg border-2 cursor-pointer bg-setting read-black update-setting" style="background: #000"></li>
+                            </ul>
                         </div>
                     </div>
 
                     <div class="divider my-0 h-0"></div>
 
-                    <div class="flex items-center justify-center gap-3 flex-wrap">
-                        <span class="text-sm text-base-content/70">自动阅读</span>
-                        <input type="checkbox" class="toggle toggle-sm" id="auto-read-toggle">
-                        <span class="text-sm text-base-content/70">速度</span>
-                        <input type="range" min="0.1" max="5" step="0.1" value="2" class="range range-xs w-28 [--range-fill:0]" id="auto-read-speed">
-                        <span class="text-xs w-8 text-center" id="auto-read-speed-val">2</span>
+                    <!-- 排版 -->
+                    <div class="flex flex-col gap-2.5">
+                        <div class="text-sm font-bold uppercase tracking-widest text-base-content/40 border-b border-base-200 pb-1">排版</div>
+
+                        <div class="flex items-center justify-between gap-3">
+                            <span class="text-base text-base-content/70 shrink-0 w-10">字号</span>
+                            <div class="flex items-center gap-2">
+                                <button class="btn btn-sm btn-outline dec-font update-setting" type="button">A-</button>
+                                <span class="font-value text-center w-10 font-semibold text-base"> </span>
+                                <button class="btn btn-sm btn-outline inc-font update-setting" type="button">A+</button>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between gap-3">
+                            <span class="text-base text-base-content/70 shrink-0 w-10">字体</span>
+                            <select class="select select-sm select-bordered font-setting flex-1">
+                                <option value="">默认字体</option>
+                                {% for font in local_fonts %}
+                                <option value="{{ font.name }}"
+                                    {% if user_setting.font_family == font.name %}selected{% endif %}>{{ font.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="flex items-center justify-between gap-3">
+                            <span class="text-base text-base-content/70 shrink-0 w-10">颜色</span>
+                            <div class="flex items-center gap-2">
+                                <input type="checkbox" class="toggle toggle-sm" id="enable-font-color"
+                                    {% if user_setting.font_color %}checked{% endif %}>
+                                <input type="color" id="setting-font-color" class="w-8 h-8 rounded cursor-pointer"
+                                    value="{{ user_setting.font_color|default:'#333333' }}">
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between gap-3">
+                            <span class="text-base text-base-content/70 shrink-0 w-10">粗细</span>
+                            <select id="setting-font-weight" class="select select-sm select-bordered flex-1">
+                                <option value="">默认</option>
+                                <option value="300" {% if user_setting.font_weight == '300' %}selected{% endif %}>细</option>
+                                <option value="400" {% if user_setting.font_weight == '400' %}selected{% endif %}>常规</option>
+                                <option value="500" {% if user_setting.font_weight == '500' %}selected{% endif %}>中等</option>
+                                <option value="700" {% if user_setting.font_weight == '700' %}selected{% endif %}>粗</option>
+                                <option value="900" {% if user_setting.font_weight == '900' %}selected{% endif %}>特粗</option>
+                            </select>
+                        </div>
+
+                        <div class="flex items-center justify-between gap-3">
+                            <span class="text-base text-base-content/70 shrink-0 w-10">字距</span>
+                            <div class="flex items-center gap-2 flex-1">
+                                <input type="range" min="-2" max="10" step="1" value="{{ user_setting.letter_spacing|default:'0' }}" class="range range-xs flex-1 [--range-fill:0]" id="setting-letter-spacing">
+                                <span class="text-base w-8 text-center" id="setting-letter-spacing-val">{{ user_setting.letter_spacing|default:'0' }}</span>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between gap-3">
+                            <span class="text-base text-base-content/70 shrink-0 w-10">行距</span>
+                            <div class="flex items-center gap-2 flex-1">
+                                <input type="range" min="0" max="3" step="0.1" value="{{ user_setting.line_height|default:'1.2' }}" class="range range-xs flex-1 [--range-fill:0]" id="setting-line-height">
+                                <span class="text-base w-8 text-center" id="setting-line-height-val">{% if user_setting.line_height %}{{ user_setting.line_height }}{% else %}默认{% endif %}</span>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="divider my-0 h-0"></div>
+
+                    <!-- 阅读 -->
+                    <div class="flex flex-col gap-2.5">
+                        <div class="text-sm font-bold uppercase tracking-widest text-base-content/40 border-b border-base-200 pb-1">阅读</div>
+
+                        <div class="flex items-center justify-between gap-3">
+                            <span class="text-base text-base-content/70 shrink-0 w-10">方式</span>
+                            <div class="join">
+                                <button class="btn btn-sm join-item mode-setting mode-page" type="button" data-mode="page">翻页</button>
+                                <button class="btn btn-sm join-item mode-setting mode-slide" type="button" data-mode="slide">滑动</button>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between gap-3">
+                            <span class="text-base text-base-content/70 shrink-0 w-10">自动</span>
+                            <div class="flex items-center gap-2">
+                                <input type="checkbox" class="toggle toggle-sm" id="auto-read-toggle">
+                                <span class="text-base text-base-content/70">速度</span>
+                                <input type="range" min="0.1" max="5" step="0.1" value="2" class="range range-xs w-32 [--range-fill:0]" id="auto-read-speed">
+                                <span class="text-base w-8 text-center" id="auto-read-speed-val">2</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -218,6 +307,10 @@ article{
     var last_words = parseInt({{last_words}})
     var user_setting_bg = "{{user_setting.read_bg}}"
     var user_setting_mode = "{{user_setting.read_mode|default:'page'}}"
+    var user_setting_font_color = "{{user_setting.font_color|default:''}}"
+    var user_setting_letter_spacing = parseFloat("{{user_setting.letter_spacing|default:'0'}}")
+    var user_setting_line_height = parseFloat("{{user_setting.line_height|default:'0'}}")
+    var user_setting_font_weight = "{{user_setting.font_weight|default:''}}"
     var url_update_setting = "{% url 'reader:update_setting' %}"
     var url_bookmark_save = "{% url 'reader:bookmark_save' %}"
     var book_id = '{{book_id}}'
@@ -229,9 +322,10 @@ article{
     var url_chapter_list_ajax = "{% url 'reader:chapter_list_ajax' book_id %}";
     var chapter_ids = [{% for cid in chapter_ids %}{{cid}}{% if not forloop.last %},{% endif %}{% endfor %}];
 
-    var url_bookmark_list = "{% url 'reader:null'  %}"
-    {% if request.user.id %}
-    var url_bookmark_list = "{% url 'reader:bookmark_list' request.user.id  book_id %}"
+    {% if user.is_authenticated %}
+    var url_bookmark_list = "{% url 'reader:bookmark_list' user.id book_id %}";
+    {% else %}
+    var url_bookmark_list = "";
     {% endif %}
     </script>
 

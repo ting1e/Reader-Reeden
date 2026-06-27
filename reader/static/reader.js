@@ -10,6 +10,23 @@ var page_width = $('article').width() + parseInt($('article').css('column-gap'))
 var page_num = parseInt(($('#marker').offset().left - $('article').offset().left)/ page_width +1);
 var page_contents_len = new Array(page_num + 1 ).fill(0);
 
+function applyTypographyToArticle($el) {
+    var $target = $el || $('article');
+    $target.css('font-size', $('.font-value').text() + 'px');
+    var fontFamily = $('.font-setting').val();
+    $target.css('font-family', fontFamily ? fontFamily + ', sans-serif' : '');
+    if ($('#enable-font-color').is(':checked')) {
+        $target.css('color', $('#setting-font-color').val());
+    } else {
+        $target.css('color', '');
+    }
+    var fontWeight = $('#setting-font-weight').val();
+    $target.css('font-weight', fontWeight || '');
+    $target.css('letter-spacing', $('#setting-letter-spacing').val() + 'px');
+    var lineHeight = parseFloat($('#setting-line-height').val());
+    $target.css('line-height', lineHeight > 0 ? lineHeight : '');
+}
+
 // ===== 章节缓存系统 =====
 const chapterCache = new Map();
 const PRELOAD_RANGE = 10;
@@ -179,6 +196,7 @@ function appendSlideChapter(chapterId) {
     markSlideArticle($art, chapterId);
     $('.article-container').append($art);
     slideLoadedChapters.add(chapterId);
+    applyTypographyToArticle($art);
     return true;
 }
 
@@ -191,6 +209,7 @@ function prependSlideChapter(chapterId) {
     var prevScrollHeight = c.scrollHeight;
     $('.article-container').prepend($art);
     slideLoadedChapters.add(chapterId);
+    applyTypographyToArticle($art);
     // 保持视口位置：补偿新内容插入导致的高度增量
     c.scrollTop += c.scrollHeight - prevScrollHeight;
     return true;
@@ -483,8 +502,8 @@ $('.page-nav').on('click', '.page-item', function(e){
             goToPage(current_page_idx - 1);
             save_record();
         } else {
-            $('.prev-chapter')[0].click();
             localStorage.setItem('prev-chapter','true');
+            $('.prev-chapter')[0].click();
         }
     } else if ($(this).hasClass('next-page')) {
         if (current_page_idx < page_num - 1) {
@@ -603,7 +622,7 @@ function showSettingsToast() {
     });
 
     $('.bg-setting').each(function(){
-        if(!had_choose && $(this).css('background')==user_setting_bg)
+        if(!had_choose && $(this).css('background-color')==user_setting_bg)
             $(this).addClass('bodder border-4 border-secondary');
     });
 
@@ -663,23 +682,71 @@ $('.bg-setting').click(function(){
     }
 })
 
-$('.update-setting').click(function(){
-    var bg = $('main').css('background');
-    if($(this).hasClass('bg-setting'))
-        bg = $(this).css('background');
+function collectSettings() {
+    return {
+        'font_size': $('.font-value').text(),
+        'read_bg': $('main').css('background-color'),
+        'read_mode': read_mode,
+        'font_family': $('.font-setting').val() || '',
+        'font_color': $('#enable-font-color').is(':checked') ? ($('#setting-font-color').val() || '') : '',
+        'letter_spacing': $('#setting-letter-spacing').val() || '0',
+        'line_height': $('#setting-line-height').val() || '1.2',
+        'font_weight': $('#setting-font-weight').val() || '',
+        csrfmiddlewaretoken: csrf_token
+    };
+}
 
+function saveSettings(successFn) {
     $.ajax({
      url: url_update_setting,
      type: 'post',
-     data: {
-         'font_size': $('.font-value').text(),
-         'read_bg':bg,
-         'read_mode': read_mode,
-         csrfmiddlewaretoken: csrf_token
-     },
-     success: function (data){ console.log(data); }
-    })
+     data: collectSettings(),
+     success: successFn || function (data){ console.log(data); }
+    });
+}
+
+$('.update-setting').click(function(){
+    saveSettings();
 })
+
+$('.font-setting').on('change', function(){
+    var fontFamily = $(this).val();
+    $('article').css('font-family', fontFamily ? fontFamily + ', sans-serif' : '');
+    saveSettings();
+});
+
+$('#enable-font-color, #setting-font-color').on('change', function(){
+    if ($('#enable-font-color').is(':checked')) {
+        $('article').css('color', $('#setting-font-color').val());
+    } else {
+        $('article').css('color', '');
+    }
+    saveSettings();
+});
+
+$('#setting-font-weight').on('change', function(){
+    var val = $(this).val();
+    $('article').css('font-weight', val || '');
+    saveSettings();
+});
+
+$('#setting-letter-spacing').on('input', function(){
+    var val = $(this).val();
+    $('#setting-letter-spacing-val').text(val);
+    $('article').css('letter-spacing', val + 'px');
+});
+$('#setting-letter-spacing').on('change', function(){
+    saveSettings();
+});
+
+$('#setting-line-height').on('input', function(){
+    var val = parseFloat($(this).val());
+    $('#setting-line-height-val').text(val > 0 ? val.toFixed(1) : '默认');
+    $('article').css('line-height', val > 0 ? val : '');
+});
+$('#setting-line-height').on('change', function(){
+    saveSettings();
+});
 
 $('.mode-setting').click(function(){
     var mode = $(this).data('mode');
@@ -688,12 +755,7 @@ $('.mode-setting').click(function(){
     $.ajax({
      url: url_update_setting,
      type: 'post',
-     data: {
-         'font_size': $('.font-value').text(),
-         'read_bg': $('main').css('background'),
-         'read_mode': read_mode,
-         csrfmiddlewaretoken: csrf_token
-     },
+     data: collectSettings(),
      success: function (data){
          if (read_mode === 'page') {
              location.reload();
@@ -744,20 +806,24 @@ $('.bookmark-btn').click(function(){
 $(drawerCheckbox).on('change', function(e) {
     if (this.checked) {
         loadChapterList();
-        $.ajax({
-            url: url_bookmark_list,
-            type: 'get',
-            success: function (data){
-                $('.bookmark_list_container').html(data);
-                // 前端高亮当前章节的书签
-                $('.bookmark_list_container .list-group-item').each(function() {
-                    var bmChapterId = $(this).closest('form').find('input[name="chapter_id"]').val();
-                    if (parseInt(bmChapterId) === chapter_id) {
-                        $(this).addClass('active bg-base-300 font-medium').removeClass('text-base-content/70');
-                    }
-                });
-            }
-        });
+        if (url_bookmark_list) {
+            $.ajax({
+                url: url_bookmark_list,
+                type: 'get',
+                success: function (data){
+                    $('.bookmark_list_container').html(data);
+                    // 前端高亮当前章节的书签
+                    $('.bookmark_list_container .list-group-item').each(function() {
+                        var bmChapterId = $(this).closest('form').find('input[name="chapter_id"]').val();
+                        if (parseInt(bmChapterId) === chapter_id) {
+                            $(this).addClass('active bg-base-300 font-medium').removeClass('text-base-content/70');
+                        }
+                    });
+                }
+            });
+        } else {
+            $('.bookmark_list_container').empty();
+        }
     }
 });
 
@@ -927,6 +993,7 @@ function loadChapterFromCache(chapterId, offset) {
         markSlideArticle($art, chapterId);
         $('.article-container').append($art);
         slideLoadedChapters.add(chapterId);
+        applyTypographyToArticle($art);
 
         if (localStorage.getItem('prev-chapter')) {
             var c = $('.article-container');
@@ -945,6 +1012,7 @@ function loadChapterFromCache(chapterId, offset) {
     }
 
     $('.article-container').html(cached.chapter_view);
+    applyTypographyToArticle();
     reinitPages();
 
     if (localStorage.getItem('prev-chapter')) {

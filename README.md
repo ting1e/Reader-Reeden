@@ -88,7 +88,6 @@ python manage.py runserver
 
 1. **本地上传** — 头像下拉菜单 → 上传书籍，拖拽 `.txt` 文件，书籍存入 `local/upload/`（纯本地，不同步 S3）
 2. **S3 下载** — 配置 S3 后在远程书库点击下载，书籍存入 `local/books/`
-3. **调试导入** — 将 `.txt` 放入 `local/books/`，访问 `/test/` 触发（调试用）
 
 ### S3 配置
 
@@ -161,11 +160,12 @@ python manage.py runserver
 修改 `mysite/settings.py`：
 
 ```python
-SECRET_KEY = 'your-secret-key'
 DEBUG = False
 ALLOWED_HOSTS = ['your-domain.com']
 CSRF_TRUSTED_ORIGINS = ['https://your-domain.com']
 ```
+
+`SECRET_KEY` 不再硬编码：启动时优先读环境变量 `DJANGO_SECRET_KEY`，其次读 `local/secret_key.txt`；文件不存在时（首次运行）自动生成随机密钥并写入该文件（权限 0600，已被 `.gitignore` 忽略）。生产环境也可显式设置环境变量 `DJANGO_SECRET_KEY`。
 
 ## 目录结构
 

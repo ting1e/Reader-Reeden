@@ -11,7 +11,8 @@ https://docs.djangoproject.com/en/4.0/ref/settings/
 """
 
 from pathlib import Path
-import os 
+import os
+import secrets
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -20,7 +21,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/4.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-)+viyi)je17r9)gsplryn_rf(v3i(ym7z^g3qb@jkc%#@&6wyc'
+# SECRET_KEY 不再硬编码：优先读环境变量 DJANGO_SECRET_KEY，其次读 local/secret_key.txt；
+# 文件不存在时（首次运行）自动生成随机密钥并写入该文件。加载逻辑见文件末尾。
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -127,3 +129,65 @@ STATIC_ROOT = 'static'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 999999999
+DATA_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024
+
+
+# 日志配置：写入 local/logs/reader.log
+LOG_DIR = BASE_DIR / 'local' / 'logs'
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '[{asctime}] {levelname} {name} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'reader_file': {
+            'level': 'WARNING',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': str(LOG_DIR / 'reader.log'),
+            'maxBytes': 10 * 1024 * 1024,
+            'backupCount': 5,
+            'formatter': 'verbose',
+            'encoding': 'utf-8',
+        },
+    },
+    'loggers': {
+        'reader': {
+            'handlers': ['reader_file'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+    },
+}
+
+
+# SECRET_KEY 从文件读取：优先环境变量 DJANGO_SECRET_KEY，其次 local/secret_key.txt，
+# 文件不存在时（首次运行）自动生成随机密钥并写入该文件。
+def _load_secret_key():
+    env_key = os.environ.get('DJANGO_SECRET_KEY')
+    if env_key:
+        return env_key
+    key_file = BASE_DIR / 'local' / 'secret_key.txt'
+    try:
+        key = key_file.read_text(encoding='utf-8').strip()
+        if key:
+            return key
+    except OSError:
+        pass
+    key = secrets.token_urlsafe(50)
+    try:
+        key_file.parent.mkdir(parents=True, exist_ok=True)
+        key_file.write_text(key, encoding='utf-8')
+        os.chmod(key_file, 0o600)
+    except OSError:
+        return 'django-insecure-' + secrets.token_urlsafe(50)
+    return key
+
+
+SECRET_KEY = _load_secret_key()

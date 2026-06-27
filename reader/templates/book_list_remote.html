@@ -21,24 +21,28 @@
       {% load static %}
       {% for book in book_list_remote %}
       <div class="book-item" data-book-name="{{ book.name }}">
-        <a href="{% url 'reader:open_remote_book' %}?name={{ book.name|urlencode }}" class="block">
-          <div class="card card-compact bg-base-100 shadow-sm hover:shadow-md transition-shadow duration-150 w-full border-0 text-left cursor-pointer">
-           <figure class="relative">
-             <img src="{% static 'images/book3.png' %}" alt="{{ book.name }}">
-             {% if book.progress > 0 %}
-             <div class="absolute top-0 left-0 px-1.5 py-1 bg-black/50 text-white text-xs leading-none">{{ book.progress|floatformat:2 }}%</div>
-             {% endif %}
-             {% if not book.in_db %}
-              <div class="absolute top-1 right-1">
-                <i class="bi bi-cloud text-black text-xl leading-none drop-shadow"></i>
-              </div>
-             {% endif %}
-             <figcaption class="absolute inset-x-0 bottom-0 p-2 bg-black/50 text-white text-sm break-words overflow-hidden book-tittle">
-               {{ book.name }}
-             </figcaption>
-           </figure>
-          </div>
-        </a>
+        <form method="POST" action="{% url 'reader:open_remote_book' %}" class="block">
+          {% csrf_token %}
+          <input type="hidden" name="name" value="{{ book.name }}">
+          <button type="submit" class="block w-full text-left cursor-pointer p-0 border-0 bg-transparent">
+            <div class="card card-compact bg-base-100 shadow-sm hover:shadow-md transition-shadow duration-150 w-full border-0 text-left">
+             <figure class="relative">
+               <img src="{% static 'images/book3.png' %}" alt="{{ book.name }}">
+               {% if book.progress > 0 %}
+               <div class="absolute top-0 left-0 px-1.5 py-1 bg-black/50 text-white text-xs leading-none">{{ book.progress|floatformat:2 }}%</div>
+               {% endif %}
+               {% if not book.in_db %}
+                <div class="absolute top-1 right-1">
+                  <i class="bi bi-cloud text-black text-xl leading-none drop-shadow"></i>
+                </div>
+               {% endif %}
+               <figcaption class="absolute inset-x-0 bottom-0 p-2 bg-black/50 text-white text-sm break-words overflow-hidden book-tittle">
+                 {{ book.name }}
+               </figcaption>
+             </figure>
+            </div>
+          </button>
+        </form>
       </div>
       {% endfor %}
     </div>

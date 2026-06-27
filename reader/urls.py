@@ -1,4 +1,3 @@
-from urllib import response
 from django.urls import path
 
 from . import views
@@ -6,14 +5,13 @@ from . import views
 app_name = 'reader'
 urlpatterns = [
     path('', views.IndexView.as_view(), name='index'),
-    # path('<int:pk>/', views.DetailView.as_view(), name='detail'),
-    # path('<int:pk>/results/', views.ResultsView.as_view(), name='results'),
     path('books/', views.BookListView.as_view(), name='book_list'),
     path('books_remote/', views.BookListRemoteView.as_view(), name='book_list_remote'),
     path('open_remote/', views.open_remote_book, name='open_remote_book'),
     path('book_admin/', views.book_admin, name='book_admin'),
     path('book_local_del/<int:pk>/', views.book_local_del, name='book_local_del'),
     path('book_rechapter/<int:pk>/', views.book_rechapter, name='book_rechapter'),
+    path('book_share_toggle/<int:pk>/', views.book_share_toggle, name='book_share_toggle'),
     path('upload/', views.upload_file, name='upload_file'),
 
     path('login/', views.login_auth, name='login'),
@@ -28,9 +26,10 @@ urlpatterns = [
     path('user_settings/rule/', views.user_settings_rule, name='user_settings_rule'),
     path('user_settings/password/', views.user_settings_password, name='user_settings_password'),
 
-    path('null', views.ret_null   , name='null'),
-    path('test/', views.test_requset   , name='test'),
-
+    path('font_admin/', views.font_admin, name='font_admin'),
+    path('font_download/', views.font_download, name='font_download'),
+    path('font_del/<str:name>/', views.font_del, name='font_del'),
+    path('font_file/<str:name>/', views.font_file, name='font_file'),
 
     path('view/', views.BookView, name='book_view'),
     path('chapter_content/<int:chapter_id>/', views.chapter_content, name='chapter_content'),

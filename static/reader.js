@@ -272,16 +272,18 @@ $('.offcanvas-start').on('show.bs.offcanvas',function(){
     //     }
 
     //    })
-    $.ajax({
-        url: url_bookmark_list,
-        type: 'get',
-        // 上面data为提交数据，下面data形参指代的就是异步提交的返回结果data
-        success: function (data){
-            $('.bookmark_list_container').html(data)
-        // console.log(data);
-        }
+    if (url_bookmark_list) {
+        $.ajax({
+            url: url_bookmark_list,
+            type: 'get',
+            // 上面data为提交数据，下面data形参指代的就是异步提交的返回结果data
+            success: function (data){
+                $('.bookmark_list_container').html(data)
+            // console.log(data);
+            }
 
-       })
+           })
+    }
 
 })
 
