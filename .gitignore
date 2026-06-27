@@ -7,3 +7,4 @@ git_ignore/
 storage_local/
 storage_upload/
 local/
+static/

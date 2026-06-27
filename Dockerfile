@@ -12,7 +12,7 @@ RUN pip install -r requirements.txt gunicorn
 
 COPY . .
 
-RUN DJANGO_SECRET_KEY=build-dummy-collectstatic-only python manage.py collectstatic --noinput
+RUN rm -rf /app/static && DJANGO_SECRET_KEY=build-dummy-collectstatic-only python manage.py collectstatic --noinput
 
 VOLUME ["/app/local"]
 
