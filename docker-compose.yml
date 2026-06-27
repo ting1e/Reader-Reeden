@@ -1,0 +1,13 @@
+services:
+  reader:
+    image: ting1e/reader-reeden:latest
+    container_name: reader-reeden
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./local:/app/local
+    environment:
+      DJANGO_DEBUG: "False"
+      DJANGO_ALLOWED_HOSTS: "*"
+      DJANGO_CSRF_TRUSTED_ORIGINS: ""
+    restart: unless-stopped

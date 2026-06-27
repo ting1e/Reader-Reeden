@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}首次运行 · 创建管理员{% endblock %}
+
+{% block content %}
+<div class="min-h-screen flex items-center justify-center px-4 py-10">
+  <div class="card w-full max-w-md bg-base-100 shadow-xl">
+    <div class="card-body">
+      <div class="mb-2">
+        <h1 class="text-2xl font-bold">Reader-Reeden</h1>
+        <p class="text-sm text-base-content/60 mt-1">首次运行，请创建管理员账号</p>
+      </div>
+
+      {% if error %}
+      <div class="alert alert-error mb-2">
+        <span>{{ error }}</span>
+      </div>
+      {% endif %}
+
+      <form method="post" action="{% url 'reader:setup_admin' %}" class="mt-2">
+        {% csrf_token %}
+        <label class="form-control mb-3">
+          <span class="label-text mb-1">用户名</span>
+          <input type="text" name="username" class="input input-bordered w-full" placeholder="管理员用户名" required autocomplete="username" />
+        </label>
+        <label class="form-control mb-3">
+          <span class="label-text mb-1">密码</span>
+          <input type="password" name="password" class="input input-bordered w-full" placeholder="设置密码" required autocomplete="new-password" />
+        </label>
+        <label class="form-control mb-4">
+          <span class="label-text mb-1">确认密码</span>
+          <input type="password" name="password2" class="input input-bordered w-full" placeholder="再次输入密码" required autocomplete="new-password" />
+        </label>
+
+        <details class="mb-4 text-sm text-base-content/60">
+          <summary class="cursor-pointer">密码要求</summary>
+          <ul class="mt-2 list-disc list-inside space-y-1">
+            <li>不能与用户名过于相似</li>
+            <li>至少 8 个字符</li>
+            <li>不能使用过于常见的密码</li>
+            <li>不能为纯数字</li>
+          </ul>
+        </details>
+
+        <button type="submit" class="btn btn-primary w-full">创建管理员</button>
+      </form>
+
+      <p class="text-xs text-base-content/50 mt-4">
+        创建成功后将跳转到首页，请使用该账号登录。此页面仅在系统无任何用户时可用。
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}

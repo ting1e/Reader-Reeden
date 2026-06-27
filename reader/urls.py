@@ -16,6 +16,7 @@ urlpatterns = [
 
     path('login/', views.login_auth, name='login'),
     path('logout/', views.logout_view, name='logout'),
+    path('setup/', views.setup_admin, name='setup_admin'),
     path('update_setting/', views.update_setting, name='update_setting'),
     path('bookmark/', views.bookmark_save, name='bookmark_save'),
     path('bookmark_list/<int:user_id>/<int:book_id>/', views.BookmarkListView.as_view(), name='bookmark_list'),

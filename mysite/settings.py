@@ -25,9 +25,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # 文件不存在时（首次运行）自动生成随机密钥并写入该文件。加载逻辑见文件末尾。
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# 优先读环境变量 DJANGO_DEBUG，未设置时默认 True（保持本地开发行为）
+DEBUG = os.environ.get('DJANGO_DEBUG', 'True').lower() in ('1', 'true', 'yes', 'on')
 
-ALLOWED_HOSTS = ['127.0.0.1']
+# 允许的主机：优先读环境变量 DJANGO_ALLOWED_HOSTS（逗号分隔），未设置时默认 ['127.0.0.1']
+_allowed_hosts_env = os.environ.get('DJANGO_ALLOWED_HOSTS', '')
+ALLOWED_HOSTS = [h.strip() for h in _allowed_hosts_env.split(',') if h.strip()] or ['127.0.0.1']
+
+# CSRF 信任来源：读环境变量 DJANGO_CSRF_TRUSTED_ORIGINS（逗号分隔），未设置时为空
+_csrf_origins_env = os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', '')
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins_env.split(',') if o.strip()]
 
 
 # Application definition
@@ -50,7 +57,12 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'reader.middleware.FirstRunMiddleware',
 ]
+
+# Session 配置：滑动续期 30 天——只要 30 天内有任意请求即续期，持续使用无需重登
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 30  # 30 天
+SESSION_SAVE_EVERY_REQUEST = True
 
 ROOT_URLCONF = 'mysite.urls'
 
