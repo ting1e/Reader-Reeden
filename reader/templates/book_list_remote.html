@@ -9,6 +9,14 @@
   {% include 'header.html' %}
 
   <div class="container mx-auto px-4 py-4">
+    {% if s3_error %}
+    <div class="alert alert-error shadow-lg mb-4">
+      <div>
+        <i class="bi bi-exclamation-triangle-fill text-xl"></i>
+        <span>{{ s3_error }}</span>
+      </div>
+    </div>
+    {% endif %}
     <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-5">
       {% load static %}
       {% for book in book_list_remote %}

@@ -3,7 +3,7 @@ from django.urls import reverse
 from .models import *
 from django.views import generic
 from django.shortcuts import get_object_or_404, redirect, render
-from django.contrib.auth import authenticate,login,logout
+from django.contrib.auth import authenticate,login,logout,update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.template.loader import render_to_string
 from django.utils import timezone
@@ -15,6 +15,7 @@ import json
 import datetime
 import hashlib
 import uuid
+import re
 
 from django.conf import settings
 
@@ -148,7 +149,7 @@ def save_progress_json(book, chapter, words_read):
     if getattr(book, 'local_only', False):
         return
     try:
-        md5_val = get_file_md5(book.book_url)
+        md5_val = book.md5 or get_file_md5(book.book_url)
     except Exception as e:
         print(f"Error calculating MD5: {e}")
         return
@@ -277,7 +278,7 @@ def sync_progress_to_s3(request, book):
     if not cfg or not book or not getattr(book, 'book_url', None):
         return
     try:
-        md5_val = get_file_md5(book.book_url)
+        md5_val = book.md5 or get_file_md5(book.book_url)
     except Exception as e:
         print(f"sync_progress_to_s3 MD5 error: {e}")
         return
@@ -336,6 +337,9 @@ class BookListRemoteView(generic.ListView):
 
     def get_queryset(self):
         remote_files = []
+        if not self.request.user.is_authenticated:
+            self.s3_error = '未登录，请先登录'
+            return remote_files
         cfg = get_s3_config(self.request.user)
         if cfg:
             target_prefix = cfg['prefix'] + 'books/'
@@ -349,7 +353,11 @@ class BookListRemoteView(generic.ListView):
                             filename = obj['Key'][len(target_prefix):]
                             remote_files.append({'name': filename, 'in_db': filename in local_books_set})
             except Exception as e:
-                print("Error parsing S3 settings or connecting to S3:", e)
+                self.s3_error = str(e)
+            else:
+                self.s3_error = None
+        else:
+            self.s3_error = '未配置 S3，请在设置中填写 S3 连接信息'
         in_db_names = [f['name'] for f in remote_files if f.get('in_db')]
         name_progress = {}
         if in_db_names:
@@ -363,6 +371,11 @@ class BookListRemoteView(generic.ListView):
         for f in remote_files:
             f['progress'] = name_progress.get(f['name'], 0)
         return remote_files
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['s3_error'] = getattr(self, 's3_error', None)
+        return context
 
 
 @login_required(login_url='reader:index')
@@ -409,7 +422,7 @@ def open_remote_book(request):
         return HttpResponse('入库失败')
 
     try:
-        md5_val = get_file_md5(local_path)
+        md5_val = book.md5 or get_file_md5(local_path)
         progress_key = f'{prefix}book_progress/{md5_val}.json'
         local_progress_path = os.path.join(get_progress_dir(), f'{md5_val}.json')
 
@@ -551,7 +564,7 @@ def BookView(request):
         md5_val = None
         if not getattr(_book, 'local_only', False):
             try:
-                md5_val = get_file_md5(_book.book_url)
+                md5_val = _book.md5 or get_file_md5(_book.book_url)
                 json_path = os.path.join(get_progress_dir(), f"{md5_val}.json")
                 if os.path.exists(json_path):
                     with open(json_path, 'r', encoding='utf-8') as f:
@@ -764,6 +777,82 @@ def bookmark_del(request, pk):
     return redirect('reader:bookmark_admin')
 
 
+@login_required(login_url='reader:index')
+def user_settings(request):
+    """个人设置页面：S3 配置、分章规则、修改密码"""
+    setting, _ = UserSetting.objects.get_or_create(
+        user_id=request.user.id,
+        defaults={'font_size': 16, 'read_bg': '#fff', 'read_mode': 'page'}
+    )
+    return render(request, 'user_settings.html', {
+        'setting': setting,
+        'msg': request.GET.get('msg', ''),
+        'err': request.GET.get('err', ''),
+    })
+
+
+@login_required(login_url='reader:index')
+def user_settings_s3(request):
+    """保存 S3 配置"""
+    if request.method != 'POST':
+        return redirect('reader:user_settings')
+    s3_raw = request.POST.get('s3_setting', '').strip()
+    if not s3_raw:
+        return redirect(reverse('reader:user_settings') + '?err=' + 'S3配置不能为空')
+    try:
+        parsed = json.loads(s3_raw)
+        if isinstance(parsed, str):
+            parsed = json.loads(parsed)
+        required = ['accessKeyId', 'secretAccessKey', 'endpoint', 'bucket']
+        missing = [k for k in required if not parsed.get(k)]
+        if missing:
+            return redirect(reverse('reader:user_settings') + '?err=' + 'S3配置缺少字段: ' + ','.join(missing))
+    except Exception as e:
+        return redirect(reverse('reader:user_settings') + '?err=' + 'S3配置JSON格式错误: ' + str(e)[:80])
+    setting, _ = UserSetting.objects.get_or_create(user_id=request.user.id)
+    setting.s3_setting = s3_raw
+    setting.save()
+    return redirect(reverse('reader:user_settings') + '?msg=' + 'S3配置已保存')
+
+
+@login_required(login_url='reader:index')
+def user_settings_rule(request):
+    """保存分章规则"""
+    if request.method != 'POST':
+        return redirect('reader:user_settings')
+    rule = request.POST.get('chapter_rule', '').strip()
+    if not rule:
+        return redirect(reverse('reader:user_settings') + '?err=' + '分章规则不能为空')
+    try:
+        re.compile(rule)
+    except re.error as e:
+        return redirect(reverse('reader:user_settings') + '?err=' + '正则表达式错误: ' + str(e)[:80])
+    setting, _ = UserSetting.objects.get_or_create(user_id=request.user.id)
+    setting.chapter_rule = rule
+    setting.save()
+    return redirect(reverse('reader:user_settings') + '?msg=' + '分章规则已保存')
+
+
+@login_required(login_url='reader:index')
+def user_settings_password(request):
+    """修改密码"""
+    if request.method != 'POST':
+        return redirect('reader:user_settings')
+    old_pwd = request.POST.get('old_password', '')
+    new_pwd = request.POST.get('new_password', '')
+    confirm_pwd = request.POST.get('confirm_password', '')
+    if not request.user.check_password(old_pwd):
+        return redirect(reverse('reader:user_settings') + '?err=' + '旧密码不正确')
+    if not new_pwd:
+        return redirect(reverse('reader:user_settings') + '?err=' + '新密码不能为空')
+    if new_pwd != confirm_pwd:
+        return redirect(reverse('reader:user_settings') + '?err=' + '两次输入的新密码不一致')
+    request.user.set_password(new_pwd)
+    request.user.save()
+    update_session_auth_hash(request, request.user)
+    return redirect(reverse('reader:user_settings') + '?msg=' + '密码已修改')
+
+
 def login_auth(request):
     if request.method == 'POST':
         username = request.POST.get('username')
@@ -806,7 +895,7 @@ def book_local_del(request, pk):
         return redirect('reader:book_admin')
 
     try:
-        md5_val = get_file_md5(_book.book_url)
+        md5_val = _book.md5 or get_file_md5(_book.book_url)
     except Exception:
         md5_val = None
 

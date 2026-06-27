@@ -6,6 +6,12 @@ from django.contrib.auth import authenticate,login,logout
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 import os
+import hashlib
+
+
+def _file_md5(file_path):
+    with open(file_path, 'rb') as f:
+        return hashlib.md5(f.read()).hexdigest().upper()
 
 
 def handle_local_book(request,url,local_only=False):
@@ -72,6 +78,7 @@ def handle_local_book(request,url,local_only=False):
                 book.last_chapter_title = chpt_name
                 book.last_chapter_id = created[0].id
                 book.total_chapter_num = 0
+                book.md5 = _file_md5(url)
                 book.save()
                 return 'true'
 
@@ -83,6 +90,7 @@ def handle_local_book(request,url,local_only=False):
             book.last_chapter_title = chpt_name
             book.last_chapter_id = created[-1].id
             book.total_chapter_num = total_ch_num
+            book.md5 = _file_md5(url)
             book.save()
         return 'true'
     

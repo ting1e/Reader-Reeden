@@ -23,6 +23,10 @@ urlpatterns = [
     path('bookmark_list/<int:user_id>/<int:book_id>/', views.BookmarkListView.as_view(), name='bookmark_list'),
     path('bookmark_admin/', views.bookmark_admin, name='bookmark_admin'),
     path('bookmark_del/<int:pk>/', views.bookmark_del, name='bookmark_del'),
+    path('user_settings/', views.user_settings, name='user_settings'),
+    path('user_settings/s3/', views.user_settings_s3, name='user_settings_s3'),
+    path('user_settings/rule/', views.user_settings_rule, name='user_settings_rule'),
+    path('user_settings/password/', views.user_settings_password, name='user_settings_password'),
 
     path('null', views.ret_null   , name='null'),
     path('test/', views.test_requset   , name='test'),

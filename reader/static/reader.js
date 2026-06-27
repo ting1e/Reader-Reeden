@@ -31,7 +31,7 @@ document.onkeydown=function(e){
     if(keyNum==38){
         $('.prev-chapter')[0].click();
     }
-    if(keyNum==39 | keyNum == 32){
+    if(keyNum==39 || keyNum == 32){
         $('.next-page').click();
     }
     if(keyNum==40){
