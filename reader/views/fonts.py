@@ -99,6 +99,7 @@ def font_del(request, name):
     return _font_admin_redirect(f'{name} 已删除', kind='msg')
 
 
+@login_required(login_url='reader:index')
 def font_file(request, name):
     """供 @font-face 加载的字体文件服务"""
     name = os.path.basename(name)

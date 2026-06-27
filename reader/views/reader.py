@@ -87,6 +87,8 @@ def BookView(request):
 
     # ---- POST: 关键词搜索 (AJAX) ----
     if request.method == 'POST' and 'kwd' in request.POST:
+        if not request.user.is_authenticated:
+            return HttpResponse('not login')
         _chapter_id = request.POST.get('chapter_id')
         if _chapter_id:
             try:
