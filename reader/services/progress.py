@@ -140,22 +140,36 @@ def save_progress_json(book, chapter, words_read):
         except Exception:
             logger.warning("Error loading old progress JSON", exc_info=True)
 
-    # todayStats 保持原来的内容不变
-    if old_data and "todayStats" in old_data:
-        stats = old_data["todayStats"]
-    else:
-        stats = {
-            "date": current_date_str,
-            "devices": {
-                device_id: {
-                    "readSeconds": 0,
-                    "wordCount": 0,
-                    "hourly": {}
-                }
-            }
-        }
-
     progress_val = calculate_read_progress(book, chapter, words_read)
+
+    delta_seconds = 0
+    delta_words = 0
+    if old_data:
+        old_time = _parse_progress_time(old_data)
+        if old_time:
+            old_dt = old_time.replace(tzinfo=datetime.timezone.utc)
+            delta_seconds = int((now_utc - old_dt).total_seconds())
+            delta_seconds = min(max(0, delta_seconds), 600)
+        old_progress = old_data.get('readProgress', 0)
+        if progress_val > old_progress and book.word_count > 0:
+            delta_words = int((progress_val - old_progress) / 10000.0 * book.word_count)
+
+    if old_data and isinstance(old_data.get('todayStats'), dict):
+        stats = old_data['todayStats']
+    else:
+        stats = {}
+    if stats.get('date') != current_date_str:
+        stats = {'date': current_date_str, 'devices': {}}
+    dev = stats.setdefault('devices', {}).setdefault(device_id, {
+        'readSeconds': 0, 'wordCount': 0, 'hourly': {},
+    })
+    dev['readSeconds'] = dev.get('readSeconds', 0) + delta_seconds
+    dev['wordCount'] = dev.get('wordCount', 0) + delta_words
+    current_hour = str(dj_now.hour)
+    hourly = dev.setdefault('hourly', {})
+    h = hourly.setdefault(current_hour, {'readSeconds': 0, 'wordCount': 0})
+    h['readSeconds'] = h.get('readSeconds', 0) + delta_seconds
+    h['wordCount'] = h.get('wordCount', 0) + delta_words
 
     new_data = {
         "schemaVersion": 1,

@@ -83,8 +83,27 @@ def sync_progress_to_s3(request, book):
             remote_data = json.load(resp['Body'])
             remote_time = _parse_progress_time(remote_data)
         except Exception:
+            remote_data = None
             remote_time = None
         if remote_time is None or local_time > remote_time:
+            if remote_data and isinstance(remote_data.get('todayStats'), dict) \
+               and isinstance(local_data.get('todayStats'), dict):
+                remote_devices = remote_data['todayStats'].get('devices', {})
+                local_devices = local_data['todayStats'].get('devices', {})
+                for dev_id, dev_stats in remote_devices.items():
+                    if dev_id not in local_devices:
+                        local_devices[dev_id] = dev_stats
+                    else:
+                        remote_seconds = dev_stats.get('readSeconds', 0)
+                        local_seconds = local_devices[dev_id].get('readSeconds', 0)
+                        if remote_seconds > local_seconds:
+                            local_devices[dev_id] = dev_stats
+                local_data['todayStats']['devices'] = local_devices
+                try:
+                    with open(local_path, 'w', encoding='utf-8') as f:
+                        json.dump(local_data, f, ensure_ascii=False)
+                except Exception:
+                    logger.exception("sync_progress_to_s3: error writing merged local progress")
             with open(local_path, 'rb') as pf:
                 body = pf.read()
             client.put_object(Bucket=cfg['bucket'], Key=s3_key, Body=body, ContentLength=len(body))
