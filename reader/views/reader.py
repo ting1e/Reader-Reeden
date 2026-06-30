@@ -62,9 +62,10 @@ def BookView(request):
             chapter = Chapter.objects.get(id=_chapter_id)
         except Chapter.DoesNotExist:
             chapter = None
-        progress_val = 0
+        progress_raw = 0
         if chapter:
-            progress_val = calculate_read_progress(_book, chapter, words_read) / 100.0
+            progress_raw = calculate_read_progress(_book, chapter, words_read)
+        progress_val = progress_raw / 100.0
         UserBookRecord.objects.update_or_create(
             user_id=request.user.id,
             book_id=book_id,
@@ -83,7 +84,19 @@ def BookView(request):
         except Exception:
             logger.exception("Failed to save progress JSON")
 
-        return HttpResponse('success')
+        # sendBeacon 发送时无法读取 JSON 响应，但普通 AJAX 可以
+        try:
+            is_beacon = request.headers.get('content-type', '').startswith('text/plain')
+        except Exception:
+            is_beacon = False
+        if is_beacon:
+            return HttpResponse('success')
+        return JsonResponse({
+            'success': True,
+            'progress': round(progress_val, 2),
+            'words_read': int(progress_raw / 10000.0 * _book.word_count),
+            'total_words': _book.word_count,
+        })
 
     # ---- POST: 关键词搜索 (AJAX) ----
     if request.method == 'POST' and 'kwd' in request.POST:
@@ -271,6 +284,7 @@ def BookView(request):
         'content_lines': display_lines
     })
 
+    initial_progress = calculate_read_progress(_book, cur_chpt, offset)
     context = {
         'chapter_title': cur_chpt.title,
         'chapter_ids': chapter_ids,
@@ -279,6 +293,9 @@ def BookView(request):
         'chapter_id': cur_chpt.id,
         'chapter_view': chapter_view,
         'last_words': offset,
+        'word_count': _book.word_count,
+        'initial_progress': round(initial_progress / 100.0, 2),
+        'initial_words_read': int(initial_progress / 10000.0 * _book.word_count),
     }
     if request.user.is_authenticated:
         context['user_setting'] = get_or_create_user_setting(request.user)

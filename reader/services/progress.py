@@ -5,7 +5,7 @@ import os
 
 from django.utils import timezone
 
-from ..models import Chapter, UserBookRecord
+from ..models import UserBookRecord
 from ..utils import get_progress_dir, get_file_md5, get_element_index, get_device_id
 
 logger = logging.getLogger('reader')
@@ -27,27 +27,43 @@ def make_naive_utc(dt):
 
 
 def calculate_read_progress(book, chapter, words_read):
-    try:
-        chapter_list = Chapter.objects.filter(book_id=book.id).order_by('index')
-        all_chars = book.word_count
-        if all_chars <= 0:
-            return 0
-        read = 0.0
-        for ch in chapter_list:
-            if chapter.id == ch.id:
-                break
-            read += ch.end - ch.start
+    """计算阅读进度，返回 0-10000 的整数（百分比 × 100）。
 
-        try:
-            current_words = int(words_read)
-        except (TypeError, ValueError):
-            current_words = 0
-
-        progress_val = int(((read + current_words) / all_chars) * 10000)
-        return min(max(0, progress_val), 10000)
-    except Exception:
-        logger.exception("calculate_read_progress error")
+    words_read 来自前端 $(p).text().length 累加，不含换行符；
+    book.word_count 为全文件原始字符数，含换行符。
+    为保证单位一致，读取当前章节内容统计换行符数，
+    将 text-only 偏移按比例换算为原始字符偏移。
+    """
+    all_chars = book.word_count
+    if all_chars <= 0:
         return 0
+
+    try:
+        current_words = int(words_read)
+    except (TypeError, ValueError):
+        current_words = 0
+
+    chapter_raw = chapter.end - chapter.start
+    if chapter_raw <= 0:
+        return min(max(0, int(chapter.start / all_chars * 10000)), 10000)
+
+    # 统计当前章节换行符数，用于 text-only → raw 比例换算
+    try:
+        with open(book.abs_path(), 'r', encoding=book.charset) as f:
+            content = f.read()[chapter.start:chapter.end]
+        newline_count = content.count('\n')
+    except Exception:
+        logger.exception("calculate_read_progress: error reading chapter content")
+        newline_count = 0
+
+    chapter_text_len = chapter_raw - newline_count
+    if chapter_text_len > 0:
+        current_raw = min(int(current_words * chapter_raw / chapter_text_len), chapter_raw)
+    else:
+        current_raw = min(current_words, chapter_raw)
+
+    progress_val = int(((chapter.start + current_raw) / all_chars) * 10000)
+    return min(max(0, progress_val), 10000)
 
 
 def get_books_progress(user, books):

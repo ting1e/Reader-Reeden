@@ -15,12 +15,12 @@ body{
 article{
     columns: calc(100vw - 32px) 1;
     column-gap: 16px;
-    height: calc(100vh - 143px);
+    height: 100%;
     transition: 0s;
 }
 
 .article-container{
-    overflow-x: hidden;
+    overflow: hidden;
 }
 
 /* 滑动阅读模式 */
@@ -31,7 +31,7 @@ article{
 .read-mode-slide .article-container{
     overflow-y: auto;
     overflow-x: hidden;
-    height: calc(100vh - 143px);
+    height: 100%;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     -ms-overflow-style: none;

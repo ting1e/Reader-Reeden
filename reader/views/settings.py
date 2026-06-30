@@ -102,7 +102,7 @@ def update_setting(request):
     if not 1 <= font_size <= 1000:
         return HttpResponse('invalid font_size')
     read_bg = (request.POST.get('read_bg') or '').strip() or '#fff'
-    if not re.match(r'^(#[0-9a-fA-F]{3,8}|rgb\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\))$', read_bg):
+    if not re.match(r'^(#[0-9a-fA-F]{3,8}|rgb\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)|var\(--[a-z][-a-z0-9]*\))$', read_bg):
         return HttpResponse('invalid read_bg')
     read_mode = request.POST.get('read_mode', 'page') or 'page'
     if read_mode not in ('page', 'slide'):

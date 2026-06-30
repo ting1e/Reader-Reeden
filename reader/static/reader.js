@@ -520,6 +520,17 @@ $('.page-nav').on('click', '.page-item', function(e){
     }
 })
 
+function updateProgressBar(progress, wordsRead, totalWords) {
+    var $prog = $('#read-progress-text');
+    var $words = $('#read-words-text');
+    if ($prog.length && typeof progress === 'number') {
+        $prog.text(progress.toFixed(2) + '%');
+    }
+    if ($words.length && typeof wordsRead === 'number' && typeof totalWords === 'number') {
+        $words.text(wordsRead + ' / ' + totalWords);
+    }
+}
+
 function save_record(callback) {
     var words = (read_mode === 'slide') ? getSlideOffset() : (page_contents_len[current_page_idx] || 0);
     $.ajax({
@@ -533,6 +544,9 @@ function save_record(callback) {
      },
      success: function (data){
      console.log(data);
+     if (typeof data === 'object' && data.success) {
+         updateProgressBar(data.progress, data.words_read, data.total_words);
+     }
      if (callback) callback();
      },
      error: function() {
@@ -622,8 +636,11 @@ function showSettingsToast() {
     });
 
     $('.bg-setting').each(function(){
-        if(!had_choose && $(this).css('background-color')==user_setting_bg)
-            $(this).addClass('bodder border-4 border-secondary');
+        if(!had_choose) {
+            var bgVal = $(this).attr('data-bg') || $(this).css('background-color');
+            if(bgVal == user_setting_bg)
+                $(this).addClass('bodder border-4 border-secondary');
+        }
     });
 
     updateModeButtons();
@@ -667,11 +684,13 @@ var bgFontColorMap = {
     'read-blue': '#1f3a5a',
     'read-green': '#1f3a1f',
     'read-yellow': '#3a2a1a',
-    'read-black': 'rgb(90, 90, 90)'
+    'read-black': 'rgb(90, 90, 90)',
+    'read-theme': 'var(--color-base-content)'
 };
 
 $('.bg-setting').click(function(){
-    $('main').css('background',$(this).css('background'));
+    var bg = $(this).attr('data-bg') || $(this).css('background');
+    $('main').css('background', bg);
     $('.bg-setting').removeClass('bodder border-4 border-secondary');
     $(this).addClass('bodder border-4 border-secondary');
     for (var cls in bgFontColorMap) {
@@ -683,9 +702,13 @@ $('.bg-setting').click(function(){
 })
 
 function collectSettings() {
+    var $activeBg = $('.bg-setting.bodder');
+    var readBg = ($activeBg.length && $activeBg.attr('data-bg'))
+        ? $activeBg.attr('data-bg')
+        : $('main').css('background-color');
     return {
         'font_size': $('.font-value').text(),
-        'read_bg': $('main').css('background-color'),
+        'read_bg': readBg,
         'read_mode': read_mode,
         'font_family': $('.font-setting').val() || '',
         'font_color': $('#enable-font-color').is(':checked') ? ($('#setting-font-color').val() || '') : '',
@@ -860,7 +883,7 @@ $('.chapter-list-show, .bookmark-show').on('click', function() {
 });
 
 var chapterListLoaded = false;
-var chapterListCacheVersion = 'v7';
+var chapterListCacheVersion = 'v8';
 var chapterListCacheKey = 'chapterList_' + book_id + '_' + chapterListCacheVersion;
 
 function loadChapterList() {
