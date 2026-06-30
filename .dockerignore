@@ -14,3 +14,4 @@ db.*
 venv/
 .env
 .DS_Store
+docker_test/

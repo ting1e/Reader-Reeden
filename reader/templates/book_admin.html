@@ -48,14 +48,14 @@
                       onsubmit="return confirm('确定对《{{ book.name|escapejs }}》重新分章？\n\n将删除旧章节并重新解析，阅读进度会根据百分比自动映射到新章节。')">
                   {% csrf_token %}
                   <button type="submit" class="btn btn-sm btn-outline">
-                    <i class="bi bi-arrow-repeat"></i> 重新分章
+                    <iconify-icon icon="bi:arrow-repeat"></iconify-icon> 重新分章
                   </button>
                 </form>
                 <form method="POST" action="{% url 'reader:book_local_del' book.id %}" class="inline"
                       onsubmit="return confirm('确定删除《{{ book.name|escapejs }}》？\n\n只会删除本地文件和数据库记录，不会影响 S3 云端的书籍和进度。')">
                   {% csrf_token %}
                   <button type="submit" class="btn btn-sm btn-error btn-outline">
-                    <i class="bi bi-trash"></i> 删除
+                    <iconify-icon icon="bi:trash"></iconify-icon> 删除
                   </button>
                 </form>
               </div>

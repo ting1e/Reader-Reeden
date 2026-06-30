@@ -8,3 +8,4 @@ storage_local/
 storage_upload/
 local/
 static/
+docker_test/

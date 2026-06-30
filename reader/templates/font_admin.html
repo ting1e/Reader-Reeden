@@ -41,7 +41,7 @@
                       onsubmit="return confirm('确定删除本地字体 {{ font.name|escapejs }}？')">
                   {% csrf_token %}
                   <button type="submit" class="btn btn-sm btn-error btn-outline">
-                    <i class="bi bi-trash"></i> 删除
+                    <iconify-icon icon="bi:trash"></iconify-icon> 删除
                   </button>
                 </form>
               </td>
@@ -88,7 +88,7 @@
                   {% csrf_token %}
                   <input type="hidden" name="name" value="{{ font.name }}">
                   <button type="submit" class="btn btn-sm btn-outline">
-                    <i class="bi bi-download"></i> 下载
+                    <iconify-icon icon="bi:download"></iconify-icon> 下载
                   </button>
                 </form>
                 {% endif %}

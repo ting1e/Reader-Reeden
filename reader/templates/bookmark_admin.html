@@ -37,7 +37,7 @@
                     onsubmit="return confirm('确定删除该条书签？\n《{{ m.chapter_title|escapejs }}')">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-sm btn-error btn-outline">
-                  <i class="bi bi-trash"></i> 删除
+                  <iconify-icon icon="bi:trash"></iconify-icon> 删除
                 </button>
               </form>
             </td>

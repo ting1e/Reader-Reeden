@@ -213,17 +213,17 @@ article{ font-weight: {{ user_setting.font_weight }}; }
             <ul class="flex flex-col gap-2">
                 <li>
                     <label for="drawer-left" class="btn btn-square btn-sm bg-base-100 border border-base-300 shadow-md hover:bg-base-200 chapter_list_btn" aria-label="目录">
-                        <i class="bi bi-list text-lg"></i>
+                        <iconify-icon icon="bi:list" class="text-lg"></iconify-icon>
                     </label>
                 </li>
                 <li>
                     <a href="#" class="btn btn-square btn-sm bg-base-100 border border-base-300 shadow-md hover:bg-base-200 bookmark-btn" aria-label="书签">
-                        <i class="bi bi-bookmark-star text-lg"></i>
+                        <iconify-icon icon="bi:bookmark-star" class="text-lg"></iconify-icon>
                     </a>
                 </li>
                 <li>
                     <a href="#" class="btn btn-square btn-sm bg-base-100 border border-base-300 shadow-md hover:bg-base-200 setting-btn" aria-label="设置">
-                        <i class="bi bi-gear text-lg"></i>
+                        <iconify-icon icon="bi:gear" class="text-lg"></iconify-icon>
                     </a>
                 </li>
             </ul>
@@ -271,13 +271,17 @@ article{ font-weight: {{ user_setting.font_weight }}; }
   <div class="drawer-side z-40" id="drawer-side" style="pointer-events: none;">
     <label aria-label="关闭侧栏" class="drawer-overlay" style="background: transparent; pointer-events: none;"></label>
     
-    <div class="flex flex-col w-80 h-screen bg-base-100 text-base-content rounded-r-2xl shadow-2xl border-r border-base-200 relative" style="pointer-events: auto;">        
-        <label for="drawer-left" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2 z-10" aria-label="关闭侧栏">✕</label>
-        <div class="p-4 pb-0 shrink-0">
-            <div role="tablist" class="tabs tabs-border">
-                <a role="tab" class="tab flex-1 tab-active chapter-list-show" data-tab="chapters">目录</a>
-                <a role="tab" class="tab flex-1 bookmark-show" data-tab="bookmarks">书签</a>
+    <div class="flex flex-col w-80 h-screen bg-base-100 text-base-content rounded-r-2xl shadow-2xl border-r border-base-200 relative" style="pointer-events: auto;">
+        <div class="flex items-center px-4 pt-3 pb-2 shrink-0 border-b border-base-200">
+            <div role="tablist" class="tabs tabs-border w-2/5 shrink-0">
+                <a role="tab" class="tab flex-1 tab-active chapter-list-show text-xs px-1" data-tab="chapters">目录</a>
+                <a role="tab" class="tab flex-1 bookmark-show text-xs px-1" data-tab="bookmarks">书签</a>
             </div>
+            <div class="relative flex-1 mx-2 shrink-0 min-w-0">
+                <iconify-icon icon="bi:search" class="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-base-content/40 pointer-events-none"></iconify-icon>
+                <input type="search" id="sidebar-search" class="input input-bordered input-sm w-full pl-7 py-1 h-8 text-sm" placeholder="搜索...">
+            </div>
+            <label for="drawer-left" class="btn btn-sm btn-circle btn-ghost shrink-0" aria-label="关闭侧栏">✕</label>
         </div>
 
         <div id="chapter-scroll-container" class="flex-1 overflow-y-auto min-h-0 mt-2 p-4 custom-scrollbar">

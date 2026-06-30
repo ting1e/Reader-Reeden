@@ -8,14 +8,14 @@
         <button type="submit" class="list-group-item w-full text-left px-4 py-3 rounded-lg transition-colors duration-150 cursor-pointer border-0
             {% if chapter_pk == item.chapter_pk %}active bg-neutral-content text-neutral font-semibold{% else %}text-base-content hover:bg-base-200{% endif %}">
             <small class="text-base-content/70 block mb-1 text-sm">
-                <i class="bi bi-arrow-return-right me-1"></i>{{ item.chapter_title }}
+                <iconify-icon icon="bi:arrow-return-right" class="me-1"></iconify-icon>{{ item.chapter_title }}
             </small>
             <span class="break-words text-base">{{ item.content }}</span>
         </button>
     </form>
     {% empty %}
         <div class="text-center text-base-content/50 py-8">
-            <i class="bi bi-search text-2xl"></i>
+            <iconify-icon icon="bi:search" class="text-2xl"></iconify-icon>
             <p class="mt-2 text-sm">未找到匹配内容</p>
         </div>
     {% endfor %}

@@ -8,7 +8,7 @@
         <button type="submit"
             class="list-group-item w-full text-left cursor-pointer px-3 py-2 rounded-lg text-sm transition-colors duration-150 border-0 text-base-content/70 hover:bg-base-300">
             <div class="flex items-center gap-2 mb-1 overflow-hidden">
-                <i class="bi bi-bookmark-fill flex-shrink-0 text-xs"></i>
+                <iconify-icon icon="bi:bookmark-fill" class="flex-shrink-0 text-xs"></iconify-icon>
                 <span class="font-bold text-sm truncate">{{ m.chapter_title }}</span>
             </div>
             <div class="break-words book-tittle text-base-content/50 text-sm pl-5">
@@ -18,7 +18,7 @@
     </form>
     {% empty %}
     <div class="text-center text-base-content/50 py-8">
-        <i class="bi bi-bookmark text-2xl"></i>
+        <iconify-icon icon="bi:bookmark" class="text-2xl"></iconify-icon>
         <p class="mt-2 text-sm">暂无书签</p>
     </div>
     {% endfor %}

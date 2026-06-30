@@ -6,8 +6,8 @@
             <input type="hidden" name="book_id" value="{{ c.book_id }}">
             <input type="hidden" name="chapter_id" value="{{ c.id }}">
             <button
-                class="list-group-item w-full text-left px-3 py-2 rounded-lg text-sm transition-colors duration-150 cursor-pointer border-0
-                                {% if chapter_id == c.id %} active bg-base-300 font-medium{% else %} text-base-content/80 hover:bg-base-300{% endif %}"
+                class="list-group-item block w-full text-start text-sm leading-normal px-3 py-2 rounded-lg text-base-content select-none list-none border-0 m-0 transition-colors duration-150 cursor-pointer [-webkit-tap-highlight-color:transparent]
+                                {% if chapter_id == c.id %} active bg-base-content text-base-100 font-medium{% else %} hover:bg-base-300{% endif %}"
                 type="submit" data-chapter-id="{{ c.id }}">
                 {{ c.title }}
             </button>
