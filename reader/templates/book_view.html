@@ -78,23 +78,23 @@ article{ font-weight: {{ user_setting.font_weight }}; }
                 <nav aria-label="Page navigation">
                     <div class="flex justify-between w-full items-center">
     
-    <div class="join">
-        <button class="btn btn-outline btn-sm join-item prev-chapter" type="button">上一章</button>
-        <button class="btn btn-outline btn-sm join-item page-item prev-page" type="button">上一页</button>
-    </div>
+                <div class="join">
+                    <button class="btn btn-outline btn-sm join-item prev-chapter" type="button">上一章</button>
+                    <button class="btn btn-outline btn-sm join-item page-item prev-page" type="button">上一页</button>
+                </div>
 
-    <div class="pages-container join justify-center flex-1 mx-2">
-        
-    </div>
+                <div class="pages-container join justify-center flex-1 mx-2">
+                    
+                </div>
 
-    <div class="join">
-        <button class="btn btn-outline btn-sm join-item page-item next-page" type="button">下一页</button>
-        <button class="btn btn-outline btn-sm join-item next-chapter" type="button">下一章</button>
-    </div>
-    
-</div>
+                <div class="join">
+                    <button class="btn btn-outline btn-sm join-item page-item next-page" type="button">下一页</button>
+                    <button class="btn btn-outline btn-sm join-item next-chapter" type="button">下一章</button>
+                </div>
+                
+            </div>
                 </nav>
-                <div class="flex justify-between items-center text-xs text-base-content/40 mt-1 select-none" id="read-progress-bar">
+                <div class="flex justify-between items-center text-xs text-base-content/40 mt-2 select-none" id="read-progress-bar">
                     <span class="truncate shrink min-w-0" id="read-chapter-text">{{ chapter_title }}</span>
                     <div class="flex items-center gap-2 shrink-0 ml-2">
                         <span id="read-progress-text">{{ initial_progress }}%</span>
@@ -348,6 +348,11 @@ article{ font-weight: {{ user_setting.font_weight }}; }
     </script>
 
     <script src="{% static 'reader.js' %}"></script>
+    
+
+    <script>
+    updateProgressBar({{ initial_progress }}, {{ initial_words_read }}, {{ word_count }});
+    </script>
 
 
     {% endblock %}

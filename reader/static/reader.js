@@ -520,6 +520,17 @@ $('.page-nav').on('click', '.page-item', function(e){
     }
 })
 
+function fmtCn(n) {
+    var s = String(Math.round(n));
+    var parts = [];
+    while (s.length > 4) {
+        parts.unshift(s.slice(-4));
+        s = s.slice(0, -4);
+    }
+    if (s) parts.unshift(s);
+    return parts.join(',');
+}
+
 function updateProgressBar(progress, wordsRead, totalWords) {
     var $prog = $('#read-progress-text');
     var $words = $('#read-words-text');
@@ -527,7 +538,7 @@ function updateProgressBar(progress, wordsRead, totalWords) {
         $prog.text(progress.toFixed(2) + '%');
     }
     if ($words.length && typeof wordsRead === 'number' && typeof totalWords === 'number') {
-        $words.text(wordsRead + ' / ' + totalWords);
+        $words.text(fmtCn(wordsRead) + ' / ' + fmtCn(totalWords));
     }
 }
 
@@ -784,21 +795,28 @@ $('#setting-line-height').on('change', function(){
 $('.mode-setting').click(function(){
     var mode = $(this).data('mode');
     if (mode === read_mode) return;
-    read_mode = mode;
+    var newMode = mode;
+    read_mode = newMode;
+    // 先保存阅读模式设置
     $.ajax({
      url: url_update_setting,
      type: 'post',
      data: collectSettings(),
-     success: function (data){
-         if (read_mode === 'page') {
-             location.reload();
-         } else {
-             applyReadMode();
-             updateModeButtons();
-             initSlideMode();
-             restoreSlideOffset(page_contents_len[current_page_idx]);
-             ensureSlideAppend();
-         }
+     success: function (){
+         // 切换前先保存当前进度，避免丢失最近翻页/滚动的位置
+         save_record(function() {
+             if (newMode === 'page') {
+                 // slide→page：reload 后服务器用已保存的 words_read 恢复页码
+                 location.reload();
+             } else {
+                 // page→slide：用当前页起始偏移恢复滑动位置
+                 applyReadMode();
+                 updateModeButtons();
+                 initSlideMode();
+                 restoreSlideOffset(page_contents_len[current_page_idx]);
+                 ensureSlideAppend();
+             }
+         });
      }
     });
 });
