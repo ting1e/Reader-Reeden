@@ -76,21 +76,23 @@ article{ font-weight: {{ user_setting.font_weight }}; }
 
             <div class="page-nav pt-1 pb-3">
                 <nav aria-label="Page navigation">
-                    <div class="join flex justify-between w-full">
-                        <div class="flex gap-0">
-                            <button class="btn btn-outline btn-sm join-item prev-chapter" type="button">上一章</button>
-                            <button class="btn btn-outline btn-sm join-item page-item prev-page" type="button">上一页</button>
-                        </div>
+                    <div class="flex justify-between w-full items-center">
+    
+    <div class="join">
+        <button class="btn btn-outline btn-sm join-item prev-chapter" type="button">上一章</button>
+        <button class="btn btn-outline btn-sm join-item page-item prev-page" type="button">上一页</button>
+    </div>
 
-                        <div class="pages-container join justify-center flex">
+    <div class="pages-container join justify-center flex-1 mx-2">
+        
+    </div>
 
-                        </div>
-
-                        <div class="flex gap-0">
-                            <button class="btn btn-outline btn-sm join-item page-item next-page" type="button">下一页</button>
-                            <button class="btn btn-outline btn-sm join-item next-chapter" type="button">下一章</button>
-                        </div>
-                    </div>
+    <div class="join">
+        <button class="btn btn-outline btn-sm join-item page-item next-page" type="button">下一页</button>
+        <button class="btn btn-outline btn-sm join-item next-chapter" type="button">下一章</button>
+    </div>
+    
+</div>
                 </nav>
                 <div class="flex justify-between items-center text-xs text-base-content/40 mt-1 select-none" id="read-progress-bar">
                     <span class="truncate shrink min-w-0" id="read-chapter-text">{{ chapter_title }}</span>
@@ -331,7 +333,7 @@ article{ font-weight: {{ user_setting.font_weight }}; }
     var url_bookmark_save = "{% url 'reader:bookmark_save' %}"
     var book_id = '{{book_id}}'
     var chapter_id = parseInt('{{chapter_id}}')
-    var chapter_title = '{{chapter_title}}'
+    var chapter_title = '{{ chapter_title|escapejs }}'
 
     var url_book_reader = "{% url 'reader:book_view' %}";
     var url_chapter_content = "{% url 'reader:chapter_content' 0 %}";

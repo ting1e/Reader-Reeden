@@ -100,7 +100,7 @@ function startAutoRead() {
         applyReadMode();
         $('article').css('transform', '');
         initSlideMode();
-        $('.article-container').scrollTop(0);
+        restoreSlideOffset(page_contents_len[current_page_idx]);
         ensureSlideAppend();
     } else {
         prevReadMode = null;
@@ -819,6 +819,9 @@ $('.bookmark-btn').click(function(){
                 cont+=$(e).text();
         });
     }
+    if (cont.length > 200) {
+        cont = cont.substring(0, 200) + '…';
+    }
     var words = (read_mode === 'slide') ? getSlideOffset() : page_contents_len[current_page_idx];
     $.ajax({
      url: url_bookmark_save,
@@ -831,32 +834,54 @@ $('.bookmark-btn').click(function(){
          'content':cont,
          csrfmiddlewaretoken: csrf_token
      },
-     success: function (data){ console.log(data); }
+     success: function (data){
+         if (data !== 'ok') {
+             console.warn('bookmark save failed:', data);
+             return;
+         }
+         // 若侧栏已打开且书签 tab 激活，刷新书签列表让新书签立即可见
+         if (drawerCheckbox && drawerCheckbox.checked && !$('#tab-bookmarks').hasClass('hidden')) {
+             refreshBookmarkList();
+         }
+     }
     })
 })
+
+// 刷新侧栏书签列表（drawer 打开时或新增书签后调用）
+function refreshBookmarkList() {
+    if (!url_bookmark_list) {
+        $('.bookmark_list_container').empty();
+        return;
+    }
+    $.ajax({
+        url: url_bookmark_list,
+        type: 'get',
+        cache: false,
+        success: function (data){
+            $('.bookmark_list_container').html(data);
+            // 前端高亮当前章节的书签
+            $('.bookmark_list_container .list-group-item').each(function() {
+                var bmChapterId = $(this).closest('form').find('input[name="chapter_id"]').val();
+                if (parseInt(bmChapterId) === chapter_id) {
+                    $(this).addClass('active bg-base-300 font-medium').removeClass('text-base-content/70');
+                }
+            });
+            // 若书签 tab 激活且有搜索词，重新过滤
+            if (!$('#tab-bookmarks').hasClass('hidden')) {
+                $('#sidebar-search').trigger('input');
+            }
+            // 列表内容更新后重置滚动位置到顶部
+            var scrollEl = document.getElementById('chapter-scroll-container');
+            if (scrollEl) scrollEl.scrollTop = 0;
+        }
+    });
+}
 
 // Drawer toggle listener (replaces offcanvas show.bs.offcanvas)
 $(drawerCheckbox).on('change', function(e) {
     if (this.checked) {
         loadChapterList();
-        if (url_bookmark_list) {
-            $.ajax({
-                url: url_bookmark_list,
-                type: 'get',
-                success: function (data){
-                    $('.bookmark_list_container').html(data);
-                    // 前端高亮当前章节的书签
-                    $('.bookmark_list_container .list-group-item').each(function() {
-                        var bmChapterId = $(this).closest('form').find('input[name="chapter_id"]').val();
-                        if (parseInt(bmChapterId) === chapter_id) {
-                            $(this).addClass('active bg-base-300 font-medium').removeClass('text-base-content/70');
-                        }
-                    });
-                }
-            });
-        } else {
-            $('.bookmark_list_container').empty();
-        }
+        refreshBookmarkList();
     }
 });
 
@@ -866,7 +891,7 @@ $('.bookmark-show').click(function(){
     $('.bookmark-show').addClass('tab-active');
     $('#tab-chapters').addClass('hidden');
     $('#tab-bookmarks').removeClass('hidden');
-    $('#drawer-side').scrollTop(0);
+    refreshBookmarkList();
 });
 
 // ===== 侧栏搜索过滤（仅筛选当前激活的 tab） =====
@@ -905,15 +930,21 @@ function loadChapterList() {
     if (cached) {
         try {
             var cacheData = JSON.parse(cached);
-            $('.chapter_list_container').html(cacheData.html);
-            if (cacheData.chapter_ids && cacheData.chapter_ids.length > 0) {
-                chapter_ids = cacheData.chapter_ids;
+            var cachedIds = cacheData.chapter_ids || [];
+            // 校验缓存是否与服务器渲染的 chapter_ids 一致
+            // 不一致（如重新分章后）则废弃缓存，避免显示过期目录和错误 chapter_ids
+            var same = cachedIds.length === chapter_ids.length &&
+                       cachedIds.every(function(id, i) { return id === chapter_ids[i]; });
+            if (same) {
+                $('.chapter_list_container').html(cacheData.html);
+                // 更新当前章节高亮
+                $('.chapter_list_container .list-group-item').removeClass('active bg-base-content text-base-100 font-medium').addClass('text-base-content');
+                $('.chapter_list_container .list-group-item[data-chapter-id="' + chapter_id + '"]').addClass('active bg-base-content text-base-100 font-medium').removeClass('text-base-content');
+                scrollToActiveChapter();
+                return;
+            } else {
+                sessionStorage.removeItem(chapterListCacheKey);
             }
-            // 更新当前章节高亮
-            $('.chapter_list_container .list-group-item').removeClass('active bg-base-content text-base-100 font-medium').addClass('text-base-content');
-            $('.chapter_list_container .list-group-item[data-chapter-id="' + chapter_id + '"]').addClass('active bg-base-content text-base-100 font-medium').removeClass('text-base-content');
-            scrollToActiveChapter();
-            return;
         } catch (e) {
             sessionStorage.removeItem(chapterListCacheKey);
         }
@@ -923,6 +954,7 @@ function loadChapterList() {
     $.ajax({
         url: url_chapter_list_ajax + '?chapter_id=' + chapter_id,
         type: 'get',
+        cache: false,
         success: function (data) {
             if (data.success) {
                 $('.chapter_list_container').html(data.html);

@@ -1,114 +1,122 @@
 <header class="bg-base-100 shadow-sm w-full mb-4">
   <div class="navbar container mx-auto px-4">
-    <div role="tablist" class="tabs tabs-border flex-1 ">
+    <div role="tablist" class="tabs tabs-border flex-1">
       {% with request.resolver_match.url_name as url_name %}
-      <a role="tab" href="{% url 'reader:book_list'%}" class="text-base tab {% if url_name == 'book_list' %} tab-active{% endif %}"><iconify-icon icon="bi:hdd" class="me-1"></iconify-icon>本地书库</a>
-      <a role="tab" href="{% url 'reader:book_list_remote'%}" class="text-base tab {% if url_name == 'book_list_remote' %} tab-active{% endif %}"><iconify-icon icon="bi:cloud" class="me-1"></iconify-icon>远程书库</a>
+      <a role="tab" href="{% url 'reader:book_list'%}" class="text-base tab {% if url_name == 'book_list' %}tab-active font-medium{% endif %}">
+        <iconify-icon icon="bi:hdd" class="me-1.5"></iconify-icon>本地书库
+      </a>
+      <a role="tab" href="{% url 'reader:book_list_remote'%}" class="text-base tab {% if url_name == 'book_list_remote' %}tab-active font-medium{% endif %}">
+        <iconify-icon icon="bi:cloud" class="me-1.5"></iconify-icon>远程书库
+      </a>
       {% endwith %}
 
       {% if 'book_view' in request.resolver_match.url_name %}
-        <a role="tab" class="text-base tab  tab-active">阅读中</a>
+        <a role="tab" class="text-base tab tab-active font-medium"><iconify-icon icon="bi:book-half" class="me-1.5"></iconify-icon>阅读中</a>
       {% endif %}
-
       {% if request.resolver_match.url_name == 'book_admin' %}
-        <a role="tab" class="text-base tab tab-active">书籍管理</a>
+        <a role="tab" class="text-base tab tab-active font-medium"><iconify-icon icon="bi:journal-text" class="me-1.5"></iconify-icon>书籍管理</a>
       {% endif %}
-
       {% if request.resolver_match.url_name == 'bookmark_admin' %}
-        <a role="tab" class="text-base tab tab-active">书签管理</a>
+        <a role="tab" class="text-base tab tab-active font-medium"><iconify-icon icon="bi:bookmark-star" class="me-1.5"></iconify-icon>书签管理</a>
       {% endif %}
-
       {% if request.resolver_match.url_name == 'upload_file' %}
-        <a role="tab" class="text-base tab tab-active">上传书籍</a>
+        <a role="tab" class="text-base tab tab-active font-medium"><iconify-icon icon="bi:upload" class="me-1.5"></iconify-icon>上传书籍</a>
       {% endif %}
-
       {% if request.resolver_match.url_name == 'user_settings' %}
-        <a role="tab" class="text-base tab tab-active">个人设置</a>
+        <a role="tab" class="text-base tab tab-active font-medium"><iconify-icon icon="bi:person-gear" class="me-1.5"></iconify-icon>个人设置</a>
       {% endif %}
-
       {% if request.resolver_match.url_name == 'font_admin' %}
-        <a role="tab" class="text-base tab tab-active">字体管理</a>
+        <a role="tab" class="text-base tab tab-active font-medium"><iconify-icon icon="bi:fonts" class="me-1.5"></iconify-icon>字体管理</a>
       {% endif %}
-
     </div>
    
-    
-    <div class="flex gap-2">
+    <div class="flex items-center gap-3">
       {% with request.resolver_match.url_name as url_name %}
-      <input type="search" placeholder="{% if url_name == 'book_list' or url_name == 'book_list_remote' %}书籍搜索{% else %}全文搜索{% endif %}" class="input input-bordered w-24 md:w-auto content-serarch {% if url_name == 'book_list' or url_name == 'book_list_remote' %}book-search{% endif %}" />
+      <label class="input input-bordered flex items-center gap-2 h-10 w-32 md:w-48 bg-base-200/50 focus-within:bg-base-100 transition-colors">
+        <iconify-icon icon="bi:search" class="text-base-content/50"></iconify-icon>
+        <input type="search" 
+               placeholder="{% if url_name == 'book_list' or url_name == 'book_list_remote' %}书籍搜索{% else %}全文搜索{% endif %}" 
+               class="grow content-serarch {% if url_name == 'book_list' or url_name == 'book_list_remote' %}book-search{% endif %}" />
+      </label>
       {% endwith %}
 
       <div class="dropdown dropdown-end">
-        <button tabindex="0" role="button" class="btn btn-ghost gap-1.5 px-2 group" aria-label="主题">
+        <button tabindex="0" role="button" class="btn btn-ghost btn-sm h-10 px-2 group" aria-label="主题">
           <div class="bg-base-100 group-hover:border-base-content/20 grid shrink-0 grid-cols-2 gap-0.5 rounded-md border border-base-content/10 p-1 transition-colors">
             <div class="bg-base-content size-1.5 rounded-full"></div>
             <div class="bg-primary size-1.5 rounded-full"></div>
             <div class="bg-secondary size-1.5 rounded-full"></div>
             <div class="bg-accent size-1.5 rounded-full"></div>
           </div>
-          <svg width="14" height="14" class="hidden size-3 fill-current opacity-60 sm:inline-block" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2048 2048"><path d="M1799 349l242 241-1017 1017L7 590l242-241 775 775 775-775z"></path></svg>
         </button>
-        <div tabindex="-1" class="dropdown-content bg-base-200 text-base-content rounded-box z-1 mt-3 w-48 p-2 max-h-[50vh] overflow-y-auto overflow-x-hidden shadow-2xl">
+        <div tabindex="-1" class="dropdown-content bg-base-200 text-base-content rounded-box z-50 mt-3 w-48 p-2 max-h-[50vh] overflow-y-auto shadow-2xl border border-base-300">
           <div class="flex flex-col gap-0.5">
             <div class="text-xs font-bold uppercase tracking-widest text-base-content/40 px-2 py-1">主题</div>
-            {% for t in daisyui_themes %}
-            <button type="button" class="theme-option flex items-center gap-3 px-2 py-1.5 w-full text-left rounded-lg hover:bg-base-300 transition-colors {% if daisyui_theme == t %}font-medium{% endif %}" data-themeval="{{ t }}">
-              <div data-theme="{{ t }}" class=" grid shrink-0 grid-cols-2 gap-0.5 rounded-md p-1 shadow-sm">
+            {% for t, t_label in daisyui_themes %}
+            <button type="button" class="theme-option flex items-center gap-3 px-2 py-1.5 w-full text-left rounded-lg hover:bg-base-300 transition-colors {% if daisyui_theme == t %}font-medium bg-base-300/50{% endif %}" data-themeval="{{ t }}">
+              <div data-theme="{{ t }}" class="grid shrink-0 grid-cols-2 gap-0.5 rounded-md p-1 shadow-sm">
                 <div class="bg-base-content size-1 rounded-full"></div>
                 <div class="bg-primary size-1 rounded-full"></div>
                 <div class="bg-secondary size-1 rounded-full"></div>
                 <div class="bg-accent size-1 rounded-full"></div>
               </div>
-              <div class="flex-1 truncate ">{{ t }}</div>
+              <div class="flex-1 truncate">{{ t_label }}</div>
               {% if daisyui_theme == t %}
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="h-3 w-3 shrink-0"><path d="M20.285 2l-11.285 11.576-5.286-5.011-3.714 3.716 9 8.728 15-15.285z"></path></svg>
+              <iconify-icon icon="bi:check-lg" class="text-base-content shrink-0"></iconify-icon>
               {% else %}
-              <span class="h-3 w-3 shrink-0"></span>
+              <span class="w-3.5 shrink-0"></span>
               {% endif %}
             </button>
             {% endfor %}
           </div>
         </div>
-
       </div>
 
       {% if request.user.is_authenticated %}
       <div class="dropdown dropdown-end">
-        <button tabindex="0" role="button" class="btn btn-ghost gap-1.5 px-2" aria-label="用户菜单">
-          <iconify-icon icon="bi:gear" class="text-lg"></iconify-icon>
-          <svg width="14" height="14" class="hidden size-3 fill-current opacity-60 sm:inline-block" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2048 2048"><path d="M1799 349l242 241-1017 1017L7 590l242-241 775 775 775-775z"></path></svg>
+        <button tabindex="0" role="button" class="btn btn-ghost btn-sm h-10 px-2" aria-label="用户菜单">
+          <iconify-icon icon="bi:person-circle" class="text-xl text-base-content/80"></iconify-icon>
         </button>
-        <ul tabindex="-1" class="menu menu-md dropdown-content bg-base-100 rounded-box z-1 mt-3 w-40 p-2 shadow">
-          <li><a href="{% url 'reader:upload_file' %}">上传书籍</a></li>
-          <li><a href="{% url 'reader:book_admin' %}">书籍管理</a></li>
-          <li><a href="{% url 'reader:bookmark_admin' %}">书签管理</a></li>
-          <li><a href="{% url 'reader:font_admin' %}">字体管理</a></li>
-          <li><a href="{% url 'reader:user_settings' %}">个人设置</a></li>
-          <li><a href="/admin/">后台管理</a></li>
+        <ul tabindex="-1" class="menu menu-md text-base dropdown-content bg-base-100 rounded-box z-50 mt-3 w-48 p-2 shadow-xl border border-base-200">
+          <li><a href="{% url 'reader:upload_file' %}"><iconify-icon icon="bi:upload" class="text-xl opacity-70"></iconify-icon>上传书籍</a></li>
+          <li><a href="{% url 'reader:book_admin' %}"><iconify-icon icon="bi:journal-text" class="text-xl opacity-70"></iconify-icon>书籍管理</a></li>
+          <li><a href="{% url 'reader:bookmark_admin' %}"><iconify-icon icon="bi:bookmark-star" class="text-xl opacity-70"></iconify-icon>书签管理</a></li>
+          <li><a href="{% url 'reader:font_admin' %}"><iconify-icon icon="bi:fonts" class="text-xl opacity-70"></iconify-icon>字体管理</a></li>
+          <li><a href="{% url 'reader:user_settings' %}"><iconify-icon icon="bi:person-gear" class="text-xl opacity-70"></iconify-icon>个人设置</a></li>
+          <div class="divider my-1 h-px"></div>
+          <li><a href="/admin/"><iconify-icon icon="bi:shield-lock" class="text-xl opacity-70"></iconify-icon>后台管理</a></li>
           <li>
-            <form method="POST" action="{% url 'reader:logout' %}">
+            <form method="POST" action="{% url 'reader:logout' %}" class="p-0">
               {% csrf_token %}
-              <button type="submit" class="w-full text-left">登出</button>
+              <button type="submit" class="flex items-center gap-2 w-full text-left px-4 py-2 text-error hover:bg-error/10 hover:text-error rounded-md transition-colors">
+                <iconify-icon icon="bi:box-arrow-right" class="text-xl"></iconify-icon>登出
+              </button>
             </form>
           </li>
         </ul>
       </div>
       {% else %}
-      <button type="button" class="btn btn-outline" onclick="login_modal.showModal()">登录</button>
+      <button type="button" class="btn btn-primary btn-sm h-10 px-4" onclick="login_modal.showModal()">登录</button>
 
       <dialog id="login_modal" class="modal">
-        <div class="modal-box">
+        <div class="modal-box max-w-sm">
           <form method="dialog">
             <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
           </form>
-          <h3 class="text-lg font-bold mb-2">登录</h3>
-          <form class="login_form" onsubmit="return false;">
-            <p class="mb-3 text-sm text-base-content/60">请输入用户名和密码</p>
+          <h3 class="text-xl font-bold mb-1">欢迎回来</h3>
+          <p class="mb-5 text-sm text-base-content/60">请输入您的用户名和密码以继续阅读</p>
+          <form class="login_form flex flex-col gap-3" onsubmit="return false;">
             {% csrf_token %}
-            <input type="text" name="username" class="input input-bordered w-full mb-2" placeholder="用户名" required />
-            <input type="password" name="password" class="input input-bordered w-full mb-4" placeholder="密码" required />
-            <button class="btn btn-outline w-full login_btn" type="button">登录</button>
-            <div class="login_msg mt-2 hidden"></div>
+            <label class="input input-bordered flex items-center gap-2">
+              <iconify-icon icon="bi:person" class="text-base-content/50"></iconify-icon>
+              <input type="text" name="username" class="grow" placeholder="用户名" required />
+            </label>
+            <label class="input input-bordered flex items-center gap-2">
+              <iconify-icon icon="bi:key" class="text-base-content/50"></iconify-icon>
+              <input type="password" name="password" class="grow" placeholder="密码" required />
+            </label>
+            <button class="btn btn-primary w-full mt-2 login_btn" type="button">登录</button>
+            <div class="login_msg mt-2 hidden text-sm"></div>
           </form>
         </div>
         <form method="dialog" class="modal-backdrop">
@@ -118,23 +126,28 @@
 
       <script>
         $('.login_btn').click(e => {
+          var $btn = $(e.target);
+          $btn.prop('disabled', true).html('<span class="loading loading-spinner loading-sm"></span>');
           $.ajax({
             url: "{% url 'reader:login' %}",
             type: 'post',
             data: $('.login_form').serialize(),
             success: function (data) {
               if (data != 'success') {
-                $('.login_msg').text(data).removeClass('hidden').addClass('alert alert-error');
+                $('.login_msg').text(data).removeClass('hidden').addClass('alert alert-error py-2 rounded-lg');
+                $btn.prop('disabled', false).text('登录');
               } else {
                 location.reload();
               }
+            },
+            error: function() {
+              $btn.prop('disabled', false).text('登录');
             }
           })
         })
       </script>
       {% endif %}
     </div>
-    
   </div>
 
   {% with request.resolver_match.url_name as url_name %}
@@ -152,6 +165,23 @@
   {% endwith %}
 
   <script>
+    {% if not request.user.is_authenticated %}
+    (function() {
+      var currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+      $('.theme-option').each(function() {
+        var t = $(this).data('themeval');
+        var isActive = (t === currentTheme);
+        $(this).toggleClass('font-medium bg-base-300/50', isActive);
+        $(this).find('iconify-icon, span.w-3\\.5').remove();
+        if (isActive) {
+          $(this).append('<iconify-icon icon="bi:check-lg" class="text-base-content shrink-0"></iconify-icon>');
+        } else {
+          $(this).append('<span class="w-3.5 shrink-0"></span>');
+        }
+      });
+    })();
+    {% endif %}
+
     $('.theme-option').click(function(e){
       e.preventDefault();
       var t = $(this).data('themeval');

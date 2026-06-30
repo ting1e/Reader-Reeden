@@ -59,12 +59,10 @@ def BookView(request):
         except (TypeError, ValueError):
             return HttpResponse('invalid words')
         try:
-            chapter = Chapter.objects.get(id=_chapter_id)
-        except Chapter.DoesNotExist:
-            chapter = None
-        progress_raw = 0
-        if chapter:
-            progress_raw = calculate_read_progress(_book, chapter, words_read)
+            chapter = Chapter.objects.get(id=_chapter_id, book_id=book_id)
+        except (Chapter.DoesNotExist, ValueError):
+            return HttpResponse('invalid chapter_id')
+        progress_raw = calculate_read_progress(_book, chapter, words_read)
         progress_val = progress_raw / 100.0
         UserBookRecord.objects.update_or_create(
             user_id=request.user.id,
@@ -78,9 +76,8 @@ def BookView(request):
         )
 
         try:
-            if chapter:
-                save_progress_json(_book, chapter, words_read)
-                sync_progress_to_s3(request, _book)
+            save_progress_json(_book, chapter, words_read)
+            sync_progress_to_s3(request, _book)
         except Exception:
             logger.exception("Failed to save progress JSON")
 
@@ -240,7 +237,12 @@ def BookView(request):
                     offset = 0
 
             # 同步到本地文件、数据库、S3（确保三者一致）
-            ch_obj = Chapter.objects.get(id=chapter_id) if chapter_id else None
+            try:
+                ch_obj = Chapter.objects.get(id=chapter_id) if chapter_id else None
+            except (Chapter.DoesNotExist, ValueError):
+                ch_obj = None
+                chapter_id = _book.first_chapter_id
+                offset = 0
             if ch_obj:
                 save_progress_json(_book, ch_obj, offset)
             sync_progress_val = calculate_read_progress(_book, ch_obj, offset) / 100.0 if ch_obj else 0

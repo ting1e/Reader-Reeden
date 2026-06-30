@@ -15,6 +15,44 @@ DAISYUI_THEMES = [
     'silk', 'abyss',
 ]
 
+THEME_LABELS = {
+    'light': '明亮',
+    'dark': '深色',
+    'cupcake': '纸杯蛋糕',
+    'bumblebee': '大黄蜂',
+    'emerald': '翡翠绿',
+    'corporate': '商务',
+    'synthwave': '合成波',
+    'retro': '复古',
+    'cyberpunk': '赛博朋克',
+    'valentine': '情人节',
+    'halloween': '万圣节',
+    'garden': '花园',
+    'forest': '森林',
+    'aqua': '水蓝',
+    'lofi': '低保真',
+    'pastel': '粉彩',
+    'fantasy': '幻想',
+    'wireframe': '线框',
+    'black': '纯黑',
+    'luxury': '奢华',
+    'dracula': '德古拉',
+    'cmyk': 'CMYK',
+    'autumn': '秋日',
+    'business': '商业',
+    'acid': '酸性',
+    'lemonade': '柠檬水',
+    'night': '夜晚',
+    'coffee': '咖啡',
+    'winter': '冬日',
+    'dim': '朦胧',
+    'nord': '北欧',
+    'sunset': '日落',
+    'caramellatte': '焦糖拿铁',
+    'silk': '丝绸',
+    'abyss': '深渊',
+}
+
 
 def daisyui_theme(request):
     theme = 'light'
@@ -27,4 +65,8 @@ def daisyui_theme(request):
                 theme = s.theme
         except Exception:
             pass
-    return {'daisyui_theme': theme, 'daisyui_themes': DAISYUI_THEMES}
+    return {
+        'daisyui_theme': theme,
+        'daisyui_themes': [(k, THEME_LABELS.get(k, k)) for k in DAISYUI_THEMES],
+        'theme_labels': THEME_LABELS,
+    }

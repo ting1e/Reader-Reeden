@@ -30,7 +30,7 @@ DEBUG = os.environ.get('DJANGO_DEBUG', 'True').lower() in ('1', 'true', 'yes', '
 
 # 允许的主机：优先读环境变量 DJANGO_ALLOWED_HOSTS（逗号分隔），未设置时默认 ['127.0.0.1']
 _allowed_hosts_env = os.environ.get('DJANGO_ALLOWED_HOSTS', '')
-ALLOWED_HOSTS = [h.strip() for h in _allowed_hosts_env.split(',') if h.strip()] or ['127.0.0.1']
+ALLOWED_HOSTS = [h.strip() for h in _allowed_hosts_env.split(',') if h.strip()] or ['127.0.0.1','localhost']
 
 # CSRF 信任来源：读环境变量 DJANGO_CSRF_TRUSTED_ORIGINS（逗号分隔），未设置时为空
 _csrf_origins_env = os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', '')

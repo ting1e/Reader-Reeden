@@ -226,11 +226,33 @@ def book_local_del(request, pk):
 
 @login_required(login_url='reader:index')
 def book_rechapter(request, pk):
-    """重新分章：删除旧章节并重建，根据 progress 重算阅读记录和书签的章节定位。"""
+    """重新分章：删除旧章节并重建，根据 progress 重算阅读记录和书签的章节定位。
+
+    words_read 在系统中是 text-only 偏移（不含换行符，相对章首）。
+    重新分章时需要：旧章内 text-only → 全书 raw → 新章内 raw → 新章内 text-only。
+    """
     _book = get_object_or_404(Book, id=pk)
     if not can_admin_book(_book, request.user):
         return redirect('reader:book_admin')
 
+    # 1. 在 rechapter 删除旧章节之前，捕获旧章节元数据
+    old_chapters = list(Chapter.objects.filter(book_id=pk).order_by('index'))
+    old_meta = {}  # chapter_id -> {start, raw, text_len}
+    try:
+        with open(_book.abs_path(), 'r', encoding=_book.charset) as f:
+            file_data = f.read()
+    except Exception:
+        logger.exception("book_rechapter: error reading book file")
+        file_data = None
+    for oc in old_chapters:
+        raw = oc.end - oc.start
+        if file_data is not None:
+            nl = file_data[oc.start:oc.end].count('\n')
+        else:
+            nl = 0
+        old_meta[oc.id] = {'start': oc.start, 'raw': raw, 'text_len': max(1, raw - nl)}
+
+    # 2. 执行重新分章（删除旧章节、创建新章节）
     result = book_parser.rechapter_book(_book, request.user)
     if not result:
         return HttpResponse('重新分章失败')
@@ -239,19 +261,36 @@ def book_rechapter(request, pk):
     if not new_chapters:
         return redirect('reader:book_admin')
 
+    # 3. 构建新章节元数据
+    new_meta = {}  # chapter_id -> {raw, text_len}
+    for ch in new_chapters:
+        raw = ch.end - ch.start
+        if file_data is not None:
+            nl = file_data[ch.start:ch.end].count('\n')
+        else:
+            nl = 0
+        new_meta[ch.id] = {'raw': raw, 'text_len': max(1, raw - nl)}
+
     total_chars = _book.word_count
     if total_chars <= 0:
         total_chars = sum(ch.end - ch.start for ch in new_chapters)
 
     def offset_to_chapter(offset):
-        """根据全书字符偏移量，找到对应的新章节和章内偏移。"""
+        """根据全书 raw 字符偏移量，找到对应的新章节和章内 raw 偏移。"""
         for ch in new_chapters:
             if offset < ch.end:
                 in_chapter = max(0, offset - ch.start)
                 return ch, in_chapter
         return new_chapters[-1], max(0, new_chapters[-1].end - new_chapters[-1].start)
 
-    # 根据 progress 重算阅读记录
+    def raw_to_text(in_chapter_raw, ch):
+        """章内 raw 偏移 → text-only 偏移（按章节 raw/text 比例反算）。"""
+        nm = new_meta.get(ch.id)
+        if nm and nm['raw'] > 0:
+            return round(in_chapter_raw * nm['text_len'] / nm['raw'])
+        return in_chapter_raw
+
+    # 4. 根据 progress 重算阅读记录（progress 是全书百分比，保留不动）
     records = UserBookRecord.objects.filter(book_id=pk)
     for rec in records:
         try:
@@ -259,24 +298,27 @@ def book_rechapter(request, pk):
         except (TypeError, ValueError):
             progress_val = 0
         target_offset = int(progress_val / 100.0 * total_chars)
-        ch, in_chapter = offset_to_chapter(target_offset)
+        ch, in_chapter_raw = offset_to_chapter(target_offset)
         rec.chapter_id = ch.id
-        rec.words_read = in_chapter
+        rec.words_read = raw_to_text(in_chapter_raw, ch)
+        # rec.progress 保留原值（重新分章不改变阅读进度百分比）
         rec.save()
 
-    # 根据 progress 重算书签的章节定位
+    # 5. 重算书签的章节定位
+    #    书签 words_read 是旧章内 text-only 偏移，需还原为全书 raw 偏移再映射
     bookmarks = UserBookMark.objects.filter(book_id=pk)
     for bm in bookmarks:
-        try:
-            progress_val = float(bm.words_read) / float(total_chars) * 100 if total_chars > 0 else 0
-        except (TypeError, ValueError):
-            progress_val = 0
-        # 书签的 words_read 存的是全书偏移量，重新映射到新章节
-        target_offset = bm.words_read
-        ch, in_chapter = offset_to_chapter(target_offset)
+        oc_meta = old_meta.get(bm.chapter_id)
+        if oc_meta and oc_meta['text_len'] > 0:
+            # 旧章内 text-only → 旧章内 raw → 全书 raw
+            in_old_raw = round(bm.words_read * oc_meta['raw'] / oc_meta['text_len'])
+            full_raw = oc_meta['start'] + in_old_raw
+        else:
+            # 旧章节未知（已损坏），回退到全书起始
+            full_raw = 0
+        ch, in_chapter_raw = offset_to_chapter(full_raw)
         bm.chapter_id = ch.id
-        bm.words_read = in_chapter
-        # 更新章节标题
+        bm.words_read = raw_to_text(in_chapter_raw, ch)
         bm.chapter_title = ch.title
         bm.save()
 

@@ -20,8 +20,7 @@
       </div>
     </div>
 
-    <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-5 book-grid">
-      {% load static %}
+   <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-5 book-grid">
       {% for book in book_list %}
       <div class="book-item"
            data-book-name="{% if book.file_name %}{{ book.file_name }}{% else %}{{ book.name }}{% endif %}"
@@ -33,12 +32,14 @@
           {% csrf_token %}
           <input type="hidden" name="book_id" value="{{ book.id }}">
           <button class="card card-compact bg-base-100 shadow-sm hover:shadow-md transition-shadow duration-150 w-full border-0 text-left cursor-pointer" type="submit">
-            <figure class="relative">
-              <img src="{% static 'images/book3.png' %}" alt="{{ book.file_name|default:book.name }}">
-              <div class="absolute top-0 left-0 px-1.5 py-1  bg-black/50 text-white text-xs leading-none">{{ book.progress_value|floatformat:2 }}%</div>
-              <figcaption class="absolute inset-x-0 bottom-0 p-2 bg-black/50 text-white text-sm break-words overflow-hidden book-tittle">
+            <figure class="relative aspect-[3/4] bg-base-200 border border-base-300 rounded-r-md rounded-l-sm flex items-center justify-center p-3 overflow-hidden">
+              <div class="absolute left-2.5 top-0 bottom-0 w-px bg-base-300 shadow-[1px_0_1px_rgba(0,0,0,0.05)]"></div>
+              
+              <span class="text-sm sm:text-base font-bold text-center text-base-content/70 line-clamp-4 z-10 pl-2">
                 {% if book.file_name %}{{ book.file_name }}{% else %}{{ book.name }}{% endif %}
-              </figcaption>
+              </span>
+
+              <div class="absolute bottom-0 left-0 h-1 bg-primary/60" style="width: {{ book.progress_value }}%;"></div>
             </figure>
           </button>
         </form>
