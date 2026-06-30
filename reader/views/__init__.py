@@ -5,7 +5,7 @@ from .setup import setup_admin
 from .bookmark import BookmarkListView, bookmark_admin, bookmark_del, bookmark_save
 from .settings import (
     user_settings, user_settings_s3, user_settings_rule,
-    user_settings_password, update_setting,
+    user_settings_password, update_setting, set_theme,
 )
 from .books import (
     BookListView, BookListRemoteView, IndexView,

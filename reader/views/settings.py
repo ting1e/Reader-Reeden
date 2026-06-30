@@ -13,6 +13,15 @@ from ..utils import get_or_create_user_setting, parse_s3_json
 
 logger = logging.getLogger('reader')
 
+DAISYUI_THEMES = [
+    'light', 'dark', 'cupcake', 'bumblebee', 'emerald', 'corporate',
+    'synthwave', 'retro', 'cyberpunk', 'valentine', 'halloween', 'garden',
+    'forest', 'aqua', 'lofi', 'pastel', 'fantasy', 'wireframe', 'black',
+    'luxury', 'dracula', 'cmyk', 'autumn', 'business', 'acid', 'lemonade',
+    'night', 'coffee', 'winter', 'dim', 'nord', 'sunset', 'caramellatte',
+    'silk', 'abyss',
+]
+
 
 def _settings_redirect(message, kind='err'):
     """跳转回个人设置页并附带 URL 编码后的 err/msg 提示。"""
@@ -139,4 +148,18 @@ def update_setting(request):
             'font_weight': font_weight,
         },
     )
+    return HttpResponse('ok')
+
+
+@login_required(login_url='reader:index')
+def set_theme(request):
+    """保存用户选择的 daisyUI 主题。"""
+    if request.method != 'POST':
+        return HttpResponse('method not allowed')
+    theme = (request.POST.get('theme') or '').strip()
+    if theme not in DAISYUI_THEMES:
+        return HttpResponse('invalid theme')
+    setting = get_or_create_user_setting(request.user)
+    setting.theme = theme
+    setting.save()
     return HttpResponse('ok')

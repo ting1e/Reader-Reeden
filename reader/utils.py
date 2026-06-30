@@ -105,7 +105,7 @@ def get_or_create_user_setting(user):
     from .models import UserSetting
     return UserSetting.objects.get_or_create(
         user_id=user.id,
-        defaults={'font_size': 16, 'read_bg': '#fff', 'read_mode': 'page', 'line_height': 1.2},
+        defaults={'font_size': 16, 'read_bg': '#fff', 'read_mode': 'page', 'line_height': 1.2, 'theme': 'light'},
     )[0]
 
 

@@ -37,14 +37,47 @@
       {% with request.resolver_match.url_name as url_name %}
       <input type="search" placeholder="{% if url_name == 'book_list' or url_name == 'book_list_remote' %}书籍搜索{% else %}全文搜索{% endif %}" class="input input-bordered w-24 md:w-auto content-serarch {% if url_name == 'book_list' or url_name == 'book_list_remote' %}book-search{% endif %}" />
       {% endwith %}
-      
-      {% if request.user.is_authenticated %}
+
       <div class="dropdown dropdown-end">
-        <div tabindex="0" role="button" class="btn btn-ghost btn-circle avatar">
-          <div class="w-10 rounded-full">
-            <img src="https://i0.hdslb.com/bfs/face/member/noface.jpg@240w_240h_1c_1s.webp" alt="avatar" />
+        <button tabindex="0" role="button" class="btn btn-ghost gap-1.5 px-2 group" aria-label="主题">
+          <div class="bg-base-100 group-hover:border-base-content/20 grid shrink-0 grid-cols-2 gap-0.5 rounded-md border border-base-content/10 p-1 transition-colors">
+            <div class="bg-base-content size-1.5 rounded-full"></div>
+            <div class="bg-primary size-1.5 rounded-full"></div>
+            <div class="bg-secondary size-1.5 rounded-full"></div>
+            <div class="bg-accent size-1.5 rounded-full"></div>
+          </div>
+          <svg width="14" height="14" class="hidden size-3 fill-current opacity-60 sm:inline-block" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2048 2048"><path d="M1799 349l242 241-1017 1017L7 590l242-241 775 775 775-775z"></path></svg>
+        </button>
+        <div tabindex="-1" class="dropdown-content bg-base-200 text-base-content rounded-box z-1 mt-3 w-48 p-2 max-h-[50vh] overflow-y-auto overflow-x-hidden shadow-2xl">
+          <div class="flex flex-col gap-0.5">
+            <div class="text-xs font-bold uppercase tracking-widest text-base-content/40 px-2 py-1">主题</div>
+            {% for t in daisyui_themes %}
+            <button type="button" class="theme-option flex items-center gap-3 px-2 py-1.5 w-full text-left rounded-lg hover:bg-base-300 transition-colors {% if daisyui_theme == t %}font-medium{% endif %}" data-themeval="{{ t }}">
+              <div data-theme="{{ t }}" class=" grid shrink-0 grid-cols-2 gap-0.5 rounded-md p-1 shadow-sm">
+                <div class="bg-base-content size-1 rounded-full"></div>
+                <div class="bg-primary size-1 rounded-full"></div>
+                <div class="bg-secondary size-1 rounded-full"></div>
+                <div class="bg-accent size-1 rounded-full"></div>
+              </div>
+              <div class="flex-1 truncate ">{{ t }}</div>
+              {% if daisyui_theme == t %}
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="h-3 w-3 shrink-0"><path d="M20.285 2l-11.285 11.576-5.286-5.011-3.714 3.716 9 8.728 15-15.285z"></path></svg>
+              {% else %}
+              <span class="h-3 w-3 shrink-0"></span>
+              {% endif %}
+            </button>
+            {% endfor %}
           </div>
         </div>
+
+      </div>
+
+      {% if request.user.is_authenticated %}
+      <div class="dropdown dropdown-end">
+        <button tabindex="0" role="button" class="btn btn-ghost gap-1.5 px-2" aria-label="用户菜单">
+          <iconify-icon icon="bi:gear" class="text-lg"></iconify-icon>
+          <svg width="14" height="14" class="hidden size-3 fill-current opacity-60 sm:inline-block" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2048 2048"><path d="M1799 349l242 241-1017 1017L7 590l242-241 775 775 775-775z"></path></svg>
+        </button>
         <ul tabindex="-1" class="menu menu-md dropdown-content bg-base-100 rounded-box z-1 mt-3 w-40 p-2 shadow">
           <li><a href="{% url 'reader:upload_file' %}">上传书籍</a></li>
           <li><a href="{% url 'reader:book_admin' %}">书籍管理</a></li>
@@ -117,4 +150,22 @@
   </script>
   {% endif %}
   {% endwith %}
+
+  <script>
+    $('.theme-option').click(function(e){
+      e.preventDefault();
+      var t = $(this).data('themeval');
+      {% if request.user.is_authenticated %}
+      $.post("{% url 'reader:set_theme' %}", {
+        theme: t,
+        csrfmiddlewaretoken: '{{ csrf_token }}'
+      }, function(){
+        location.reload();
+      });
+      {% else %}
+      localStorage.setItem('daisyui_theme', t);
+      location.reload();
+      {% endif %}
+    });
+  </script>
 </header>

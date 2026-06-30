@@ -92,9 +92,12 @@ article{ font-weight: {{ user_setting.font_weight }}; }
                         </div>
                     </div>
                 </nav>
-                <div class="flex justify-between text-xs text-base-content/40 mt-1 select-none" id="read-progress-bar">
-                    <span id="read-progress-text">{{ initial_progress }}%</span>
-                    <span id="read-words-text">{{ initial_words_read|floatformat:0 }} / {{ word_count|floatformat:0 }}</span>
+                <div class="flex justify-between items-center text-xs text-base-content/40 mt-1 select-none" id="read-progress-bar">
+                    <span class="truncate shrink min-w-0" id="read-chapter-text">{{ chapter_title }}</span>
+                    <div class="flex items-center gap-2 shrink-0 ml-2">
+                        <span id="read-progress-text">{{ initial_progress }}%</span>
+                        <span id="read-words-text">{{ initial_words_read|floatformat:0 }} / {{ word_count|floatformat:0 }}</span>
+                    </div>
                 </div>
             </div>
 

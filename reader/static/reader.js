@@ -531,6 +531,13 @@ function updateProgressBar(progress, wordsRead, totalWords) {
     }
 }
 
+function updateChapterDisplay() {
+    var $ch = $('#read-chapter-text');
+    if ($ch.length && chapter_title) {
+        $ch.text(chapter_title);
+    }
+}
+
 function save_record(callback) {
     var words = (read_mode === 'slide') ? getSlideOffset() : (page_contents_len[current_page_idx] || 0);
     $.ajax({
@@ -567,6 +574,9 @@ $('.article-container').on('scroll', function() {
         var newChapterId = parseInt($(cur).attr('data-chapter-id'));
         if (newChapterId !== chapter_id) {
             chapter_id = newChapterId;
+            var $h3 = $(cur).find('h3').first();
+            if ($h3.length) chapter_title = $h3.text().trim();
+            updateChapterDisplay();
             $('.list-group-item').removeClass('active bg-base-content text-base-100 font-medium').addClass('text-base-content');
             $('.list-group-item[data-chapter-id="' + chapter_id + '"]').addClass('active bg-base-content text-base-100 font-medium').removeClass('text-base-content');
         }
@@ -1029,6 +1039,8 @@ function loadChapterFromCache(chapterId, offset) {
     if (!cached) return false;
 
     chapter_id = chapterId;
+    chapter_title = cached.title || chapter_title;
+    updateChapterDisplay();
     $('.list-group-item').removeClass('active bg-base-content text-base-100 font-medium').addClass('text-base-content');
     $('.list-group-item[data-chapter-id="' + chapterId + '"]').addClass('active bg-base-content text-base-100 font-medium').removeClass('text-base-content');
 

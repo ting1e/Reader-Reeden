@@ -18,6 +18,7 @@ urlpatterns = [
     path('logout/', views.logout_view, name='logout'),
     path('setup/', views.setup_admin, name='setup_admin'),
     path('update_setting/', views.update_setting, name='update_setting'),
+    path('set_theme/', views.set_theme, name='set_theme'),
     path('bookmark/', views.bookmark_save, name='bookmark_save'),
     path('bookmark_list/<int:user_id>/<int:book_id>/', views.BookmarkListView.as_view(), name='bookmark_list'),
     path('bookmark_admin/', views.bookmark_admin, name='bookmark_admin'),

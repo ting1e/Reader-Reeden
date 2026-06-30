@@ -68,6 +68,7 @@ class UserSetting(models.Model):
     letter_spacing = models.IntegerField(default=0)
     line_height = models.FloatField(default=1.2)
     font_weight = models.CharField(max_length=16, default='')
+    theme = models.CharField(max_length=32, default='light')
     s3_setting = models.CharField(max_length=4096,default='"{\"accessKeyId\":\"YOUR_ACCESS_KEY\",\"secretAccessKey\":\"YOUR_SECRET_KEY\",\"region\":\"us-east-1\",\"endpoint\":\"https://s3.us-east-1.amazonaws.com\",\"bucket\":\"YOUR_BUCKET_NAME\",\"prefix\":\"YOUR_FOLDER_NAME/\"}"')
     chapter_rule = models.CharField(max_length=1024, default=DEFAULT_CHAPTER_RULE)
 

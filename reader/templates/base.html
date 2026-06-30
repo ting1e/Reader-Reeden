@@ -1,10 +1,19 @@
 <!DOCTYPE html>
-<html data-theme="cupcake">
+<html data-theme="{{ daisyui_theme|default:'light' }}">
 <head>
     <title>{% block title %}My amazing site{% endblock %}</title>
     {% load static %}
 
     <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <link rel="icon" href="{% static 'images/favicon.ico' %}">
+    {% if not request.user.is_authenticated %}
+    <script>
+      (function(){
+        var t = localStorage.getItem('daisyui_theme');
+        if (t) document.documentElement.setAttribute('data-theme', t);
+      })();
+    </script>
+    {% endif %}
 
     <link rel="stylesheet" type="text/css" href="{% static 'style.css' %}">
     <script src="{% static 'jquery-3.6.0.min.js' %}"></script>
