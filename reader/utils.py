@@ -1,11 +1,13 @@
 import os
 import hashlib
+import logging
 import json
 import uuid
 
 from django.conf import settings
 
 BASE_DIR = str(settings.BASE_DIR)
+logger = logging.getLogger('reader')
 
 DEFAULT_CHAPTER_RULE = r'^[ 　\t]{0,4}(?:序章|楔子|正文(?!完|结)|终章|后记|尾声|番外|第\s{0,4}[\d〇零一二两三四五六七八九十百千万壹贰叁肆伍陆柒捌玖拾佰仟廿卅]+?\s{0,4}(?:章|折|节(?!课)|卷|集(?![合和])|部(?![分赛游])|篇(?!张))).{0,30}$'
 
@@ -86,8 +88,22 @@ def get_element_index(text):
 
 
 def get_device_id():
-    node = uuid.getnode()
-    return str(uuid.UUID(int=node))
+    import uuid
+    device_id_file = os.path.join(BASE_DIR, 'local', '.device_id')
+    if os.path.exists(device_id_file):
+        try:
+            with open(device_id_file, 'r') as f:
+                return f.read().strip()
+        except Exception:
+            logger.exception("get_device_id: error reading device_id file")
+    device_id = str(uuid.uuid4())
+    try:
+        os.makedirs(os.path.dirname(device_id_file), exist_ok=True)
+        with open(device_id_file, 'w') as f:
+            f.write(device_id)
+    except Exception:
+        logger.exception("get_device_id: error writing device_id file")
+    return device_id
 
 
 def can_access_book(book, user):

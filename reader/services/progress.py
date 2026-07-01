@@ -197,8 +197,6 @@ def save_progress_json(book, chapter, words_read):
         "lastReadTime": now_iso,
         "deviceId": device_id,
         "todayStats": stats,
-        "chapterId": chapter.id,
-        "wordsRead": target_words
     }
 
     try:
