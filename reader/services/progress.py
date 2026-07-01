@@ -2,7 +2,9 @@ import datetime
 import json
 import logging
 import os
+from zoneinfo import ZoneInfo
 
+from django.conf import settings as dj_settings
 from django.utils import timezone
 
 from ..models import UserBookRecord
@@ -111,10 +113,10 @@ def save_progress_json(book, chapter, words_read):
     now_utc = datetime.datetime.now(datetime.timezone.utc)
     now_iso = now_utc.isoformat().replace('+00:00', 'Z')
 
-    dj_now = timezone.now()
-    if timezone.is_aware(dj_now):
-        dj_now = timezone.localtime(dj_now)
-    current_date_str = dj_now.strftime('%Y-%m-%d')
+    # 显式使用 Django TIME_ZONE 设置计算本地时间，不依赖容器系统时区
+    local_tz = ZoneInfo(dj_settings.TIME_ZONE)
+    local_now = datetime.datetime.now(local_tz)
+    current_date_str = local_now.strftime('%Y-%m-%d')
 
     try:
         with open(book.abs_path(), 'r', encoding=book.charset) as f:
@@ -181,7 +183,7 @@ def save_progress_json(book, chapter, words_read):
     })
     dev['readSeconds'] = dev.get('readSeconds', 0) + delta_seconds
     dev['wordCount'] = dev.get('wordCount', 0) + delta_words
-    current_hour = str(dj_now.hour)
+    current_hour = str(local_now.hour)
     hourly = dev.setdefault('hourly', {})
     h = hourly.setdefault(current_hour, {'readSeconds': 0, 'wordCount': 0})
     h['readSeconds'] = h.get('readSeconds', 0) + delta_seconds
