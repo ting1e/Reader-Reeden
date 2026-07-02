@@ -103,8 +103,11 @@ def handle_local_book(request, url, local_only=False):
     return False
 
 
-def rechapter_book(book, user=None):
-    """对已存在的书籍重新分章，保留 book id，删除旧章节并重建。"""
+def rechapter_book(book, user=None, rule_choice='main'):
+    """对已存在的书籍重新分章，保留 book id，删除旧章节并重建。
+
+    rule_choice: 'main'（主规则）、'rule_2'（备用规则1）、'rule_3'（备用规则2）
+    """
     url = book.abs_path()
     if not url or Path(url).suffix.lower() != '.txt':
         return False
@@ -112,7 +115,16 @@ def rechapter_book(book, user=None):
     charset = book.charset or 'utf-8'
     with open(url, 'r', encoding=charset) as f:
         data = f.read()
-        pat = _resolve_chapter_rule(book, user)
+        if rule_choice != 'main' and user and user.is_authenticated:
+            setting = UserSetting.objects.filter(user_id=user.id).first()
+            if rule_choice == 'rule_2' and setting and setting.chapter_rule_2:
+                pat = setting.chapter_rule_2
+            elif rule_choice == 'rule_3' and setting and setting.chapter_rule_3:
+                pat = setting.chapter_rule_3
+            else:
+                pat = _resolve_chapter_rule(book, user)
+        else:
+            pat = _resolve_chapter_rule(book, user)
         match = re.compile(pat, re.MULTILINE).finditer(data)
         with transaction.atomic():
             Chapter.objects.filter(book_id=book.id).delete()

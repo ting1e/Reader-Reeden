@@ -253,7 +253,8 @@ def book_rechapter(request, pk):
         old_meta[oc.id] = {'start': oc.start, 'raw': raw, 'text_len': max(1, raw - nl)}
 
     # 2. 执行重新分章（删除旧章节、创建新章节）
-    result = book_parser.rechapter_book(_book, request.user)
+    rule_choice = request.POST.get('rule_choice', 'main')
+    result = book_parser.rechapter_book(_book, request.user, rule_choice=rule_choice)
     if not result:
         return HttpResponse('重新分章失败')
 

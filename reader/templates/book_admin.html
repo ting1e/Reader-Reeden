@@ -44,9 +44,14 @@
             <td class="hidden md:table-cell">{{ book.upload_time|date:"Y-m-d H:i" }}</td>
             <td>
               <div class="flex gap-1">
-                <form method="POST" action="{% url 'reader:book_rechapter' book.id %}" class="inline"
+                <form method="POST" action="{% url 'reader:book_rechapter' book.id %}" class="inline flex gap-1 items-center"
                       onsubmit="return confirm('确定对《{{ book.name|escapejs }}》重新分章？\n\n将删除旧章节并重新解析，阅读进度会根据百分比自动映射到新章节。')">
                   {% csrf_token %}
+                  <select name="rule_choice" class="select select-xs select-bordered max-w-[5rem]">
+                    <option value="main">主规则</option>
+                    <option value="rule_2">规则1</option>
+                    <option value="rule_3">规则2</option>
+                  </select>
                   <button type="submit" class="btn btn-sm btn-outline">
                     <iconify-icon icon="bi:arrow-repeat"></iconify-icon> 重新分章
                   </button>

@@ -71,6 +71,8 @@ class UserSetting(models.Model):
     theme = models.CharField(max_length=32, default='light')
     s3_setting = models.CharField(max_length=4096,default='"{\"accessKeyId\":\"YOUR_ACCESS_KEY\",\"secretAccessKey\":\"YOUR_SECRET_KEY\",\"region\":\"us-east-1\",\"endpoint\":\"https://s3.us-east-1.amazonaws.com\",\"bucket\":\"YOUR_BUCKET_NAME\",\"prefix\":\"YOUR_FOLDER_NAME/\"}"')
     chapter_rule = models.CharField(max_length=1024, default=DEFAULT_CHAPTER_RULE)
+    chapter_rule_2 = models.CharField(max_length=1024, default='')
+    chapter_rule_3 = models.CharField(max_length=1024, default='')
 
 class UserBookMark(models.Model):
     user_id = models.IntegerField()

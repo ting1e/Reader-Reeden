@@ -45,15 +45,30 @@
       <div class="card bg-base-100 shadow-sm border border-base-200">
         <div class="card-body">
           <h3 class="card-title text-lg">分章规则</h3>
-          <p class="text-sm text-base-content/60">正则表达式，用于匹配章节标题行。留空则使用默认规则。</p>
+          <p class="text-sm text-base-content/60">正则表达式，用于匹配章节标题行。主规则不能为空，备用规则留空表示不使用。</p>
           <details class="mb-2">
-            <summary class="text-sm text-base-content/50 cursor-pointer hover:text-base-content">查看默认规则</summary>
+            <summary class="text-sm text-base-content/50 cursor-pointer hover:text-base-content">查看当前主规则</summary>
             <pre class="mt-2 p-3 bg-base-200 rounded-lg text-xs overflow-x-auto whitespace-pre-wrap break-all">{{ setting.chapter_rule|default:'' }}</pre>
           </details>
           <form method="POST" action="{% url 'reader:user_settings_rule' %}">
             {% csrf_token %}
-            <textarea name="chapter_rule" class="textarea textarea-bordered w-full font-mono text-sm"
-                      rows="4" placeholder="输入自定义正则表达式">{{ setting.chapter_rule|default:'' }}</textarea>
+            <div class="flex flex-col gap-3">
+              <div>
+                <label class="text-sm font-semibold text-base-content/70 mb-1 block">主规则</label>
+                <textarea name="chapter_rule" class="textarea textarea-bordered w-full font-mono text-sm"
+                          rows="4" placeholder="输入主正则表达式">{{ setting.chapter_rule|default:'' }}</textarea>
+              </div>
+              <div>
+                <label class="text-sm font-semibold text-base-content/70 mb-1 block">备用规则 1</label>
+                <textarea name="chapter_rule_2" class="textarea textarea-bordered w-full font-mono text-sm"
+                          rows="3" placeholder="留空表示不使用">{{ setting.chapter_rule_2|default:'' }}</textarea>
+              </div>
+              <div>
+                <label class="text-sm font-semibold text-base-content/70 mb-1 block">备用规则 2</label>
+                <textarea name="chapter_rule_3" class="textarea textarea-bordered w-full font-mono text-sm"
+                          rows="3" placeholder="留空表示不使用">{{ setting.chapter_rule_3|default:'' }}</textarea>
+              </div>
+            </div>
             <div class="card-actions justify-end mt-3">
               <button type="submit" class="btn btn-primary btn-sm">保存</button>
             </div>

@@ -68,14 +68,20 @@ def user_settings_rule(request):
     if request.method != 'POST':
         return redirect('reader:user_settings')
     rule = request.POST.get('chapter_rule', '').strip()
+    rule_2 = request.POST.get('chapter_rule_2', '').strip()
+    rule_3 = request.POST.get('chapter_rule_3', '').strip()
     if not rule:
-        return _settings_redirect('分章规则不能为空')
-    try:
-        re.compile(rule)
-    except re.error as e:
-        return _settings_redirect('正则表达式错误: ' + str(e)[:80])
+        return _settings_redirect('主分章规则不能为空')
+    for label, r in [('主规则', rule), ('备用规则1', rule_2), ('备用规则2', rule_3)]:
+        if r:
+            try:
+                re.compile(r)
+            except re.error as e:
+                return _settings_redirect('%s正则表达式错误: %s' % (label, str(e)[:80]))
     setting = get_or_create_user_setting(request.user)
     setting.chapter_rule = rule
+    setting.chapter_rule_2 = rule_2
+    setting.chapter_rule_3 = rule_3
     setting.save()
     return _settings_redirect('分章规则已保存', kind='msg')
 
