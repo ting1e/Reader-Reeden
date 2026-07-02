@@ -319,17 +319,16 @@ function renderPageButtons(activeIdx) {
     $('.pages-container').empty();
     if (page_num <= 0) return;
 
-    // 动态计算可显示按钮数：上一页与下一页之间的可用宽度 / 单个按钮占位宽度
-    var $probe = $('<button class="join-item btn btn-outline btn-sm page-num page-item" style="visibility:hidden;">1</button>' +
-                   '<button class="join-item btn btn-outline btn-sm page-num page-item" style="visibility:hidden;">2</button>');
+    // 动态计算可显示按钮数：用与最大页码等宽的样本测量单按钮槽位宽，避免 1 位数样本低估 2/3 位数按钮宽度
+    var probeText = String(page_num);
+    var $probe = $('<button class="join-item btn btn-outline btn-sm page-num page-item" style="visibility:hidden;">' + probeText + '</button>' +
+                   '<button class="join-item btn btn-outline btn-sm page-num page-item" style="visibility:hidden;">' + probeText + '</button>');
     $('.pages-container').append($probe);
     var btnSlot = $probe.eq(1).offset().left - $probe.eq(0).offset().left;
     $probe.remove();
     if (!btnSlot || btnSlot < 1) btnSlot = 32;
 
-    var prevRight = $('.prev-page').offset().left + $('.prev-page').outerWidth(true);
-    var nextLeft = $('.next-page').offset().left;
-    var availableWidth = nextLeft - prevRight;
+    var availableWidth = $('.pages-container').width();
     var maxVisible = Math.max(5, Math.floor(availableWidth / btnSlot));
 
     var pages = [];
@@ -337,16 +336,30 @@ function renderPageButtons(activeIdx) {
     if (page_num <= maxVisible) {
         for (var i = 1; i <= page_num; i++) pages.push({num: i, type: 'page'});
     } else {
-        var range = 2;
-        var leftBound = Math.max(2, activeIdx + 1 - range);
-        var rightBound = Math.min(page_num - 1, activeIdx + 1 + range);
-        if (leftBound <= 2) { leftBound = 2; rightBound = Math.min(page_num - 1, 2 + range * 2); }
-        if (rightBound >= page_num - 1) { rightBound = page_num - 1; leftBound = Math.max(2, page_num - 1 - range * 2); }
+        var total = page_num, cur = activeIdx + 1;
+        var budget = maxVisible;
+        var win = Math.max(1, budget - 4);
+        var half = Math.floor((win - 1) / 2);
+        var start = cur - half, end = start + win - 1;
+        if (start < 2) { start = 2; end = start + win - 1; }
+        if (end > total - 1) { end = total - 1; start = end - win + 1; if (start < 2) start = 2; }
+
+        var leftEll = start > 2, rightEll = end < total - 1;
+        function slots() { return 2 + (leftEll ? 1 : 0) + (rightEll ? 1 : 0) + (end - start + 1); }
+        while (slots() < budget) {
+            var leftGap = start - 2, rightGap = (total - 1) - end;
+            if (rightGap >= leftGap && rightGap > 0) { end++; if (end >= total - 1) rightEll = false; }
+            else if (leftGap > 0) { start--; if (start <= 2) leftEll = false; }
+            else break;
+        }
+        if (!leftEll && start === 3) start = 2;
+        if (!rightEll && end === total - 2) end = total - 1;
+        leftEll = start > 2; rightEll = end < total - 1;
 
         pages.push({num: 1, type: 'page'});
-        if (leftBound > 2) pages.push({num: '...', type: 'ellipsis'});
-        for (var i = leftBound; i <= rightBound; i++) pages.push({num: i, type: 'page'});
-        if (rightBound < page_num - 1) pages.push({num: '...', type: 'ellipsis'});
+        if (leftEll) pages.push({num: '...', type: 'ellipsis'});
+        for (var i = start; i <= end; i++) pages.push({num: i, type: 'page'});
+        if (rightEll) pages.push({num: '...', type: 'ellipsis'});
         pages.push({num: page_num, type: 'page'});
     }
 

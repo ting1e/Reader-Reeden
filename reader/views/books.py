@@ -2,7 +2,7 @@ import os
 import json
 import logging
 
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.urls import reverse
 from django.views import generic
 from django.shortcuts import get_object_or_404, redirect, render
@@ -365,25 +365,39 @@ def book_share_toggle(request, pk):
 
 @login_required(login_url='reader:index')
 def upload_file(request):
-    """上传书籍：保存到 local/upload，分章入库，标记 local_only=True"""
+    """上传书籍：保存到 local/upload，分章入库，标记 local_only=True。
+
+    前端逐文件 POST（FormData，字段名 file），后端逐文件处理并返回 JSON，
+    便于上传页展示每个文件的成功/失败状态。
+    """
     if request.method == 'POST' and request.FILES.get('file'):
         f = request.FILES['file']
         if f.size > 100 * 1024 * 1024:
-            return HttpResponse('文件大小超过 100MB 限制')
+            return JsonResponse({'success': False, 'name': f.name, 'error': '文件大小超过 100MB 限制'})
         if not f.name.endswith('.txt'):
-            return HttpResponse('仅支持 .txt 文件')
+            return JsonResponse({'success': False, 'name': f.name, 'error': '仅支持 .txt 文件'})
         # 路径穿越防护：剥离目录部分并清洗危险字符
-        safe_name = get_valid_filename(os.path.basename(f.name))
-        if not safe_name or not safe_name.endswith('.txt'):
-            return HttpResponse('仅支持 .txt 文件')
+        try:
+            safe_name = get_valid_filename(os.path.basename(f.name))
+        except Exception:
+            return JsonResponse({'success': False, 'name': f.name, 'error': '文件名非法'})
+        if not safe_name or not safe_name.endswith('.txt') or safe_name == '.txt':
+            return JsonResponse({'success': False, 'name': f.name, 'error': '仅支持 .txt 文件'})
+        # 防止同名覆盖：已存在同名书籍则拒绝，避免覆盖文件并产生悬挂引用
+        if Book.objects.filter(file_name=safe_name).exists():
+            return JsonResponse({'success': False, 'name': safe_name, 'error': '同名书籍已存在，请先删除原书再上传'})
         upload_dir = get_upload_dir()
         local_path = os.path.join(upload_dir, safe_name)
-        with open(local_path, 'wb') as dest:
-            for chunk in f.chunks():
-                dest.write(chunk)
-        result = book_parser.handle_local_book(request, local_path, local_only=True)
+        try:
+            with open(local_path, 'wb') as dest:
+                for chunk in f.chunks():
+                    dest.write(chunk)
+            result = book_parser.handle_local_book(request, local_path, local_only=True)
+        except Exception as e:
+            logger.exception("upload_file: error processing %s", safe_name)
+            return JsonResponse({'success': False, 'name': safe_name, 'error': f'处理失败: {e}'})
         if result:
-            return HttpResponse('success')
-        return HttpResponse('分章失败')
+            return JsonResponse({'success': True, 'name': safe_name})
+        return JsonResponse({'success': False, 'name': safe_name, 'error': '分章失败'})
     return render(request, 'upload_file.html')
 
