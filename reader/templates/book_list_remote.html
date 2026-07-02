@@ -17,9 +17,22 @@
     </div>
     {% endif %}
 
-    <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-5">
+    <div class="flex items-center gap-2 mb-8 sort-bar">
+      <span class="text-sm text-base-content/60">排序：</span>
+      <div class="join">
+        <button class="btn btn-sm join-item sort-btn" data-sort="name">名称</button>
+        <button class="btn btn-sm join-item sort-btn" data-sort="size">大小</button>
+        <button class="btn btn-sm join-item sort-btn" data-sort="date">日期</button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-5 book-grid">
       {% for book in book_list_remote %}
-      <div class="book-item" data-book-name="{{ book.name }}">
+      <div class="book-item"
+           data-book-name="{{ book.name }}"
+           data-sort-name="{{ book.name }}"
+           data-sort-size="{{ book.size }}"
+           data-sort-date="{{ book.last_modified }}">
         <form method="POST" action="{% url 'reader:open_remote_book' %}" class="block">
           {% csrf_token %}
           <input type="hidden" name="name" value="{{ book.name }}">
@@ -37,6 +50,10 @@
                 {{ book.name }}
               </span>
 
+              {% if book.size_display %}
+              <span class="absolute bottom-1 left-0 right-0 text-center text-[15px] text-base-content/30 z-10">{{ book.size_display }}</span>
+              {% endif %}
+
               {% if book.progress > 0 %}
               <div class="absolute bottom-0 left-0 h-1 bg-primary/60 z-10" style="width: {{ book.progress }}%;"></div>
               {% endif %}
@@ -52,5 +69,80 @@
 {% endblock %}
 
 {% block body-bottom %}
+<script>
+(function() {
+    var defaultDir = {name: 'asc', size: 'desc', date: 'desc'};
+    var STORAGE_KEY = 'book_list_remote_sort';
+    var currentSort = null;
+    var currentDir = null;
 
+    function saveSortState() {
+        if (currentSort) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({sort: currentSort, dir: currentDir}));
+        }
+    }
+
+    function loadSortState() {
+        try {
+            var s = JSON.parse(localStorage.getItem(STORAGE_KEY));
+            if (s && s.sort && defaultDir[s.sort] !== undefined) {
+                return s;
+            }
+        } catch (e) {}
+        return null;
+    }
+
+    function applySort(sortKey, dir) {
+        if (arguments.length >= 2) {
+            currentSort = sortKey;
+            currentDir = dir;
+        } else if (currentSort === sortKey) {
+            currentDir = currentDir === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSort = sortKey;
+            currentDir = defaultDir[sortKey] || 'asc';
+        }
+        var $grid = $('.book-grid');
+        var $items = $grid.children('.book-item').get();
+        $items.sort(function(a, b) {
+            var av = $(a).data('sort-' + currentSort);
+            var bv = $(b).data('sort-' + currentSort);
+            if (currentSort === 'name') {
+                return currentDir === 'asc'
+                    ? String(av).localeCompare(String(bv))
+                    : String(bv).localeCompare(String(av));
+            }
+            if (currentSort === 'date') {
+                av = String(av) || '';
+                bv = String(bv) || '';
+                return currentDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+            }
+            av = parseFloat(av) || 0;
+            bv = parseFloat(bv) || 0;
+            return currentDir === 'asc' ? av - bv : bv - av;
+        });
+        $.each($items, function(i, el) { $grid.append(el); });
+
+        $('.sort-btn').each(function() {
+            var active = $(this).data('sort') === currentSort;
+            $(this).toggleClass('btn-active', active);
+            var label = $(this).text().replace(/[▲▼]\s*$/, '').trim();
+            $(this).text(label);
+            if (active) {
+                $(this).text(label + (currentDir === 'asc' ? ' ▲' : ' ▼'));
+            }
+        });
+        saveSortState();
+    }
+
+    $('.sort-btn').click(function() {
+        applySort($(this).data('sort'));
+    });
+
+    var saved = loadSortState();
+    if (saved) {
+        applySort(saved.sort, saved.dir);
+    }
+})();
+</script>
 {% endblock %}

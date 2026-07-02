@@ -17,6 +17,7 @@
         <button class="btn btn-sm join-item sort-btn" data-sort="time">时间</button>
         <button class="btn btn-sm join-item sort-btn" data-sort="progress">进度</button>
         <button class="btn btn-sm join-item sort-btn" data-sort="recent">最近阅读</button>
+        <button class="btn btn-sm join-item sort-btn" data-sort="size">大小</button>
       </div>
     </div>
 
@@ -27,7 +28,8 @@
            data-sort-name="{% if book.file_name %}{{ book.file_name }}{% else %}{{ book.name }}{% endif %}"
            data-sort-time="{{ book.upload_time|date:"U" }}"
            data-sort-progress="{{ book.progress_value }}"
-           data-sort-recent="{% if book.read_time %}{{ book.read_time|date:"U" }}{% else %}0{% endif %}">
+           data-sort-recent="{% if book.read_time %}{{ book.read_time|date:"U" }}{% else %}0{% endif %}"
+           data-sort-size="{{ book.file_size }}">
         <form method="POST" action="{% url 'reader:book_view' %}">
           {% csrf_token %}
           <input type="hidden" name="book_id" value="{{ book.id }}">
@@ -38,6 +40,10 @@
               <span class="text-sm sm:text-base font-bold text-center text-base-content/70 line-clamp-4 z-10 pl-2">
                 {% if book.file_name %}{{ book.file_name }}{% else %}{{ book.name }}{% endif %}
               </span>
+
+              {% if book.file_size_display %}
+              <span class="absolute bottom-1 left-0 right-0 text-center text-[15px] text-base-content/30 z-10">{{ book.file_size_display }}</span>
+              {% endif %}
 
               <div class="absolute bottom-0 left-0 h-1 bg-primary/60" style="width: {{ book.progress_value }}%;"></div>
             </figure>
@@ -55,7 +61,7 @@
 {% block body-bottom %}
 <script>
 (function() {
-    var defaultDir = {name: 'asc', time: 'desc', progress: 'desc', recent: 'desc'};
+    var defaultDir = {name: 'asc', time: 'desc', progress: 'desc', recent: 'desc', size: 'desc'};
     var STORAGE_KEY = 'book_list_sort';
     var currentSort = null;
     var currentDir = null;

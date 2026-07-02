@@ -20,6 +20,16 @@ from ..services import book_parser
 logger = logging.getLogger('reader')
 
 
+def fmt_file_size(n):
+    if n < 1024:
+        return f'{n} B'
+    if n < 1024 * 1024:
+        return f'{n / 1024:.1f} KB'
+    if n < 1024 * 1024 * 1024:
+        return f'{n / 1024 / 1024:.1f} MB'
+    return f'{n / 1024 / 1024 / 1024:.2f} GB'
+
+
 class BookListView(generic.ListView):
     template_name = 'book_list.html'
     context_object_name = 'book_list'
@@ -39,6 +49,13 @@ class BookListView(generic.ListView):
             book.progress_value = progress.get(book.id, 0)
             if not hasattr(book, 'read_time') or book.read_time is None:
                 book.read_time = 0
+            try:
+                fsize = os.path.getsize(book.abs_path())
+                book.file_size = fsize
+                book.file_size_display = fmt_file_size(fsize)
+            except Exception:
+                book.file_size = 0
+                book.file_size_display = ''
         context['book_list'] = books
         return context
 
@@ -63,7 +80,14 @@ class BookListRemoteView(generic.ListView):
                     for obj in response['Contents']:
                         if obj['Key'] != target_prefix:
                             filename = obj['Key'][len(target_prefix):]
-                            remote_files.append({'name': filename, 'in_db': filename in local_books_set})
+                            last_modified = obj.get('LastModified')
+                            remote_files.append({
+                                'name': filename,
+                                'in_db': filename in local_books_set,
+                                'size': obj.get('Size', 0),
+                                'size_display': fmt_file_size(obj.get('Size', 0)),
+                                'last_modified': last_modified.isoformat() if last_modified else '',
+                            })
             except Exception as e:
                 logger.exception("BookListRemoteView: S3 list error")
                 self.s3_error = str(e)
