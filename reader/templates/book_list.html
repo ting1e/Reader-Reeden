@@ -24,8 +24,8 @@
    <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-5 book-grid">
       {% for book in book_list %}
       <div class="book-item"
-           data-book-name="{% if book.file_name %}{{ book.file_name }}{% else %}{{ book.name }}{% endif %}"
-           data-sort-name="{% if book.file_name %}{{ book.file_name }}{% else %}{{ book.name }}{% endif %}"
+           data-book-name="{% if book.name %}{{ book.name }}{% else %}{{ book.file_name }}{% endif %}"
+           data-sort-name="{% if book.name %}{{ book.name }}{% else %}{{ book.file_name }}{% endif %}"
            data-sort-time="{{ book.upload_time|date:"U" }}"
            data-sort-progress="{{ book.progress_value }}"
            data-sort-recent="{% if book.read_time %}{{ book.read_time|date:"U" }}{% else %}0{% endif %}"
@@ -36,13 +36,17 @@
           <button class="card card-compact bg-base-100 shadow-sm hover:shadow-md transition-shadow duration-150 w-full border-0 text-left cursor-pointer" type="submit">
             <figure class="relative aspect-[3/4] bg-base-200 border border-base-300 rounded-r-md rounded-l-sm flex items-center justify-center p-3 overflow-hidden">
               <div class="absolute left-2.5 top-0 bottom-0 w-px bg-base-300 shadow-[1px_0_1px_rgba(0,0,0,0.05)]"></div>
-              
+
+              {% if book.file_ext %}
+              <span class="absolute top-1 right-1 z-10 text-xs px-1.5 py-0.5 rounded  text-base-content/50">{{ book.file_ext }}</span>
+              {% endif %}
+
               <span class="text-sm sm:text-base font-bold text-center text-base-content/70 line-clamp-4 z-10 pl-2">
-                {% if book.file_name %}{{ book.file_name }}{% else %}{{ book.name }}{% endif %}
+                {% if book.name %}{{ book.name }}{% else %}{{ book.file_name }}{% endif %}
               </span>
 
               {% if book.file_size_display %}
-              <span class="absolute bottom-1 left-0 right-0 text-center text-[15px] text-base-content/30 z-10">{{ book.file_size_display }}</span>
+              <span class="absolute bottom-1.5 right-1 z-10 text-xs px-1.5 py-0.5 rounded  text-base-content/50">{{ book.file_size_display }}</span>
               {% endif %}
 
               <div class="absolute bottom-0 left-0 h-1 bg-primary/60" style="width: {{ book.progress_value }}%;"></div>

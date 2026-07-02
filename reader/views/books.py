@@ -24,10 +24,13 @@ def fmt_file_size(n):
     if n < 1024:
         return f'{n} B'
     if n < 1024 * 1024:
-        return f'{n / 1024:.1f} KB'
+        s = f'{n / 1024:.1f}'.rstrip('0').rstrip('.')
+        return f'{s} KB'
     if n < 1024 * 1024 * 1024:
-        return f'{n / 1024 / 1024:.1f} MB'
-    return f'{n / 1024 / 1024 / 1024:.2f} GB'
+        s = f'{n / 1024 / 1024:.1f}'.rstrip('0').rstrip('.')
+        return f'{s} MB'
+    s = f'{n / 1024 / 1024 / 1024:.2f}'.rstrip('0').rstrip('.')
+    return f'{s} GB'
 
 
 class BookListView(generic.ListView):
@@ -49,6 +52,7 @@ class BookListView(generic.ListView):
             book.progress_value = progress.get(book.id, 0)
             if not hasattr(book, 'read_time') or book.read_time is None:
                 book.read_time = 0
+            book.file_ext = os.path.splitext(book.file_name)[1].lstrip('.').upper()
             try:
                 fsize = os.path.getsize(book.abs_path())
                 book.file_size = fsize
@@ -361,6 +365,24 @@ def book_share_toggle(request, pk):
     _book.share = not _book.share
     _book.save()
     return redirect('reader:book_admin')
+
+
+@login_required(login_url='reader:index')
+def book_rename(request, pk):
+    """编辑书籍名称（仅展示用，不影响文件路径/进度/分章）。"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'method not allowed'})
+    _book = get_object_or_404(Book, id=pk)
+    if not can_admin_book(_book, request.user):
+        return JsonResponse({'success': False, 'error': 'no permission'})
+    new_name = (request.POST.get('name') or '').strip()
+    if not new_name:
+        return JsonResponse({'success': False, 'error': '名称不能为空'})
+    if len(new_name) > 64:
+        return JsonResponse({'success': False, 'error': '名称不能超过 64 字符'})
+    _book.name = new_name
+    _book.save(update_fields=['name'])
+    return JsonResponse({'success': True, 'name': _book.name})
 
 
 @login_required(login_url='reader:index')

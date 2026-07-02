@@ -28,7 +28,23 @@
           {% load static %}
           {% for book in book_list %}
           <tr>
-            <td class="break-words max-w-xs">{{ book.name }}</td>
+            <td class="break-words max-w-xs">
+              <div class="rename-container flex items-center gap-1" data-book-id="{{ book.id }}">
+                <span class="rename-display break-words">{{ book.name }}</span>
+                <button type="button" class="rename-start btn btn-ghost btn-xs btn-circle shrink-0" aria-label="编辑书名" title="编辑书名">
+                  <iconify-icon icon="bi:pencil"></iconify-icon>
+                </button>
+                <div class="rename-edit hidden items-center gap-1 flex-1">
+                  <input type="text" class="rename-input input input-bordered input-sm flex-1 min-w-0" value="{{ book.name }}" maxlength="64" />
+                  <button type="button" class="rename-save btn btn-sm btn-primary btn-circle shrink-0 ml-2" aria-label="保存" title="保存">
+                    <iconify-icon icon="bi:check-lg"></iconify-icon>
+                  </button>
+                  <button type="button" class="rename-cancel btn btn-sm btn-ghost btn-circle shrink-0" aria-label="取消" title="取消">
+                    <iconify-icon icon="bi:x"></iconify-icon>
+                  </button>
+                </div>
+              </div>
+            </td>
             <td class="hidden sm:table-cell">{{ book.word_count }}</td>
             <td class="hidden sm:table-cell">{{ book.total_chapter_num }}</td>
             <td>{{ book.progress_value|floatformat:2 }}%</td>
@@ -81,5 +97,65 @@
 {% endblock %}
 
 {% block body-bottom %}
+
+<script>
+(function() {
+  var csrf = '{{ csrf_token }}';
+
+  function enterEdit($c) {
+    $c.find('.rename-display, .rename-start').addClass('hidden');
+    var $edit = $c.find('.rename-edit').removeClass('hidden').addClass('flex');
+    var $input = $c.find('.rename-input');
+    $input.val($c.find('.rename-display').text().trim());
+    $input.focus();
+    $input[0].setSelectionRange($input.val().length, $input.val().length);
+  }
+
+  function exitEdit($c) {
+    $c.find('.rename-edit').removeClass('flex').addClass('hidden');
+    $c.find('.rename-display, .rename-start').removeClass('hidden');
+  }
+
+  function saveRename($c) {
+    var bid = $c.data('book-id');
+    var val = $c.find('.rename-input').val().trim();
+    if (!val) { alert('名称不能为空'); return; }
+    var $btn = $c.find('.rename-save');
+    $btn.prop('disabled', true);
+    $.ajax({
+      url: '{% url "reader:book_rename" 0 %}'.replace('/0/', '/' + bid + '/'),
+      type: 'post',
+      data: { name: val, csrfmiddlewaretoken: csrf },
+      success: function(resp) {
+        $btn.prop('disabled', false);
+        if (resp && resp.success) {
+          $c.find('.rename-display').text(resp.name);
+          exitEdit($c);
+        } else {
+          alert((resp && resp.error) || '改名失败');
+        }
+      },
+      error: function() {
+        $btn.prop('disabled', false);
+        alert('网络错误，改名失败');
+      }
+    });
+  }
+
+  $('.rename-container').on('click', '.rename-start', function() {
+    enterEdit($(this).closest('.rename-container'));
+  });
+  $('.rename-container').on('click', '.rename-save', function() {
+    saveRename($(this).closest('.rename-container'));
+  });
+  $('.rename-container').on('click', '.rename-cancel', function() {
+    exitEdit($(this).closest('.rename-container'));
+  });
+  $('.rename-container').on('keydown', '.rename-input', function(e) {
+    if (e.which === 13) { e.preventDefault(); saveRename($(this).closest('.rename-container')); }
+    if (e.which === 27) { e.preventDefault(); exitEdit($(this).closest('.rename-container')); }
+  });
+})();
+</script>
 
 {% endblock %}

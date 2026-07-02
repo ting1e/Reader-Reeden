@@ -12,6 +12,7 @@ urlpatterns = [
     path('book_local_del/<int:pk>/', views.book_local_del, name='book_local_del'),
     path('book_rechapter/<int:pk>/', views.book_rechapter, name='book_rechapter'),
     path('book_share_toggle/<int:pk>/', views.book_share_toggle, name='book_share_toggle'),
+    path('book_rename/<int:pk>/', views.book_rename, name='book_rename'),
     path('upload/', views.upload_file, name='upload_file'),
 
     path('login/', views.login_auth, name='login'),

@@ -10,7 +10,7 @@ from .settings import (
 from .books import (
     BookListView, BookListRemoteView, IndexView,
     open_remote_book, book_admin, book_local_del, book_rechapter,
-    book_share_toggle, upload_file,
+    book_share_toggle, book_rename, upload_file,
 )
 from .reader import BookView, chapter_content, chapter_list_ajax, keyword_search
 from .fonts import font_admin, font_download, font_del, font_file
