@@ -10,7 +10,7 @@ from django.contrib.auth.decorators import login_required
 from django.utils.text import get_valid_filename
 
 from ..models import Book, Chapter, UserBookRecord, UserBookMark
-from ..utils import get_file_md5, get_local_books_dir, get_upload_dir, get_progress_dir, can_admin_book
+from ..utils import get_file_md5, get_local_books_dir, get_upload_dir, get_progress_dir, can_admin_book, fmt_file_size
 from ..services.progress import (
     get_books_progress, _parse_progress_time,
 )
@@ -18,19 +18,6 @@ from ..services.s3 import get_s3_config, _get_s3_client
 from ..services import book_parser
 
 logger = logging.getLogger('reader')
-
-
-def fmt_file_size(n):
-    if n < 1024:
-        return f'{n} B'
-    if n < 1024 * 1024:
-        s = f'{n / 1024:.1f}'.rstrip('0').rstrip('.')
-        return f'{s} KB'
-    if n < 1024 * 1024 * 1024:
-        s = f'{n / 1024 / 1024:.1f}'.rstrip('0').rstrip('.')
-        return f'{s} MB'
-    s = f'{n / 1024 / 1024 / 1024:.2f}'.rstrip('0').rstrip('.')
-    return f'{s} GB'
 
 
 class BookListView(generic.ListView):
@@ -219,10 +206,10 @@ def book_admin(request):
 
 @login_required(login_url='reader:index')
 def book_local_del(request, pk):
-    """删除本地书籍：只删除本地文件、进度、数据库记录，不触碰 S3"""
+    """删除本地书籍：只删除本地文件、进度、数据库记录，不触碰 S3（AJAX，返回 JSON）"""
     _book = get_object_or_404(Book, id=pk)
     if not can_admin_book(_book, request.user):
-        return redirect('reader:book_admin')
+        return JsonResponse({'success': False, 'error': '无权限'})
 
     try:
         md5_val = _book.md5 or get_file_md5(_book.abs_path())
@@ -249,7 +236,7 @@ def book_local_del(request, pk):
     UserBookMark.objects.filter(book_id=pk).delete()
     Book.objects.filter(id=pk).delete()
 
-    return redirect('reader:book_admin')
+    return JsonResponse({'success': True, 'name': _book.name})
 
 
 @login_required(login_url='reader:index')
@@ -261,7 +248,7 @@ def book_rechapter(request, pk):
     """
     _book = get_object_or_404(Book, id=pk)
     if not can_admin_book(_book, request.user):
-        return redirect('reader:book_admin')
+        return JsonResponse({'success': False, 'error': '无权限'})
 
     # 1. 在 rechapter 删除旧章节之前，捕获旧章节元数据
     old_chapters = list(Chapter.objects.filter(book_id=pk).order_by('index'))
@@ -284,11 +271,11 @@ def book_rechapter(request, pk):
     rule_choice = request.POST.get('rule_choice', 'main')
     result = book_parser.rechapter_book(_book, request.user, rule_choice=rule_choice)
     if not result:
-        return HttpResponse('重新分章失败')
+        return JsonResponse({'success': False, 'error': '重新分章失败'})
 
     new_chapters = list(Chapter.objects.filter(book_id=pk).order_by('index'))
     if not new_chapters:
-        return redirect('reader:book_admin')
+        return JsonResponse({'success': False, 'error': '重新分章失败：未生成章节'})
 
     # 3. 构建新章节元数据
     new_meta = {}  # chapter_id -> {raw, text_len}
@@ -351,7 +338,13 @@ def book_rechapter(request, pk):
         bm.chapter_title = ch.title
         bm.save()
 
-    return redirect('reader:book_admin')
+    _book.refresh_from_db()
+    return JsonResponse({
+        'success': True,
+        'name': _book.name,
+        'word_count': _book.word_count,
+        'total_chapter_num': _book.total_chapter_num,
+    })
 
 
 @login_required(login_url='reader:index')

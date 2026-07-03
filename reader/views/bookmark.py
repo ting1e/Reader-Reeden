@@ -1,4 +1,4 @@
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.views import generic
 from django.shortcuts import get_object_or_404, redirect, render
 from django.contrib.auth.decorators import login_required
@@ -31,12 +31,12 @@ def bookmark_admin(request):
 
 @login_required(login_url='reader:index')
 def bookmark_del(request, pk):
-    """删除单条书签"""
+    """删除单条书签（AJAX，返回 JSON）"""
     mark = get_object_or_404(UserBookMark, pk=pk)
     if not (request.user.is_superuser or request.user.id == mark.user_id):
-        return redirect('reader:bookmark_admin')
+        return JsonResponse({'success': False, 'error': '无权限'})
     mark.delete()
-    return redirect('reader:bookmark_admin')
+    return JsonResponse({'success': True})
 
 
 @login_required(login_url='reader:index')

@@ -41,7 +41,7 @@
       {% endwith %}
 
       <div class="dropdown dropdown-end">
-        <button tabindex="0" role="button" class="btn btn-ghost btn-sm h-10 px-2 group" aria-label="主题">
+        <button tabindex="0" role="button" class="btn btn-ghost btn-sm h-10 px-2 group " aria-label="主题">
           <div class="bg-base-100 group-hover:border-base-content/20 grid shrink-0 grid-cols-2 gap-0.5 rounded-md border border-base-content/10 p-1 transition-colors">
             <div class="bg-base-content size-1.5 rounded-full"></div>
             <div class="bg-primary size-1.5 rounded-full"></div>
@@ -53,7 +53,7 @@
           <div class="flex flex-col gap-0.5">
             <div class="text-xs font-bold uppercase tracking-widest text-base-content/40 px-2 py-1">主题</div>
             {% for t, t_label in daisyui_themes %}
-            <button type="button" class="theme-option flex items-center gap-3 px-2 py-1.5 w-full text-left rounded-lg hover:bg-base-300 transition-colors {% if daisyui_theme == t %}font-medium bg-base-300/50{% endif %}" data-themeval="{{ t }}">
+            <button type="button" class="cursor-pointer theme-option flex items-center gap-3 px-2 py-1.5 w-full text-left rounded-lg hover:bg-base-300 transition-colors {% if daisyui_theme == t %}font-medium bg-base-300/50{% endif %}" data-themeval="{{ t }}">
               <div data-theme="{{ t }}" class="grid shrink-0 grid-cols-2 gap-0.5 rounded-md p-1 shadow-sm">
                 <div class="bg-base-content size-1 rounded-full"></div>
                 <div class="bg-primary size-1 rounded-full"></div>
@@ -164,6 +164,12 @@
   {% endif %}
   {% endwith %}
 
+  {% if request.resolver_match.url_name != 'book_view' %}
+  <a href="#" id="back-to-top" class="btn btn-square btn-sm bg-base-100 border border-base-300 shadow-md hover:bg-base-200" aria-label="回到顶部" title="回到顶部" style="position:fixed; right:20px; bottom:20px; z-index:40; display:none; opacity:0; transition:opacity .2s;">
+    <iconify-icon icon="bi:chevron-up" class="text-lg"></iconify-icon>
+  </a>
+  {% endif %}
+
   <script>
     {% if not request.user.is_authenticated %}
     (function() {
@@ -197,5 +203,25 @@
       location.reload();
       {% endif %}
     });
+
+    // 回到顶部按钮（阅读页不显示，避免与浮动操作按钮冲突）
+    (function() {
+      var btn = document.getElementById('back-to-top');
+      if (!btn) return;
+      window.addEventListener('scroll', function() {
+        if (window.scrollY > 300) {
+          btn.style.display = 'inline-flex';
+          btn.style.opacity = '1';
+        } else {
+          btn.style.opacity = '0';
+          setTimeout(function() { if (window.scrollY <= 300) btn.style.display = 'none'; }, 200);
+        }
+      }, { passive: true });
+      btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    })();
   </script>
+
 </header>

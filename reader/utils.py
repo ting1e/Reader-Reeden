@@ -50,6 +50,19 @@ FONT_EXTENSIONS = {
 }
 
 
+def fmt_file_size(n):
+    if n < 1024:
+        return f'{n} B'
+    if n < 1024 * 1024:
+        s = f'{n / 1024:.1f}'.rstrip('0').rstrip('.')
+        return f'{s} KB'
+    if n < 1024 * 1024 * 1024:
+        s = f'{n / 1024 / 1024:.1f}'.rstrip('0').rstrip('.')
+        return f'{s} MB'
+    s = f'{n / 1024 / 1024 / 1024:.2f}'.rstrip('0').rstrip('.')
+    return f'{s} GB'
+
+
 def get_fonts_dir():
     d = os.path.join(BASE_DIR, 'local', 'fonts')
     os.makedirs(d, exist_ok=True)
@@ -57,17 +70,23 @@ def get_fonts_dir():
 
 
 def get_local_fonts():
-    """扫描 local/fonts/，返回 [{name, file_name, ext, format}, ...]"""
+    """扫描 local/fonts/，返回 [{name, file_name, ext, format, size}, ...]"""
     fonts_dir = get_fonts_dir()
     result = []
     for fn in sorted(os.listdir(fonts_dir)):
         ext = os.path.splitext(fn)[1].lower()
         if ext in FONT_EXTENSIONS:
+            full = os.path.join(fonts_dir, fn)
+            try:
+                size = os.path.getsize(full)
+            except OSError:
+                size = 0
             result.append({
                 'name': os.path.splitext(fn)[0],
                 'file_name': fn,
                 'ext': ext,
                 'format': FONT_EXTENSIONS[ext],
+                'size': size,
             })
     return result
 

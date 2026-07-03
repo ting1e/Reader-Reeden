@@ -8,37 +8,33 @@
 <main>
   {% include 'header.html' %}
 
-  <div class="container mx-auto px-4">
-    <h2 class="text-2xl font-bold mb-4">字体管理</h2>
-
-    {% if msg %}
-    <div class="alert alert-success mb-4 text-sm">{{ msg }}</div>
-    {% endif %}
-    {% if err %}
-    <div class="alert alert-error mb-4 text-sm">{{ err }}</div>
-    {% endif %}
-
+  <div class="container mx-auto px-4 py-4  mt-8 mb-4 ">
+    <h2 class="text-2xl font-bold mb-4 flex items-center gap-2"><iconify-icon icon="bi:fonts"></iconify-icon>字体管理</h2>
+    
     <!-- 本地字体 -->
-    <div class="mb-8">
+    <div class="mb-8 card shadow-sm border border-base-200 p-4">
       <h3 class="text-lg font-bold mb-3">本地字体</h3>
-      {% if local_fonts %}
       <div class="overflow-x-auto">
-        <table class="table table-zebra text-base">
+        <table class="table text-base" id="local-fonts-table"
+               data-del-url-template="{% url 'reader:font_del' '__FNAME__' %}">
           <thead>
             <tr>
               <th>字体名</th>
               <th>格式</th>
+              <th class="hidden sm:table-cell">大小</th>
               <th>操作</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody id="local-fonts-body">
             {% for font in local_fonts %}
             <tr>
               <td class="break-words max-w-xs">{{ font.name }}</td>
               <td>{{ font.ext }}</td>
+              <td class="hidden sm:table-cell">{{ font.size_display }}</td>
               <td>
-                <form method="POST" action="{% url 'reader:font_del' font.file_name %}" class="inline"
-                      onsubmit="return confirm('确定删除本地字体 {{ font.name|escapejs }}？')">
+                <form method="POST" action="{% url 'reader:font_del' font.file_name %}" class="inline font-del-form"
+                      data-name="{{ font.name|escapejs }}"
+                      data-confirm="确定删除本地字体 {{ font.name|escapejs }}？">
                   {% csrf_token %}
                   <button type="submit" class="btn btn-sm btn-error btn-outline">
                     <iconify-icon icon="bi:trash"></iconify-icon> 删除
@@ -47,34 +43,38 @@
               </td>
             </tr>
             {% endfor %}
+            {% if not local_fonts %}
+            <tr id="local-fonts-empty-row"><td colspan="4" class="text-base-content/50 py-4 text-center">暂无本地字体</td></tr>
+            {% endif %}
           </tbody>
         </table>
       </div>
-      {% else %}
-      <div class="text-base-content/50 py-4 text-center">暂无本地字体</div>
-      {% endif %}
     </div>
 
+
     <!-- S3 字体库 -->
-    <div>
+    <div class="mb-8 card shadow-sm border border-base-200 p-4">
       <h3 class="text-lg font-bold mb-3">S3 字体库</h3>
       {% if s3_error %}
       <div class="text-base-content/50 py-4 text-center">{{ s3_error }}</div>
       {% elif s3_fonts %}
       <div class="overflow-x-auto">
-        <table class="table table-zebra text-base">
+        <table class="table text-base" id="s3-fonts-table"
+               data-download-url="{% url 'reader:font_download' %}">
           <thead>
             <tr>
               <th>字体文件</th>
+              <th class="hidden sm:table-cell">大小</th>
               <th>状态</th>
               <th>操作</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody id="s3-fonts-body">
             {% for font in s3_fonts %}
             <tr>
               <td class="break-words max-w-xs">{{ font.name }}</td>
-              <td>
+              <td class="hidden sm:table-cell cell-size">{{ font.size_display }}</td>
+              <td class="cell-status">
                 {% if font.in_local %}
                 <span class="badge badge-success badge-sm">已下载</span>
                 {% else %}
@@ -83,8 +83,8 @@
               </td>
               <td>
                 {% if not font.in_local %}
-                <form method="POST" action="{% url 'reader:font_download' %}" class="inline"
-                      onsubmit="return confirm('确定从 S3 下载 {{ font.name|escapejs }}？')">
+                <form method="POST" action="{% url 'reader:font_download' %}" class="inline font-download-form"
+                      data-name="{{ font.name|escapejs }}">
                   {% csrf_token %}
                   <input type="hidden" name="name" value="{{ font.name }}">
                   <button type="submit" class="btn btn-sm btn-outline">
@@ -110,5 +110,131 @@
 {% endblock %}
 
 {% block body-bottom %}
+
+<script>
+  var csrf = '{{ csrf_token }}';
+
+  // 构造本地字体行（供下载完成后动态添加）
+  function buildLocalRow(fileName, sizeDisplay) {
+    var baseName = fileName.replace(/\.[^.]+$/, '');
+    var dotIdx = fileName.lastIndexOf('.');
+    var ext = dotIdx >= 0 ? fileName.substring(dotIdx).toLowerCase() : '';
+    var delUrl = $('#local-fonts-table').data('del-url-template').replace('__FNAME__', encodeURIComponent(fileName));
+    var $form = $('<form method="POST" class="inline font-del-form">')
+      .attr('action', delUrl)
+      .attr('data-name', baseName)
+      .attr('data-confirm', '确定删除本地字体 ' + baseName + '？');
+    $form.append($('<input type="hidden" name="csrfmiddlewaretoken">').val(csrf));
+    $form.append($('<button type="submit" class="btn btn-sm btn-error btn-outline">')
+      .append('<iconify-icon icon="bi:trash"></iconify-icon>').append(' 删除'));
+    var $tr = $('<tr>');
+    $tr.append($('<td class="break-words max-w-xs">').text(baseName));
+    $tr.append($('<td>').text(ext));
+    $tr.append($('<td class="hidden sm:table-cell">').text(sizeDisplay));
+    $tr.append($('<td>').append($form));
+    return $tr;
+  }
+
+  // 构造下载表单（供本地字体删除后，远程行恢复下载按钮）
+  function buildDownloadForm(fileName) {
+    var url = $('#s3-fonts-table').data('download-url');
+    var $form = $('<form method="POST" class="inline font-download-form">')
+      .attr('action', url)
+      .attr('data-name', fileName);
+    $form.append($('<input type="hidden" name="csrfmiddlewaretoken">').val(csrf));
+    $form.append($('<input type="hidden" name="name">').val(fileName));
+    $form.append($('<button type="submit" class="btn btn-sm btn-outline">')
+      .append('<iconify-icon icon="bi:download"></iconify-icon>').append(' 下载'));
+    return $form;
+  }
+
+  // 删除字体：先二次确认，确认后 AJAX + notify（委托绑定，兼容动态新增行）
+  $(document).on('submit', '.font-del-form', function(e) {
+    e.preventDefault();
+    var $form = $(this);
+    var name = $form.data('name');
+    var msg = $form.data('confirm').replace(/\\n/g, '\n');
+    confirmDialog(msg).then(function(ok) {
+      if (!ok) return;
+      var $btn = $form.find('button[type="submit"]');
+      $btn.prop('disabled', true);
+      $.ajax({
+        url: $form.attr('action'),
+        type: 'post',
+        data: { csrfmiddlewaretoken: csrf },
+        success: function(resp) {
+          $btn.prop('disabled', false);
+          if (resp && resp.success) {
+            notify(name + ' 已删除', 'success');
+            $form.closest('tr').fadeOut(200, function() {
+              $(this).remove();
+              // 本地字体删空后恢复占位行
+              if ($('#local-fonts-body tr').length === 0) {
+                $('#local-fonts-body').append(
+                  '<tr id="local-fonts-empty-row"><td colspan="4" class="text-base-content/50 py-4 text-center">暂无本地字体</td></tr>'
+                );
+              }
+            });
+            // 同步更新 S3 字体库：同名行恢复为未下载 + 重新出现下载按钮（用含扩展名的 resp.name 精确匹配）
+            var fileName = resp.name;
+            if (fileName) {
+              $('#s3-fonts-body tr').each(function() {
+                var $row = $(this);
+                if ($row.find('td').first().text().trim() === fileName) {
+                  $row.find('.cell-status').html('<span class="badge badge-ghost badge-sm">未下载</span>');
+                  var $opCell = $row.find('td').last();
+                  if (!$opCell.find('.font-download-form').length) {
+                    $opCell.append(buildDownloadForm(fileName));
+                  }
+                }
+              });
+            }
+          } else {
+            notify((resp && resp.error) || '删除失败', 'error');
+          }
+        },
+        error: function() {
+          $btn.prop('disabled', false);
+          notify('网络错误，删除失败', 'error');
+        }
+      });
+    });
+  });
+
+  // 下载字体：无需确认，按钮变下载中，完成后更新远程行 + 本地新增 + notify（委托绑定，兼容删除后恢复的下载按钮）
+  $(document).on('submit', '.font-download-form', function(e) {
+    e.preventDefault();
+    var $form = $(this);
+    var name = $form.data('name');
+    var $btn = $form.find('button[type="submit"]');
+    var origHtml = $btn.html();
+    $btn.prop('disabled', true).html('<span class="loading loading-spinner loading-xs"></span> 下载中');
+    $.ajax({
+      url: $form.attr('action'),
+      type: 'post',
+      data: $form.serialize(),
+      success: function(resp) {
+        if (resp && resp.success) {
+          notify((resp.name || name) + ' 已下载', 'success');
+          var $row = $form.closest('tr');
+          // 远程行：状态改已下载、更新大小、移除下载表单
+          $row.find('.cell-status').html('<span class="badge badge-success badge-sm">已下载</span>');
+          $row.find('.cell-size').text(resp.size_display);
+          $form.remove();
+          // 本地字体表：新增对应行
+          $('#local-fonts-empty-row').remove();
+          $('#local-fonts-body').append(buildLocalRow(resp.name, resp.size_display));
+        } else {
+          $btn.prop('disabled', false).html(origHtml);
+          notify((resp && resp.error) || '下载失败', 'error');
+        }
+      },
+      error: function() {
+        $btn.prop('disabled', false).html(origHtml);
+        notify('网络错误，下载失败', 'error');
+      }
+    });
+  });
+</script>
 
 {% endblock %}

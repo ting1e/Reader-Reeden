@@ -30,7 +30,74 @@
 
     {% block content %}{% endblock %}
 
+    <!-- 全局确认 modal -->
+    <dialog id="confirm_modal" class="modal">
+        <div class="modal-box max-w-sm">
+            <h3 class="text-lg font-bold">确认操作</h3>
+            <p class="py-4 text-sm text-base-content/70 whitespace-pre-line" id="confirm_modal_msg"></p>
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost btn-sm" id="confirm_modal_cancel">取消</button>
+                <button type="button" class="btn btn-primary btn-sm" id="confirm_modal_ok">确认</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- 全局通知 toast 容器 -->
+    <div class="toast toast-top toast-end z-[100]" id="notify-toast"></div>
+
     {% block body-bottom %}{% endblock %}
+
+    <script>
+    // 全局确认弹窗：confirmDialog(message) -> Promise<boolean>
+    (function() {
+        var dlg = document.getElementById('confirm_modal');
+        var msgEl = document.getElementById('confirm_modal_msg');
+        var okBtn = document.getElementById('confirm_modal_ok');
+        var cancelBtn = document.getElementById('confirm_modal_cancel');
+        var resolver = null;
+
+        function resolve(val) {
+            if (resolver) { var r = resolver; resolver = null; r(val); }
+            if (typeof dlg.close === 'function') dlg.close();
+        }
+        okBtn.addEventListener('click', function() { resolve(true); });
+        cancelBtn.addEventListener('click', function() { resolve(false); });
+        dlg.addEventListener('close', function() { resolve(false); });
+        dlg.addEventListener('cancel', function(e) { e.preventDefault(); resolve(false); });
+
+        window.confirmDialog = function(message) {
+            msgEl.textContent = message;
+            if (typeof dlg.showModal === 'function') dlg.showModal();
+            return new Promise(function(r) { resolver = r; });
+        };
+    })();
+
+    // 全局通知：notify(message, type)  type: info|success|warning|error
+    (function() {
+        var container = document.getElementById('notify-toast');
+        var clsMap = {
+            info: 'alert-info',
+            success: 'alert-success',
+            warning: 'alert-warning',
+            error: 'alert-error',
+        };
+        window.notify = function(message, type) {
+            type = type || 'info';
+            var cls = clsMap[type] || clsMap.info;
+            var timeout = type === 'error' ? 5000 : 3000;
+            var el = document.createElement('div');
+            el.className = 'alert ' + cls + ' py-2.5 px-3 text-sm shadow-lg';
+            el.style.minWidth = '220px';
+            var span = document.createElement('span');
+            span.textContent = message;
+            el.appendChild(span);
+            container.appendChild(el);
+            setTimeout(function() { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; }, timeout - 300);
+            setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, timeout);
+        };
+    })();
+    </script>
 
 </body>
 

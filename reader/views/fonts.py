@@ -1,20 +1,14 @@
 import os
 import logging
 
-from django.http import FileResponse, Http404
+from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import redirect, render
 from django.contrib.auth.decorators import login_required
-from urllib.parse import quote
 
-from ..utils import FONT_EXTENSIONS, get_fonts_dir, get_local_fonts
+from ..utils import FONT_EXTENSIONS, get_fonts_dir, get_local_fonts, fmt_file_size
 from ..services.s3 import get_s3_config, _get_s3_client
 
 logger = logging.getLogger('reader')
-
-
-def _font_admin_redirect(message, kind='err'):
-    from django.urls import reverse
-    return redirect(reverse('reader:font_admin') + '?%s=%s' % (kind, quote(message)))
 
 
 @login_required(login_url='reader:index')
@@ -42,32 +36,34 @@ def font_admin(request):
                     s3_fonts.append({
                         'name': filename,
                         'in_local': filename in local_names,
+                        'size': obj.get('Size', 0),
+                        'size_display': fmt_file_size(obj.get('Size', 0)),
                     })
         except Exception as e:
             logger.exception("font_admin: S3 list error")
             s3_error = str(e)
 
     local_fonts = get_local_fonts()
+    for f in local_fonts:
+        f['size_display'] = fmt_file_size(f.get('size', 0))
     return render(request, 'font_admin.html', {
         's3_fonts': s3_fonts,
         'local_fonts': local_fonts,
         's3_error': s3_error,
-        'msg': request.GET.get('msg', ''),
-        'err': request.GET.get('err', ''),
     })
 
 
 @login_required(login_url='reader:index')
 def font_download(request):
-    """从 S3 下载字体到 local/fonts/"""
+    """从 S3 下载字体到 local/fonts/（AJAX，返回 JSON）"""
     if request.method != 'POST':
         return redirect('reader:font_admin')
     name = os.path.basename(request.POST.get('name', ''))
     if not name or os.path.splitext(name)[1].lower() not in FONT_EXTENSIONS:
-        return _font_admin_redirect('无效的字体文件名')
+        return JsonResponse({'success': False, 'error': '无效的字体文件名'})
     cfg = get_s3_config(request.user)
     if not cfg:
-        return _font_admin_redirect('S3 未配置')
+        return JsonResponse({'success': False, 'error': 'S3 未配置'})
     s3_key = f"{cfg['prefix']}fonts/{name}"
     local_path = os.path.join(get_fonts_dir(), name)
     try:
@@ -75,28 +71,37 @@ def font_download(request):
         client.download_file(cfg['bucket'], s3_key, local_path)
     except Exception as e:
         logger.exception("font_download error")
-        return _font_admin_redirect(f'下载失败: {e}')
-    return _font_admin_redirect(f'{name} 已下载', kind='msg')
+        return JsonResponse({'success': False, 'error': f'下载失败: {e}'})
+    try:
+        size = os.path.getsize(local_path)
+    except OSError:
+        size = 0
+    return JsonResponse({
+        'success': True,
+        'name': name,
+        'size': size,
+        'size_display': fmt_file_size(size),
+    })
 
 
 @login_required(login_url='reader:index')
 def font_del(request, name):
-    """删除本地字体文件"""
+    """删除本地字体文件（AJAX，返回 JSON）"""
     if request.method != 'POST':
         return redirect('reader:font_admin')
     name = os.path.basename(name)
     if not name or os.path.splitext(name)[1].lower() not in FONT_EXTENSIONS:
-        return _font_admin_redirect('无效的字体文件名')
+        return JsonResponse({'success': False, 'error': '无效的字体文件名'})
     local_path = os.path.join(get_fonts_dir(), name)
     try:
         if os.path.exists(local_path):
             os.remove(local_path)
         else:
-            return _font_admin_redirect('文件不存在')
+            return JsonResponse({'success': False, 'error': '文件不存在'})
     except Exception as e:
         logger.exception("font_del error")
-        return _font_admin_redirect(f'删除失败: {e}')
-    return _font_admin_redirect(f'{name} 已删除', kind='msg')
+        return JsonResponse({'success': False, 'error': f'删除失败: {e}'})
+    return JsonResponse({'success': True, 'name': name})
 
 
 @login_required(login_url='reader:index')

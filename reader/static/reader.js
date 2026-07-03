@@ -1,7 +1,6 @@
 // Get references to DaisyUI/dialog elements
 var drawerCheckbox = document.getElementById('drawer-left');
 var searchModal = document.querySelector('.myModal');
-var settingModal = document.querySelector('.setting_modal');
 var addFont = 0;
 
 var read_mode = user_setting_mode || 'page';
