@@ -407,17 +407,24 @@ if (read_mode === 'slide') {
 reinitPages();
 
 function navigateToChapter(targetId) {
+    console.log('111')
     if (targetId === chapter_id) return;
     if (chapterCache.has(targetId)) {
         loadChapterFromCache(targetId);
     } else {
-        var form = $('<form method="POST" style="display:none;">')
-            .attr('action', url_book_reader)
-            .append($('<input>').attr({type: 'hidden', name: 'csrfmiddlewaretoken', value: csrf_token}))
-            .append($('<input>').attr({type: 'hidden', name: 'book_id', value: book_id}))
-            .append($('<input>').attr({type: 'hidden', name: 'chapter_id', value: targetId}));
-        $('body').append(form);
-        form.submit();
+        // 章节不在缓存：异步请求该章节并原地加载，不全局刷新
+        preloadChapter(targetId).then(function() {
+            if (!loadChapterFromCache(targetId)) {
+                // 预加载失败，回退到整页导航
+                var form = $('<form method="POST" style="display:none;">')
+                    .attr('action', url_book_reader)
+                    .append($('<input>').attr({type: 'hidden', name: 'csrfmiddlewaretoken', value: csrf_token}))
+                    .append($('<input>').attr({type: 'hidden', name: 'book_id', value: book_id}))
+                    .append($('<input>').attr({type: 'hidden', name: 'chapter_id', value: targetId}));
+                $('body').append(form);
+                form.submit();
+            }
+        });
     }
 }
 
