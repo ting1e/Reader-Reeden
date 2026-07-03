@@ -16,6 +16,7 @@
         <thead>
           <tr>
             <th>书名</th>
+            <th>来源</th>
             <th class="hidden sm:table-cell">字数</th>
             <th class="hidden sm:table-cell">章节</th>
             <th>进度</th>
@@ -44,6 +45,15 @@
                   </button>
                 </div>
               </div>
+            </td>
+            <td class="text-center">
+              <span class="inline-flex items-center justify-center" title="{{ book.local_only|yesno:'仅本地,云端同步' }}">
+                {% if book.local_only %}
+                <iconify-icon icon="bi:hdd" class="text-base-content/40 text-lg"></iconify-icon>
+                {% else %}
+                <iconify-icon icon="bi:cloud-check" class="text-base-content/40 text-lg"></iconify-icon>
+                {% endif %}
+              </span>
             </td>
             <td class="hidden sm:table-cell">{{ book.word_count }}</td>
             <td class="hidden sm:table-cell">{{ book.total_chapter_num }}</td>

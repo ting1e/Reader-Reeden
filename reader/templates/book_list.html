@@ -37,8 +37,16 @@
             <figure class="relative aspect-[3/4] bg-base-200 border border-base-300 rounded-r-md rounded-l-sm flex items-center justify-center p-3 overflow-hidden">
               <div class="absolute left-2.5 top-0 bottom-0 w-px bg-base-300 shadow-[1px_0_1px_rgba(0,0,0,0.05)]"></div>
 
+              <span class="absolute top-1 right-1 z-10 text-base-content/30" title="{{ book.local_only|yesno:'仅本地,云端同步' }}">
+                {% if book.local_only %}
+                <iconify-icon icon="bi:hdd"></iconify-icon>
+                {% else %}
+                <iconify-icon icon="bi:cloud-check" ></iconify-icon>
+                {% endif %}
+              </span>
+
               {% if book.file_ext %}
-              <span class="absolute top-1 right-1 z-10 text-xs px-1.5 py-0.5 rounded  text-base-content/50">{{ book.file_ext }}</span>
+              <span class="absolute top-1 right-5 z-10 text-xs px-1.5 py-0.5 rounded  text-base-content/50">{{ book.file_ext }}</span>
               {% endif %}
 
               <span class="text-sm sm:text-base font-bold text-center text-base-content/70 line-clamp-4 z-10 pl-2">
