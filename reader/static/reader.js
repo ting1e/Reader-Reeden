@@ -70,13 +70,36 @@ document.onkeydown = function(e) {
 };
 
 // ===== 自动阅读 =====
-var autoReadEnabled = localStorage.getItem('auto_read_enabled') === 'true';
-var autoReadSpeed = parseFloat(localStorage.getItem('auto_read_speed')) || 2;
+// 速度档位表：0~3 步进 0.1，3~5 步进 0.2，5~10 步进 0.5
+var AUTO_READ_SPEEDS = (function() {
+    var arr = [], i;
+    for (i = 1; i <= 30; i++) arr.push(i / 10);       // 0.1 → 3.0
+    for (i = 32; i <= 50; i += 2) arr.push(i / 10);   // 3.2 → 5.0
+    for (i = 55; i <= 100; i += 5) arr.push(i / 10);  // 5.5 → 10
+    return arr;
+})();
+function sliderToSpeed(pos) { return AUTO_READ_SPEEDS[pos] || AUTO_READ_SPEEDS[0]; }
+function speedToSlider(speed) {
+    var best = 0, bestDiff = Infinity;
+    for (var i = 0; i < AUTO_READ_SPEEDS.length; i++) {
+        var d = Math.abs(AUTO_READ_SPEEDS[i] - speed);
+        if (d < bestDiff) { bestDiff = d; best = i; }
+    }
+    return best;
+}
+var autoReadEnabled = false;
+localStorage.setItem('auto_read_enabled', 'false');
+var autoReadSpeed = (function() {
+    var s = parseFloat(localStorage.getItem('auto_read_speed'));
+    if (!s || !isFinite(s)) s = 2;
+    return sliderToSpeed(speedToSlider(s));
+})();
 var autoReadActive = false;
 var autoReadRAF = null;
 var autoReadLastScrollTime = 0;
 var autoReadUserPaused = false;
 var autoReadResumeTimer = null;
+var autoReadSaveTimer = null;
 var prevReadMode = null;
 
 function autoReadLoop() {
@@ -120,8 +143,10 @@ function startAutoRead() {
     autoReadLastScrollTime = 0;
     autoReadActive = true;
     autoReadUserPaused = false;
-    
-    setTimeout(function() { save_record();autoReadRAF = requestAnimationFrame(autoReadLoop); }, 1000);
+
+    setTimeout(function() { autoReadRAF = requestAnimationFrame(autoReadLoop); }, 1000);
+    if (autoReadSaveTimer) clearInterval(autoReadSaveTimer);
+    autoReadSaveTimer = setInterval(save_record, 5000);
 }
 
 function stopAutoRead() {
@@ -129,6 +154,8 @@ function stopAutoRead() {
     autoReadActive = false;
     autoReadUserPaused = false;
     if (autoReadResumeTimer) { clearTimeout(autoReadResumeTimer); autoReadResumeTimer = null; }
+    if (autoReadSaveTimer) { clearInterval(autoReadSaveTimer); autoReadSaveTimer = null; }
+    save_record();
     if (prevReadMode === 'page') {
         // 自动阅读强制切到 slide 模式：停止时复用缓存原地切回翻页布局
         // 切换 read_mode 之前捕获偏移，避免 save_record 按翻页分支读到错误值
@@ -157,19 +184,22 @@ function stopAutoRead() {
     prevReadMode = null;
 }
 
-// function pauseAutoReadByUser() {
-//     console.log('Auto-read paused by user scroll');
-//     if (!autoReadActive || autoReadUserPaused) return;
-//     cancelAnimationFrame(autoReadRAF);
-//     autoReadRAF = null;
-//     autoReadUserPaused = true;
-//     if (autoReadResumeTimer) clearTimeout(autoReadResumeTimer);
-//     autoReadResumeTimer = setTimeout(function() {
-//         autoReadUserPaused = false;
-//         autoReadResumeTimer = null;
-//         if (autoReadActive) autoReadRAF = requestAnimationFrame(autoReadLoop);
-//     }, 2000);
-// }
+function pauseAutoReadByUser() {
+    if (!autoReadActive) return;
+    if (autoReadRAF) { cancelAnimationFrame(autoReadRAF); autoReadRAF = null; }
+    autoReadUserPaused = true;
+    if (autoReadResumeTimer) clearTimeout(autoReadResumeTimer);
+    autoReadResumeTimer = setTimeout(function() {
+        autoReadUserPaused = false;
+        autoReadResumeTimer = null;
+        if (autoReadActive) autoReadRAF = requestAnimationFrame(autoReadLoop);
+    }, 1000);
+}
+
+// 自动阅读中：用户点击 / 滚轮滚动 → 暂停自动阅读，2s 后自动恢复
+$('.article-container').on('click wheel', function() {
+    if (autoReadActive) pauseAutoReadByUser();
+});
 
 // ===== 滑动模式：章节挂载 / 视口补偿 =====
 var slideLoadedChapters = new Set();
@@ -584,7 +614,7 @@ function showSettingsToast() {
 
     updateModeButtons();
     $('#auto-read-toggle').prop('checked', autoReadEnabled);
-    $('#auto-read-speed').val(autoReadSpeed);
+    $('#auto-read-speed').val(speedToSlider(autoReadSpeed));
     $('#auto-read-speed-val').text(autoReadSpeed);
     toast.show();
 }
@@ -1086,7 +1116,7 @@ $('#auto-read-toggle').change(function() {
 });
 
 $('#auto-read-speed').on('input', function() {
-    autoReadSpeed = parseFloat(this.value);
+    autoReadSpeed = sliderToSpeed(parseInt(this.value));
     localStorage.setItem('auto_read_speed', autoReadSpeed);
     $('#auto-read-speed-val').text(autoReadSpeed);
 });
