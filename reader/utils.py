@@ -12,20 +12,23 @@ logger = logging.getLogger('reader')
 DEFAULT_CHAPTER_RULE = r'^[ 　\t]{0,4}(?:序章|楔子|正文(?!完|结)|终章|后记|尾声|番外|第\s{0,4}[\d〇零一二两三四五六七八九十百千万壹贰叁肆伍陆柒捌玖拾佰仟廿卅]+?\s{0,4}(?:章|折|节(?!课)|卷|集(?![合和])|部(?![分赛游])|篇(?!张))).{0,30}$'
 
 
-def get_progress_dir():
-    d = os.path.join(BASE_DIR, 'local', 'book_progress')
+def get_progress_dir(user_id):
+    """返回指定用户的进度目录：local/{user_id}/book_progress/"""
+    d = os.path.join(BASE_DIR, 'local', str(user_id), 'book_progress')
     os.makedirs(d, exist_ok=True)
     return d
 
 
-def get_local_books_dir():
-    d = os.path.join(BASE_DIR, 'local', 'books')
+def get_local_books_dir(user_id):
+    """返回指定用户的 S3 下载书籍目录：local/{user_id}/books/"""
+    d = os.path.join(BASE_DIR, 'local', str(user_id), 'books')
     os.makedirs(d, exist_ok=True)
     return d
 
 
-def get_upload_dir():
-    d = os.path.join(BASE_DIR, 'local', 'upload')
+def get_upload_dir(user_id):
+    """返回指定用户的本地上传目录：local/{user_id}/upload/"""
+    d = os.path.join(BASE_DIR, 'local', str(user_id), 'upload')
     os.makedirs(d, exist_ok=True)
     return d
 
@@ -63,15 +66,21 @@ def fmt_file_size(n):
     return f'{s} GB'
 
 
-def get_fonts_dir():
-    d = os.path.join(BASE_DIR, 'local', 'fonts')
+def get_fonts_dir(user_id):
+    """返回指定用户的字体目录：local/{user_id}/fonts/"""
+    d = os.path.join(BASE_DIR, 'local', str(user_id), 'fonts')
     os.makedirs(d, exist_ok=True)
     return d
 
 
-def get_local_fonts():
-    """扫描 local/fonts/，返回 [{name, file_name, ext, format, size}, ...]"""
-    fonts_dir = get_fonts_dir()
+def get_local_fonts(user_id):
+    """扫描指定用户的字体目录，返回 [{name, file_name, ext, format, size}, ...]
+
+    user_id 为 falsy（None/0/匿名）时返回空列表。
+    """
+    if not user_id:
+        return []
+    fonts_dir = get_fonts_dir(user_id)
     result = []
     for fn in sorted(os.listdir(fonts_dir)):
         ext = os.path.splitext(fn)[1].lower()

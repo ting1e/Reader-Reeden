@@ -135,7 +135,7 @@ def open_remote_book(request):
     prefix = cfg['prefix']
     s3_key = f'{prefix}books/{book_name}'
 
-    local_path = os.path.join(get_local_books_dir(), book_name)
+    local_path = os.path.join(get_local_books_dir(request.user.id), book_name)
     try:
         s3_client.download_file(bucket, s3_key, local_path)
     except Exception as e:
@@ -153,7 +153,7 @@ def open_remote_book(request):
     try:
         md5_val = book.md5 or get_file_md5(local_path)
         progress_key = f'{prefix}book_progress/{md5_val}.json'
-        local_progress_path = os.path.join(get_progress_dir(), f'{md5_val}.json')
+        local_progress_path = os.path.join(get_progress_dir(request.user.id), f'{md5_val}.json')
 
         # 先把远端进度读到临时内存，与本地进度按时间对比，保留较新的版本
         try:
@@ -224,12 +224,23 @@ def book_local_del(request, pk):
         logger.exception("Error deleting local book file")
 
     if md5_val:
-        progress_path = os.path.join(get_progress_dir(), f'{md5_val}.json')
-        try:
-            if os.path.exists(progress_path):
-                os.remove(progress_path)
-        except Exception:
-            logger.exception("Error deleting progress file")
+        # 收集所有读过此书的用户（阅读记录 + 书签 + 上传者），逐一删除各自目录下的进度文件
+        user_ids = set(
+            UserBookRecord.objects.filter(book_id=pk).values_list('user_id', flat=True)
+        ) | set(
+            UserBookMark.objects.filter(book_id=pk).values_list('user_id', flat=True)
+        )
+        if _book.uploader:
+            user_ids.add(_book.uploader)
+        for uid in user_ids:
+            if not uid:
+                continue
+            progress_path = os.path.join(get_progress_dir(uid), f'{md5_val}.json')
+            try:
+                if os.path.exists(progress_path):
+                    os.remove(progress_path)
+            except Exception:
+                logger.exception("Error deleting progress file for user %s", uid)
 
     Chapter.objects.filter(book_id=pk).delete()
     UserBookRecord.objects.filter(book_id=pk).delete()
@@ -401,7 +412,7 @@ def upload_file(request):
         # 防止同名覆盖：已存在同名书籍则拒绝，避免覆盖文件并产生悬挂引用
         if Book.objects.filter(file_name=safe_name).exists():
             return JsonResponse({'success': False, 'name': safe_name, 'error': '同名书籍已存在，请先删除原书再上传'})
-        upload_dir = get_upload_dir()
+        upload_dir = get_upload_dir(request.user.id)
         local_path = os.path.join(upload_dir, safe_name)
         try:
             with open(local_path, 'wb') as dest:

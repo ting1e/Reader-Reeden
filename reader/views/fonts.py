@@ -24,7 +24,7 @@ def font_admin(request):
         try:
             client = _get_s3_client(cfg)
             response = client.list_objects_v2(Bucket=cfg['bucket'], Prefix=target_prefix)
-            local_names = {f['file_name'] for f in get_local_fonts()}
+            local_names = {f['file_name'] for f in get_local_fonts(request.user.id)}
             if 'Contents' in response:
                 for obj in response['Contents']:
                     if obj['Key'] == target_prefix:
@@ -43,7 +43,7 @@ def font_admin(request):
             logger.exception("font_admin: S3 list error")
             s3_error = str(e)
 
-    local_fonts = get_local_fonts()
+    local_fonts = get_local_fonts(request.user.id)
     for f in local_fonts:
         f['size_display'] = fmt_file_size(f.get('size', 0))
     return render(request, 'font_admin.html', {
@@ -65,7 +65,7 @@ def font_download(request):
     if not cfg:
         return JsonResponse({'success': False, 'error': 'S3 未配置'})
     s3_key = f"{cfg['prefix']}fonts/{name}"
-    local_path = os.path.join(get_fonts_dir(), name)
+    local_path = os.path.join(get_fonts_dir(request.user.id), name)
     try:
         client = _get_s3_client(cfg)
         client.download_file(cfg['bucket'], s3_key, local_path)
@@ -92,7 +92,7 @@ def font_del(request, name):
     name = os.path.basename(name)
     if not name or os.path.splitext(name)[1].lower() not in FONT_EXTENSIONS:
         return JsonResponse({'success': False, 'error': '无效的字体文件名'})
-    local_path = os.path.join(get_fonts_dir(), name)
+    local_path = os.path.join(get_fonts_dir(request.user.id), name)
     try:
         if os.path.exists(local_path):
             os.remove(local_path)
@@ -111,7 +111,7 @@ def font_file(request, name):
     ext = os.path.splitext(name)[1].lower()
     if ext not in FONT_EXTENSIONS:
         raise Http404
-    local_path = os.path.join(get_fonts_dir(), name)
+    local_path = os.path.join(get_fonts_dir(request.user.id), name)
     if not os.path.exists(local_path):
         raise Http404
     content_types = {

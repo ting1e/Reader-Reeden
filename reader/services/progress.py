@@ -100,7 +100,7 @@ def get_books_progress(user, books):
     return result
 
 
-def save_progress_json(book, chapter, words_read):
+def save_progress_json(book, chapter, words_read, user_id):
     if getattr(book, 'local_only', False):
         return
     try:
@@ -147,7 +147,7 @@ def save_progress_json(book, chapter, words_read):
             paragraph_index = len(content_lines) - 1
             element_index = get_element_index(content_lines[-1])
 
-    temp_dir = get_progress_dir()
+    temp_dir = get_progress_dir(user_id)
     json_path = os.path.join(temp_dir, f"{md5_val}.json")
 
     old_data = None

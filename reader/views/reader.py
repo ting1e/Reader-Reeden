@@ -76,7 +76,7 @@ def BookView(request):
         )
 
         try:
-            save_progress_json(_book, chapter, words_read)
+            save_progress_json(_book, chapter, words_read, request.user.id)
             sync_progress_to_s3(request, _book)
         except Exception:
             logger.exception("Failed to save progress JSON")
@@ -152,7 +152,7 @@ def BookView(request):
         if not getattr(_book, 'local_only', False):
             try:
                 md5_val = _book.md5 or get_file_md5(_book.abs_path())
-                json_path = os.path.join(get_progress_dir(), f"{md5_val}.json")
+                json_path = os.path.join(get_progress_dir(request.user.id), f"{md5_val}.json")
                 if os.path.exists(json_path):
                     with open(json_path, 'r', encoding='utf-8') as f:
                         file_record = json.load(f)
@@ -244,7 +244,7 @@ def BookView(request):
                 chapter_id = _book.first_chapter_id
                 offset = 0
             if ch_obj:
-                save_progress_json(_book, ch_obj, offset)
+                save_progress_json(_book, ch_obj, offset, request.user.id)
             sync_progress_val = calculate_read_progress(_book, ch_obj, offset) / 100.0 if ch_obj else 0
             if db_record:
                 db_record.chapter_id = chapter_id
@@ -302,7 +302,7 @@ def BookView(request):
     if request.user.is_authenticated:
         context['user_setting'] = get_or_create_user_setting(request.user)
 
-    context['local_fonts'] = get_local_fonts()
+    context['local_fonts'] = get_local_fonts(request.user.id) if request.user.is_authenticated else []
 
     return render(request, 'book_view.html', context)
 

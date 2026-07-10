@@ -63,7 +63,7 @@ def sync_progress_to_s3(request, book):
     except Exception:
         logger.exception("sync_progress_to_s3 MD5 error")
         return
-    local_path = os.path.join(get_progress_dir(), f'{md5_val}.json')
+    local_path = os.path.join(get_progress_dir(request.user.id), f'{md5_val}.json')
     if not os.path.exists(local_path):
         return
     try:
