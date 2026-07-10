@@ -8,94 +8,116 @@
   {% include 'header.html' %}
 
   <div class="container mx-auto px-4 py-4">
-    <h2 class="text-2xl font-bold mb-6 flex items-center gap-2"><iconify-icon icon="bi:person-gear"></iconify-icon>个人设置</h2>
+    <div class="card bg-base-100 shadow-sm border border-base-200/70 mt-6 mb-5 overflow-hidden">
+      <div class="card-body p-0">
+        <div class="p-5 sm:p-6 pb-4">
+          <h2 class="text-2xl font-bold tracking-tight flex items-center gap-2.5 mb-1">
+            <iconify-icon icon="bi:person-gear"></iconify-icon>
+            个人设置
+          </h2>
+          <p class="text-base text-base-content">管理云端存储配置、分章规则和账户密码。</p>
+        </div>
 
-    <div class="flex flex-col gap-6">
-
-      <!-- S3 配置 -->
-      <div class="card bg-base-100 shadow-sm border border-base-200">
-        <div class="card-body">
-          <h3 class="card-title text-lg">S3 配置</h3>
-          <p class="text-sm text-base-content/60">用于远程书库和进度同步，JSON 格式。</p>
-          <details class="mb-2">
-            <summary class="text-sm text-base-content/50 cursor-pointer hover:text-base-content">查看 JSON 示例与字段说明</summary>
-            <div class="mt-2 p-3 bg-base-200 rounded-lg text-xs overflow-x-auto">
+        <!-- 云端存储配置 -->
+        <div class="px-5 sm:px-6 py-4 border-t border-base-200/60">
+          <h3 class="text-base font-bold mb-1.5 flex items-center gap-1.5">
+            <iconify-icon icon="bi:cloud-arrow-up"></iconify-icon>云端存储配置
+          </h3>
+          <p class="text-sm text-base-content mb-3">用于远程书库和进度同步，JSON 格式。</p>
+          <details class="mb-3 group">
+            <summary class="text-sm text-base-content cursor-pointer hover:text-primary transition-colors select-none flex items-center gap-1 w-fit">
+              <iconify-icon icon="bi:chevron-right" class="transition-transform group-open:rotate-90"></iconify-icon>
+              查看 JSON 示例与字段说明
+            </summary>
+            <div class="mt-2 p-3 bg-base-200/50 rounded-lg text-sm overflow-x-auto">
               <pre class="whitespace-pre font-mono leading-relaxed">{
-  "accessKeyId": "你的 AccessKey ID",       <span class="text-base-content/40">// 必填</span>
-  "secretAccessKey": "你的 Secret Access Key", <span class="text-base-content/40">// 必填</span>
-  "endpoint": "https://s3.us-east-1.amazonaws.com", <span class="text-base-content/40">// 必填，含 https://</span>
-  "bucket": "my-book-bucket",              <span class="text-base-content/40">// 必填，存储桶名</span>
-  "region": "us-east-1",                   <span class="text-base-content/40">// 可选，部分服务商可留空</span>
-  "prefix": "reader/"                      <span class="text-base-content/40">// 可选，桶内路径前缀</span>
+  "accessKeyId": "你的 AccessKey ID",       <span class="text-base-content/80">// 必填</span>
+  "secretAccessKey": "你的 Secret Access Key", <span class="text-base-content/80">// 必填</span>
+  "endpoint": "https://s3.us-east-1.amazonaws.com", <span class="text-base-content/80">// 必填，含 https://</span>
+  "bucket": "my-book-bucket",              <span class="text-base-content/80">// 必填，存储桶名</span>
+  "region": "us-east-1",                   <span class="text-base-content/80">// 可选，部分服务商可留空</span>
+  "prefix": "reader/"                      <span class="text-base-content/80">// 可选，桶内路径前缀</span>
 }</pre>
-              <p class="mt-2 text-base-content/50">书籍存于 <code>prefix + books/</code>，进度存于 <code>prefix + book_progress/</code>，字体存于 <code>prefix + fonts/</code>。</p>
+              <p class="mt-2 text-base-content">书籍存于 <code>prefix + books/</code>，进度存于 <code>prefix + book_progress/</code>，字体存于 <code>prefix + fonts/</code>。</p>
             </div>
           </details>
           <form method="POST" action="{% url 'reader:user_settings_s3' %}" class="settings-form">
             {% csrf_token %}
-            <textarea name="s3_setting" id="s3-setting-input" class="textarea textarea-bordered w-full font-mono text-sm"
-                      rows="8" placeholder='{"accessKeyId":"...","secretAccessKey":"...","region":"...","endpoint":"...","bucket":"...","prefix":"..."}'>{% if setting.s3_setting %}{% if setting.s3_setting|first == '"' %}{{ setting.s3_setting|slice:"1:-1" }}{% else %}{{ setting.s3_setting }}{% endif %}{% endif %}</textarea>
-            <div class="card-actions justify-between mt-3">
-              <button type="button" class="btn btn-ghost" id="s3-fill-example">填入示例</button>
-              <button type="submit" class="btn btn-soft btn-primary">保存</button>
+            <textarea name="s3_setting" id="s3-setting-input" class="textarea textarea-bordered w-full font-mono text-sm leading-relaxed"
+                      rows="8" placeholder='{"accessKeyId":"...","secretAccessKey":"...","region":"...","endpoint":"...","bucket":"...","prefix":"..."}'>{{ s3_setting_display }}</textarea>
+            <div class="flex justify-between items-center mt-3 gap-2 flex-wrap">
+              <button type="button" class="btn btn-sm btn-ghost gap-1" id="s3-fill-example">
+                <iconify-icon icon="bi:magic"></iconify-icon>填入示例
+              </button>
+              <button type="submit" class="btn btn-sm btn-outline btn-primary gap-1 h-8 min-h-8">
+                <iconify-icon icon="bi:check-lg"></iconify-icon>保存
+              </button>
             </div>
           </form>
         </div>
-      </div>
 
-      <!-- 分章规则 -->
-      <div class="card bg-base-100 shadow-sm border border-base-200">
-        <div class="card-body">
-          <h3 class="card-title text-lg">分章规则</h3>
-          <p class="text-sm text-base-content/60">正则表达式，用于匹配章节标题行。主规则不能为空，备用规则留空表示不使用。</p>
-          <details class="mb-2">
-            <summary class="text-sm text-base-content/50 cursor-pointer hover:text-base-content">查看当前主规则</summary>
-            <pre class="mt-2 p-3 bg-base-200 rounded-lg text-xs overflow-x-auto whitespace-pre-wrap break-all">{{ setting.chapter_rule|default:'' }}</pre>
+        <!-- 分章规则 -->
+        <div class="px-5 sm:px-6 py-4 border-t border-base-200/60">
+          <h3 class="text-base font-bold mb-1.5 flex items-center gap-1.5">
+            <iconify-icon icon="bi:list-task"></iconify-icon>分章规则
+          </h3>
+          <p class="text-sm text-base-content mb-3">正则表达式，用于匹配章节标题行。主规则不能为空，备用规则留空表示不使用。</p>
+          <details class="mb-3 group">
+            <summary class="text-sm text-base-content cursor-pointer hover:text-primary transition-colors select-none flex items-center gap-1 w-fit">
+              <iconify-icon icon="bi:chevron-right" class="transition-transform group-open:rotate-90"></iconify-icon>
+              查看当前主规则
+            </summary>
+            <pre class="mt-2 p-3 bg-base-200/50 rounded-lg text-sm overflow-x-auto whitespace-pre-wrap break-all">{{ setting.chapter_rule|default:'' }}</pre>
           </details>
           <form method="POST" action="{% url 'reader:user_settings_rule' %}" class="settings-form">
             {% csrf_token %}
             <div class="flex flex-col gap-3">
               <div>
-                <label class="text-sm font-semibold text-base-content/70 mb-1 block">主规则</label>
-                <textarea name="chapter_rule" class="textarea textarea-bordered w-full font-mono text-sm"
+                <label class="text-sm font-semibold mb-1.5 block">主规则</label>
+                <textarea name="chapter_rule" class="textarea textarea-bordered w-full font-mono text-sm leading-relaxed"
                           rows="4" placeholder="输入主正则表达式">{{ setting.chapter_rule|default:'' }}</textarea>
               </div>
               <div>
-                <label class="text-sm font-semibold text-base-content/70 mb-1 block">备用规则 1</label>
-                <textarea name="chapter_rule_2" class="textarea textarea-bordered w-full font-mono text-sm"
+                <label class="text-sm font-semibold mb-1.5 block">备用规则 1</label>
+                <textarea name="chapter_rule_2" class="textarea textarea-bordered w-full font-mono text-sm leading-relaxed"
                           rows="3" placeholder="留空表示不使用">{{ setting.chapter_rule_2|default:'' }}</textarea>
               </div>
               <div>
-                <label class="text-sm font-semibold text-base-content/70 mb-1 block">备用规则 2</label>
-                <textarea name="chapter_rule_3" class="textarea textarea-bordered w-full font-mono text-sm"
+                <label class="text-sm font-semibold mb-1.5 block">备用规则 2</label>
+                <textarea name="chapter_rule_3" class="textarea textarea-bordered w-full font-mono text-sm leading-relaxed"
                           rows="3" placeholder="留空表示不使用">{{ setting.chapter_rule_3|default:'' }}</textarea>
               </div>
             </div>
-            <div class="card-actions justify-end mt-3">
-              <button type="submit" class="btn btn-soft btn-primary">保存</button>
+            <div class="flex justify-end mt-3">
+              <button type="submit" class="btn btn-sm btn-outline btn-primary gap-1 h-8 min-h-8">
+                <iconify-icon icon="bi:check-lg"></iconify-icon>保存
+              </button>
             </div>
           </form>
         </div>
-      </div>
 
-      <!-- 修改密码 -->
-      <div class="card bg-base-100 shadow-sm border border-base-200">
-        <div class="card-body">
-          <h3 class="card-title text-lg">修改密码</h3>
+        <!-- 修改密码 -->
+        <div class="px-5 sm:px-6 py-4 border-t border-base-200/60">
+          <h3 class="text-base font-bold mb-1.5 flex items-center gap-1.5">
+            <iconify-icon icon="bi:shield-lock"></iconify-icon>修改密码
+          </h3>
+          <p class="text-sm text-base-content mb-3">修改后无需重新登录，当前会话保持有效。</p>
           <form method="POST" action="{% url 'reader:user_settings_password' %}" class="settings-form">
             {% csrf_token %}
             <div class="flex flex-col gap-3 max-w-sm">
-              <input type="password" name="old_password" class="input input-bordered" placeholder="旧密码" required>
-              <input type="password" name="new_password" class="input input-bordered" placeholder="新密码" required>
-              <input type="password" name="confirm_password" class="input input-bordered" placeholder="确认新密码" required>
+              <input type="password" name="old_password" class="input input-bordered w-full" placeholder="旧密码" required>
+              <input type="password" name="new_password" class="input input-bordered w-full" placeholder="新密码" required>
+              <input type="password" name="confirm_password" class="input input-bordered w-full" placeholder="确认新密码" required>
             </div>
-            <div class="card-actions justify-end mt-3">
-              <button type="submit" class="btn btn-soft btn-primary">修改密码</button>
+            <div class="flex justify-end mt-3">
+              <button type="submit" class="btn btn-sm btn-outline btn-primary gap-1 h-8 min-h-8">
+                <iconify-icon icon="bi:check-lg"></iconify-icon>修改密码
+              </button>
             </div>
           </form>
         </div>
-      </div>
 
+      </div>
     </div>
   </div>
 
@@ -106,17 +128,18 @@
 {% block body-bottom %}
 
 <script>
-  // S3 配置：填入示例
-  $('#s3-fill-example').on('click', function() {
-    var example = '{\n'
-      + '  "accessKeyId": "你的 AccessKey ID",\n'
-      + '  "secretAccessKey": "你的 Secret Access Key",\n'
-      + '  "endpoint": "https://s3.us-east-1.amazonaws.com",\n'
-      + '  "bucket": "my-book-bucket",\n'
-      + '  "region": "us-east-1",\n'
-      + '  "prefix": "reader/"\n'
-      + '}';
-    $('#s3-setting-input').val(example).focus();
+(function() {
+  var S3_EXAMPLE = '{\n'
+    + '  "accessKeyId": "你的 AccessKey ID",\n'
+    + '  "secretAccessKey": "你的 Secret Access Key",\n'
+    + '  "endpoint": "https://s3.us-east-1.amazonaws.com",\n'
+    + '  "bucket": "my-book-bucket",\n'
+    + '  "region": "us-east-1",\n'
+    + '  "prefix": "reader/"\n'
+    + '}';
+
+  $('#s3-fill-example').click(function() {
+    $('#s3-setting-input').val(S3_EXAMPLE).focus();
     notify('已填入示例，请替换为真实配置', 'info');
   });
 
@@ -125,6 +148,16 @@
     var $form = $(this);
     var $btn = $form.find('button[type="submit"]');
     var orig = $btn.html();
+
+    var $s3 = $form.find('#s3-setting-input');
+    if ($s3.length) {
+      var raw = $s3.val().trim();
+      if (raw) {
+        try { $s3.val(JSON.stringify(JSON.parse(raw), null, 2)); }
+        catch (err) { notify('JSON 格式错误，请检查: ' + err.message, 'error'); return; }
+      }
+    }
+
     $btn.prop('disabled', true).html('<span class="loading loading-spinner loading-xs"></span>');
     $.ajax({
       url: $form.attr('action'),
@@ -134,7 +167,6 @@
         $btn.prop('disabled', false).html(orig);
         if (resp && resp.success) {
           notify(resp.msg || '已保存', 'success');
-          // 密码修改成功后清空输入
           $form.find('input[type="password"]').val('');
         } else {
           notify((resp && resp.error) || '保存失败', 'error');
@@ -146,6 +178,7 @@
       }
     });
   });
+})();
 </script>
 
 {% endblock %}

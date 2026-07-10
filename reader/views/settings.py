@@ -25,8 +25,12 @@ DAISYUI_THEMES = [
 def user_settings(request):
     """个人设置页面：S3 配置、分章规则、修改密码"""
     setting = get_or_create_user_setting(request.user)
+    s3_display = setting.s3_setting or ''
+    if s3_display and s3_display[0] == '"':
+        s3_display = s3_display[1:-1]
     return render(request, 'user_settings.html', {
         'setting': setting,
+        's3_setting_display': s3_display,
     })
 
 

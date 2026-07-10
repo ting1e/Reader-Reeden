@@ -83,3 +83,23 @@ class UserBookMark(models.Model):
     content = models.TextField()
     add_time = models.DateTimeField(default = timezone.now)
 
+
+class BookList(models.Model):
+    name = models.CharField(max_length=128)
+    description = models.TextField(default='')
+    user_id = models.IntegerField()
+    is_public = models.BooleanField(default=False)
+    created_time = models.DateTimeField(default=timezone.now)
+    updated_time = models.DateTimeField(auto_now=True)
+
+
+class BookListItem(models.Model):
+    book_list_id = models.IntegerField()
+    book_id = models.IntegerField(default=0)
+    manual_name = models.CharField(max_length=128, default='')
+    manual_author = models.CharField(max_length=64, default='')
+    rating = models.IntegerField(default=0)
+    review = models.TextField(default='')
+    sort_order = models.IntegerField(default=0)
+    added_time = models.DateTimeField(default=timezone.now)
+

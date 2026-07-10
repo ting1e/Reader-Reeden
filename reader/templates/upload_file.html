@@ -7,35 +7,42 @@
 <main>
   {% include 'header.html' %}
 
-  <div class="container mx-auto px-4 py-4 max-w-4xl">
-    <h2 class="text-2xl font-bold mb-2 flex items-center gap-2"><iconify-icon icon="bi:upload"></iconify-icon>上传书籍</h2>
-    <p class="text-sm text-base-content/60 mb-6">仅支持 .txt 文本文件，单文件最大 100MB。支持多选、拖拽到下方区域或 Ctrl+V 粘贴。</p>
+  <div class="container mx-auto px-4 py-4">
+    <div class="card bg-base-100 shadow-sm border border-base-200/70 mt-6 mb-5 overflow-hidden">
+      <div class="card-body p-0">
+        <div class="p-5 sm:p-6 pb-4 flex items-start gap-4 flex-wrap justify-between">
+          <div class="flex-1 min-w-0">
+            <h2 class="text-2xl font-bold tracking-tight flex items-center gap-2.5 mb-1">
+              上传书籍
+            </h2>
+            <p class="text-sm text-base-content/55">仅支持 .txt 文本文件，单文件最大 100MB。支持多选、拖拽或 Ctrl+V 粘贴，自动分章保存。</p>
+          </div>
+          <a href="{% url 'reader:book_admin' %}" class="btn btn-sm btn-ghost shrink-0">
+            <iconify-icon icon="bi:arrow-left"></iconify-icon> 返回书籍管理
+          </a>
+        </div>
 
-    <div class="card bg-base-100 shadow-sm border border-base-200">
-      <div class="card-body p-4 sm:p-6">
-        <!-- 拖拽上传区 -->
-        <div id="upload-dropzone" class="dropzone group">
-          <div class="dz-message" data-dz-message>
-            <div class="flex flex-col items-center gap-2 pointer-events-none">
-              <iconify-icon icon="bi:cloud-arrow-up" class="text-4xl text-base-content/40 group-hover:text-primary transition-colors"></iconify-icon>
-              <span class="text-base font-medium">点击选择 / 拖拽到此 / Ctrl+V 粘贴</span>
-              <span class="text-xs text-base-content/60">可批量上传并自动分章保存</span>
+        <div class="px-5 sm:px-6 py-4 border-t border-base-200/60">
+          <!-- 拖拽上传区 -->
+          <div id="upload-dropzone" class="dropzone group">
+            <div class="dz-message" data-dz-message>
+              <div class="flex flex-col items-center gap-3 pointer-events-none">
+                <div class="w-14 h-14 rounded-full bg-base-200/70 flex items-center justify-center group-hover:bg-primary/10 transition-colors">
+                  <iconify-icon icon="bi:cloud-arrow-up" class="text-2xl text-base-content/40 group-hover:text-primary transition-colors"></iconify-icon>
+                </div>
+                <span class="text-base font-medium">点击选择 / 拖拽到此 / Ctrl+V 粘贴</span>
+                <span class="text-xs text-base-content/50">可批量上传并自动分章保存</span>
+              </div>
             </div>
           </div>
-        </div>
-        
-        <!-- 独立的文件预览列表区 -->
-        <div id="upload-previews" class="mt-4 empty:hidden flex flex-col gap-2"></div>
-        
-        <!-- 汇总提示 -->
-        <div id="upload-summary" class="mt-4 hidden"></div>
-      </div>
-    </div>
 
-    <div class="mt-6 flex justify-end">
-      <a href="{% url 'reader:book_admin' %}" class="btn btn-outline btn-sm">
-        <iconify-icon icon="bi:journal-text"></iconify-icon> 返回书籍管理
-      </a>
+          <!-- 文件预览列表区 -->
+          <div id="upload-previews" class="mt-4 empty:hidden flex flex-col gap-2"></div>
+
+          <!-- 汇总提示 -->
+          <div id="upload-summary" class="mt-4 hidden"></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -50,12 +57,11 @@
 <script src="https://cdn.jsdelivr.net/npm/dropzone@5/dist/dropzone.min.js"></script>
 
 <style>
-/* 极简覆盖 Dropzone 样式 */
 .dropzone {
-  border: 2px dashed var(--fallback-bc, oklch(var(--bc)/0.2));
-  background: transparent;
+  border: 2px dashed oklch(var(--bc)/0.15);
+  background: oklch(var(--bc)/0.02);
   border-radius: 0.75rem;
-  min-height: 160px;
+  min-height: 180px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -63,29 +69,27 @@
   cursor: pointer;
 }
 .dropzone:hover, .dropzone.dz-drag-hover {
-  border-color: var(--fallback-p, oklch(var(--p)/1));
-  background-color: var(--fallback-p, oklch(var(--p)/0.05));
+  border-color: oklch(var(--p)/0.5);
+  background-color: oklch(var(--p)/0.05);
 }
-/* 取消内部元素的指针事件，防止拖拽闪烁 */
 .dropzone * {
   pointer-events: none;
 }
 </style>
 
-<!-- daisyUI 风格预览模板 -->
 <template id="upload-preview-template">
-  <div class="upload-item flex items-center gap-3 w-full px-4 py-3 rounded-lg border border-base-200 bg-base-50/50">
-    <iconify-icon icon="bi:file-earmark-text" class="text-2xl text-base-content/50 shrink-0"></iconify-icon>
+  <div class="upload-item flex items-center gap-3 w-full px-3 py-2.5 rounded-lg border border-base-200/70 bg-base-200/30">
+    <iconify-icon icon="bi:file-earmark-text" class="text-xl text-base-content/45 shrink-0"></iconify-icon>
     <div class="flex-1 min-w-0">
       <div class="flex items-center gap-2 mb-1">
         <span class="dz-filename text-sm font-medium truncate" data-dz-name></span>
         <span class="dz-size text-xs text-base-content/50 shrink-0" data-dz-size></span>
       </div>
-      <progress class="dz-progress progress progress-primary w-full h-1.5" value="0" max="100"></progress>
+      <progress class="dz-progress progress progress-primary w-full h-1" value="0" max="100"></progress>
     </div>
-    <span class="dz-status badge badge-sm shrink-0">等待</span>
-    <button type="button" class="dz-remove btn btn-ghost btn-xs btn-circle shrink-0 pointer-events-auto" data-dz-remove aria-label="移除">
-      <iconify-icon icon="bi:x" class="text-lg"></iconify-icon>
+    <span class="dz-status badge badge-sm badge-ghost shrink-0">等待</span>
+    <button type="button" class="dz-remove btn btn-ghost btn-xs btn-circle shrink-0 pointer-events-auto opacity-50 hover:opacity-100 transition-opacity" data-dz-remove aria-label="移除">
+      <iconify-icon icon="bi:x" class="text-base"></iconify-icon>
     </button>
   </div>
 </template>
@@ -107,7 +111,7 @@
     var fail = errorCount;
     var cls = fail > 0 ? 'alert-warning' : 'alert-success';
     var icon = fail > 0 ? 'bi:exclamation-triangle' : 'bi:check-circle';
-    
+
     summaryEl.innerHTML = `
       <div class="alert ${cls} py-3 px-4 text-sm flex items-center gap-2 shadow-sm rounded-lg">
         <iconify-icon icon="${icon}" class="text-xl"></iconify-icon>
@@ -116,73 +120,85 @@
     `;
   }
 
+  function markFileError(file, msg, uploaded) {
+    errorCount++;
+    var status = file.previewElement.querySelector('.dz-status');
+    if (status) {
+      status.textContent = '失败';
+      status.className = 'dz-status badge badge-sm badge-error shrink-0';
+      status.title = msg;
+    }
+    var bar = file.previewElement.querySelector('.dz-progress');
+    if (bar) {
+      bar.value = uploaded ? 100 : 0;
+      bar.className = 'dz-progress progress progress-error w-full h-1';
+    }
+    updateSummary();
+  }
+
+  function markFileSuccess(file) {
+    successCount++;
+    var status = file.previewElement.querySelector('.dz-status');
+    if (status) {
+      status.textContent = '成功';
+      status.className = 'dz-status badge badge-sm badge-success shrink-0';
+    }
+    var bar = file.previewElement.querySelector('.dz-progress');
+    if (bar) {
+      bar.value = 100;
+      bar.className = 'dz-progress progress progress-success w-full h-1';
+    }
+    updateSummary();
+  }
+
   var dz = new Dropzone('#upload-dropzone', {
     url: "{% url 'reader:upload_file' %}",
     method: 'post',
     paramName: 'file',
     acceptedFiles: '.txt',
-    maxFilesize: 100,               
-    parallelUploads: 1,             
+    maxFilesize: 100,
+    parallelUploads: 1,
     autoProcessQueue: true,
-    uploadMultiple: false,          
+    uploadMultiple: false,
     createImageThumbnails: false,
     addRemoveLinks: false,
-    previewsContainer: '#upload-previews', // 将预览独立挂载
+    previewsContainer: '#upload-previews',
     previewTemplate: document.getElementById('upload-preview-template').innerHTML,
     clickable: true,
     headers: { 'X-CSRFToken': '{{ csrf_token }}' },
     dictFileTooBig: '文件超过 100MB 限制',
     dictInvalidFileType: '仅支持 .txt 文件',
-    
+
     init: function() {
       this.on('addedfile', function(file) {
         var status = file.previewElement.querySelector('.dz-status');
         if (status) status.textContent = '等待';
       });
-      
+
       this.on('sending', function(file) {
         var status = file.previewElement.querySelector('.dz-status');
-        if (status) { 
-          status.textContent = '上传中'; 
-          status.className = 'dz-status badge badge-sm badge-ghost shrink-0'; 
+        if (status) {
+          status.textContent = '上传中';
+          status.className = 'dz-status badge badge-sm badge-ghost shrink-0';
         }
       });
-      
+
       this.on('uploadprogress', function(file, progress) {
         var bar = file.previewElement.querySelector('.dz-progress');
         if (bar) bar.value = progress;
       });
-      
+
       this.on('success', function(file, resp) {
-        successCount++;
-        var status = file.previewElement.querySelector('.dz-status');
-        if (status) { 
-          status.textContent = '成功'; 
-          status.className = 'dz-status badge badge-sm badge-success shrink-0'; 
+        if (resp && resp.success === false) {
+          markFileError(file, (resp && resp.error) || '上传失败', true);
+          return;
         }
-        var bar = file.previewElement.querySelector('.dz-progress');
-        if (bar) { 
-          bar.value = 100; 
-          bar.className = 'dz-progress progress progress-success w-full h-1.5'; 
-        }
-        updateSummary();
+        markFileSuccess(file);
       });
-      
+
       this.on('error', function(file, errMsg) {
-        errorCount++;
         var msg = (typeof errMsg === 'string' ? errMsg : (errMsg && errMsg.error) || '上传失败');
-        var status = file.previewElement.querySelector('.dz-status');
-        if (status) { 
-          status.textContent = '失败'; 
-          status.className = 'dz-status badge badge-sm badge-error shrink-0'; 
-          status.title = msg; 
-        }
-        var bar = file.previewElement.querySelector('.dz-progress');
-        if (bar) { 
-          bar.value = 0; 
-          bar.className = 'dz-progress progress progress-error w-full h-1.5'; 
-        }
-        updateSummary();
+        markFileError(file, msg, false);
       });
     }
   });

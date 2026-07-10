@@ -13,7 +13,7 @@ logger = logging.getLogger('reader')
 
 @login_required(login_url='reader:index')
 def font_admin(request):
-    """字体管理：列出 S3 字体库和本地字体"""
+    """字体管理：列出云端字体库和本地字体"""
     s3_fonts = []
     s3_error = None
     cfg = get_s3_config(request.user)

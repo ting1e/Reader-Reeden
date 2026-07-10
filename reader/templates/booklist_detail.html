@@ -1,0 +1,613 @@
+{% extends "base.html" %}
+
+{% block title %}书单 - {{ booklist.name }}{% endblock %}
+
+{% block header %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+{% endblock %}
+
+{% block content %}
+
+<main>
+  {% include 'header.html' %}
+
+  <div class="container mx-auto px-4 py-4">
+
+    <div class="card bg-base-100 shadow-sm border border-base-200/70 mt-6 mb-5 overflow-hidden">
+      <div class="card-body gap-0 p-0">
+        <div class="p-5 sm:p-6 pb-4">
+          <!-- 标题行：标题 + 按钮 -->
+          <div class="flex items-center gap-4 flex-wrap mb-2">
+            <div class="flex-1 min-w-0">
+              <div class="bl-name-edit hidden items-center gap-2 flex-1">
+                <input type="text" class="input input-bordered input-sm flex-1 min-w-0 max-w-md bl-name-input" value="{{ booklist.name }}" maxlength="128" />
+                <button type="button" class="btn btn-sm btn-primary btn-circle shrink-0 bl-name-save"><iconify-icon icon="bi:check-lg"></iconify-icon></button>
+                <button type="button" class="btn btn-sm btn-ghost btn-circle shrink-0 bl-name-cancel"><iconify-icon icon="bi:x"></iconify-icon></button>
+              </div>
+              <div class="bl-name-wrap flex items-center gap-2 flex-wrap">
+                <h2 class="text-2xl font-bold bl-name-display tracking-tight">{{ booklist.name }}</h2>
+                {% if can_edit %}
+                <button type="button" class="btn btn-ghost btn-xs btn-circle bl-name-start h-7 w-7 min-h-7 opacity-70 hover:opacity-100" aria-label="编辑名称">
+                  <iconify-icon icon="bi:pencil" class="text-xs"></iconify-icon>
+                </button>
+                {% endif %}
+              </div>
+            </div>
+
+            {% if can_edit %}
+            <div class="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+              <button type="button" class="btn btn-sm btn-neutral btn-outline" onclick="add_book_modal.showModal()">
+                <iconify-icon icon="bi:plus-lg"></iconify-icon> 添加书籍
+              </button>
+              <button type="button" class="share-toggle btn btn-sm {% if booklist.is_public %}btn-success{% else %}btn-ghost border border-base-300{% endif %} h-8 min-h-8"
+                      data-url="{% url 'reader:booklist_share_toggle' booklist.id %}">
+                <iconify-icon icon="bi:{% if booklist.is_public %}globe{% else %}lock{% endif %}"></iconify-icon>
+                {% if booklist.is_public %}公开{% else %}私有{% endif %}
+              </button>
+              <a href="{% url 'reader:booklist_admin' %}" class="btn btn-sm btn-ghost">
+                <iconify-icon icon="bi:arrow-left"></iconify-icon> 返回
+              </a>
+            </div>
+            {% else %}
+            <a href="{% url 'reader:booklist_admin' %}" class="btn btn-sm btn-ghost shrink-0">
+              <iconify-icon icon="bi:arrow-left"></iconify-icon> 返回
+            </a>
+            {% endif %}
+          </div>
+
+          <!-- 简介 -->
+          <div class="bl-desc-wrapper">
+            {% if can_edit %}
+            <div class="bl-desc-display text-sm text-base-content whitespace-pre-line cursor-pointer hover:bg-base-200/50 rounded-lg px-3 py-2 transition-colors"
+                 {% if not booklist.description %}style="display:none"{% endif %}>{{ booklist.description|default:'' }}</div>
+            <div class="bl-desc-placeholder text-sm text-base-content/80 cursor-pointer hover:bg-base-200/50 rounded-lg px-3 py-2 transition-colors inline-flex items-center gap-1.5"
+                 {% if booklist.description %}style="display:none"{% endif %}>
+              <iconify-icon icon="bi:plus-circle" class="opacity-70"></iconify-icon>添加简介
+            </div>
+            <textarea class="textarea textarea-bordered w-full text-sm bl-desc-input hidden" rows="2" placeholder="简单描述这个书单">{{ booklist.description|default:'' }}</textarea>
+            {% else %}
+            <div class="text-sm text-base-content whitespace-pre-line">{{ booklist.description|default:'暂无简介'|default_if_none:"暂无简介" }}</div>
+            {% endif %}
+          </div>
+        </div>
+        <div class="px-5 sm:px-6 py-2.5 bg-base-200/40 border-t border-base-200/60 flex items-center gap-2 text-sm text-base-content/80">
+          <iconify-icon icon="bi:book-half" class="opacity-50"></iconify-icon>
+          <span class="font-medium" id="item-count-badge">{{ items|length }} 本书</span>
+        </div>
+
+        <!-- 书籍列表 -->
+        <div id="items-container">
+          {% for item in items %}
+          <div class="item-row group border-t border-base-200/60 hover:bg-base-200/20 transition-colors"
+               data-item-id="{{ item.id }}"
+               data-update-url="{% url 'reader:booklist_update_item' booklist.id item.id %}"
+               data-remove-url="{% url 'reader:booklist_remove_item' booklist.id item.id %}">
+            <div class="flex items-start gap-0">
+              <div class="w-12 sm:w-14 shrink-0 pt-4 pl-4 sm:pl-5 flex flex-col items-start">
+                <div class="font-bold text-sm text-base-content/80 select-none w-7 h-7 flex items-center justify-center rounded-full bg-base-200/60 group-hover:bg-primary/10 group-hover:text-primary/70 transition-colors">{{ forloop.counter }}</div>
+              </div>
+              <div class="flex-1 min-w-0 py-4 pr-4 sm:pr-5">
+                <div class="flex items-start gap-4">
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-3 flex-wrap mb-1">
+                      <span class="font-semibold text-base px-2.5 py-1 rounded-md bg-base-200/60">
+                        {% if item.book_id > 0 and item.book_obj %}{{ item.book_obj.name|default:item.book_obj.file_name }}{% else %}{{ item.manual_name }}{% endif %}
+                      </span>
+                      {% if item.book_id > 0 and item.book_obj %}
+                        {% if item.book_obj.author %}<span class="text-xs text-base-content/70">{{ item.book_obj.author }}</span>{% endif %}
+                      {% else %}
+                        {% if item.manual_author %}<span class="text-xs text-base-content/70">{{ item.manual_author }}</span>{% endif %}
+                        <span class="badge badge-ghost badge-xs">外部</span>
+                      {% endif %}
+                      {% if item.book_id > 0 and item.book_obj %}
+                      <form method="POST" action="{% url 'reader:book_view' %}" class="inline">
+                        {% csrf_token %}
+                        <input type="hidden" name="book_id" value="{{ item.book_obj.id }}">
+                        <button type="submit" class="btn btn-xs btn-ghost gap-1 text-primary/80 hover:text-primary">
+                          <iconify-icon icon="bi:book-half"></iconify-icon> 阅读
+                        </button>
+                      </form>
+                      {% endif %}
+                      <!-- 评分 -->
+                      <div class="rating rating-xxs gap-1 item-rating ml-1">
+                        {% for i in "12345"|make_list %}
+                        <input type="radio" name="rating-{{ item.id }}" class="mask mask-star-2 rating-input" value="{{ i }}" {% if item.rating == forloop.counter %}checked{% endif %} {% if not can_edit %}disabled{% endif %} />
+                        {% endfor %}
+                      </div>
+                    </div>
+                    <!-- 短评 -->
+                    <div class="item-review-wrapper mt-2.5" data-update-url="{% url 'reader:booklist_update_item' booklist.id item.id %}">
+                      {% if can_edit %}
+                      <div class="item-review-display review-md text-sm text-base-content/90 cursor-pointer pl-1 pr-1 py-1.5 transition-colors min-h-[2rem] hover:text-base-content hover:bg-base-200/30 rounded"
+                           data-raw="{{ item.review|default:'' }}"
+                           {% if not item.review %}style="display:none"{% endif %}></div>
+                      <div class="item-review-placeholder text-sm text-base-content/50 cursor-pointer pl-1 pr-1 py-1.5 transition-colors min-h-[2rem] flex items-center gap-1.5 hover:text-base-content/80 hover:bg-base-200/30 rounded"
+                           {% if item.review %}style="display:none"{% endif %}>
+                        <iconify-icon icon="bi:chat-square-text" class="opacity-60"></iconify-icon>写点评价…
+                      </div>
+                      <textarea class="textarea textarea-bordered w-full text-sm item-review hidden leading-relaxed"
+                                rows="3"
+                                placeholder="写点评价…（支持 Markdown，Ctrl+Enter 保存）">{{ item.review|default:'' }}</textarea>
+                      {% else %}
+                      <div class="review-md-readonly review-md text-sm text-base-content/80 min-h-[2rem] pl-1 pr-1 py-1.5"
+                           data-raw="{{ item.review|default:'' }}">{{ item.review|default:'暂无评价'|default_if_none:"暂无评价" }}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                  {% if can_edit %}
+                  <button type="button" class="btn btn-ghost btn-xs btn-circle item-remove shrink-0 opacity-0 group-hover:opacity-50 hover:!opacity-100 hover:text-error transition-all mt-0.5" aria-label="移除">
+                    <iconify-icon icon="bi:x-lg"></iconify-icon>
+                  </button>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+          {% empty %}
+          <div class="text-base-content/80 py-16 text-center border-t border-base-200/60">
+            <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-base-200/70 flex items-center justify-center">
+              <iconify-icon icon="bi:inbox" class="text-3xl opacity-50"></iconify-icon>
+            </div>
+            <p class="text-base font-medium">书单暂无书籍</p>
+            {% if can_edit %}<p class="text-sm mt-1">点击右上角"添加书籍"按钮开始创建</p>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- 添加书籍弹窗 -->
+    {% if can_edit %}
+    <dialog id="add_book_modal" class="modal">
+      <div class="modal-box max-w-2xl">
+        <form method="dialog">
+          <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+        </form>
+        <h3 class="text-lg font-bold mb-4 flex items-center gap-1.5"><iconify-icon icon="bi:plus-circle"></iconify-icon>添加书籍</h3>
+        <div role="tablist" class="tabs tabs-boxed tabs-sm mb-3">
+          <button role="tab" class="tab tab-active add-tab" data-tab="library">从书库选择</button>
+          <button role="tab" class="tab add-tab" data-tab="manual">手动添加</button>
+        </div>
+
+        <!-- 从书库选择 -->
+        <div class="add-panel min-h-[18rem]" data-panel="library">
+          <label class="input input-bordered input-sm flex items-center gap-2 w-full mb-2 bg-base-200/50">
+            <iconify-icon icon="bi:search" class="text-base-content/80"></iconify-icon>
+            <input type="search" id="library-search" class="grow" placeholder="搜索书库名称…" />
+          </label>
+          <div class="max-h-48 overflow-y-auto border border-base-200 rounded-lg" id="library-results">
+            {% for book in accessible_books %}
+            <div class="library-item flex items-center justify-between px-3 py-2 hover:bg-base-200/50 border-b border-base-200 last:border-0"
+                 data-book-name="{{ book.name|default:book.file_name|lower }}"
+                 data-book-id="{{ book.id }}">
+              <div class="min-w-0">
+                <span class="text-sm font-medium truncate block">{{ book.name|default:book.file_name }}</span>
+                {% if book.author %}<span class="text-xs text-base-content/80">{{ book.author }}</span>{% endif %}
+              </div>
+              <button type="button" class="btn btn-xs btn-primary btn-outline library-add-btn" data-book-id="{{ book.id }}" data-book-title="{{ book.name|default:book.file_name }}">
+                <iconify-icon icon="bi:plus-lg"></iconify-icon> 添加
+              </button>
+            </div>
+            {% empty %}
+            <div class="text-base-content/80 py-4 text-center text-sm">书库无可访问的书籍</div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- 从书库添加弹窗 -->
+        <dialog id="library_add_modal" class="modal">
+          <div class="modal-box max-w-md">
+            <form method="dialog">
+              <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+            </form>
+            <h3 class="text-lg font-bold mb-4">添加到书单</h3>
+            <div class="mb-3 text-sm text-base-content/80" id="library_add_book_name"></div>
+            <div class="flex flex-col gap-3">
+              <div class="flex items-center gap-3">
+                <label class="text-sm font-semibold">评分（可选）</label>
+                <div class="rating rating-xxs gap-1" id="library-add-rating">
+                  {% for i in "12345"|make_list %}
+                  <input type="radio" name="lib_rating" class="mask mask-star-2" value="{{ i }}" />
+                  {% endfor %}
+                </div>
+              </div>
+              <div>
+                <label class="text-sm font-semibold mb-1 block">短评（可选）</label>
+                <textarea class="textarea textarea-bordered w-full text-sm" rows="3" id="library-add-review" placeholder="写点评价…"></textarea>
+              </div>
+            </div>
+            <div class="modal-action">
+              <button type="button" class="btn btn-ghost btn-sm" onclick="library_add_modal.close()">取消</button>
+              <button type="button" class="btn btn-primary btn-sm" id="library-add-confirm">添加</button>
+            </div>
+          </div>
+          <form method="dialog" class="modal-backdrop"><button>close</button></form>
+        </dialog>
+
+        <!-- 手动添加 -->
+        <div class="add-panel hidden min-h-[18rem]" data-panel="manual">
+          <form id="manual-add-form" class="flex flex-col gap-3">
+            {% csrf_token %}
+            <div class="flex flex-col sm:flex-row gap-2">
+              <div class="flex-1">
+                <label class="text-sm font-semibold mb-1 block">书名</label>
+                <input type="text" name="manual_name" class="input input-bordered input-sm w-full" placeholder="书名" maxlength="128" required />
+              </div>
+              <div class="flex-1">
+                <label class="text-sm font-semibold mb-1 block">作者（可选）</label>
+                <input type="text" name="manual_author" class="input input-bordered input-sm w-full" placeholder="作者" maxlength="64" />
+              </div>
+            </div>
+            <div class="flex items-center gap-3">
+              <label class="text-sm font-semibold">评分（可选）</label>
+              <div class="rating rating-xxs gap-1" id="manual-rating">
+                {% for i in "12345"|make_list %}
+                <input type="radio" name="rating" class="mask mask-star-2" value="{{ i }}" />
+                {% endfor %}
+              </div>
+            </div>
+            <div>
+              <label class="text-sm font-semibold mb-1 block">短评（可选）</label>
+              <textarea name="review" class="textarea textarea-bordered w-full text-sm" rows="3" placeholder="写点评价…"></textarea>
+            </div>
+            <button type="button" class="btn btn-sm btn-primary self-end" id="manual-add-btn">
+              <iconify-icon icon="bi:plus-lg"></iconify-icon> 添加
+            </button>
+          </form>
+        </div>
+      </div>
+      <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+    {% endif %}
+
+  </div>
+
+</main>
+
+{% endblock %}
+
+{% block body-bottom %}
+
+<style>
+.rating.rating-xxs input {
+  width: 0.7rem;
+  height: 0.7rem;
+  background-size: 0.7rem;
+}
+
+textarea, input[type="text"], input[type="password"] {
+  --input-color: oklch(var(--bc)/0.3);
+}
+textarea:focus, input[type="text"]:focus, input[type="password"]:focus {
+  outline: none;
+  border-color: oklch(var(--bc)/0.5);
+  box-shadow: none;
+}
+
+/* Markdown 渲染排版 */
+.review-md p:first-child { margin-top: 0; }
+.review-md p:last-child { margin-bottom: 0; }
+.review-md p { margin: 0.5em 0; line-height: 1.7; }
+.review-md ul, .review-md ol { margin: 0.5em 0; padding-left: 1.5em; }
+.review-md ul { list-style-type: disc; }
+.review-md ol { list-style-type: decimal; }
+.review-md li { margin: 0.25em 0; }
+.review-md h1, .review-md h2, .review-md h3, .review-md h4 { font-weight: 600; margin: 0.75em 0 0.5em; line-height: 1.3; }
+.review-md h1 { font-size: 1.25em; }
+.review-md h2 { font-size: 1.15em; }
+.review-md h3 { font-size: 1.05em; }
+.review-md h4 { font-size: 1em; }
+.review-md a { color: oklch(var(--p)); text-decoration: underline; text-underline-offset: 2px; }
+.review-md a:hover { opacity: 0.8; }
+.review-md blockquote { border-left: 3px solid oklch(var(--p)/0.4); padding-left: 0.75em; margin: 0.5em 0; color: oklch(var(--bc)/0.7); }
+.review-md code { font-size: 0.875em; background: oklch(var(--bc)/0.08); padding: 0.15em 0.35em; border-radius: 0.25rem; }
+.review-md pre { background: oklch(var(--bc)/0.08); padding: 0.75em; border-radius: 0.5rem; overflow-x: auto; margin: 0.5em 0; }
+.review-md pre code { background: none; padding: 0; font-size: 0.85em; }
+.review-md strong { font-weight: 600; }
+.review-md em { font-style: italic; }
+.review-md hr { border: none; border-top: 1px solid oklch(var(--bc)/0.15); margin: 0.75em 0; }
+.review-md img { max-width: 100%; border-radius: 0.5rem; }
+</style>
+
+<script>
+(function() {
+  var csrf = '{{ csrf_token }}';
+  var editUrl = '{% url "reader:booklist_edit" booklist.id %}';
+  var addBookUrl = '{% url "reader:booklist_add_book" booklist.id %}';
+
+  var EMPTY_STATE_HTML =
+    '<div class="text-base-content/80 py-16 text-center border-t border-base-200/60">' +
+    '<div class="w-16 h-16 mx-auto mb-4 rounded-full bg-base-200/70 flex items-center justify-center">' +
+    '<iconify-icon icon="bi:inbox" class="text-3xl opacity-50"></iconify-icon></div>' +
+    '<p class="text-base font-medium">书单暂无书籍</p>' +
+    '{% if can_edit %}<p class="text-sm mt-1">点击右上角"添加书籍"按钮开始创建</p>{% endif %}' +
+    '</div>';
+
+  function ajaxError(msg) {
+    notify('网络错误，' + msg + '失败', 'error');
+  }
+
+  // ---- Markdown 渲染 ----
+  function renderMd(text) {
+    if (!text) return '';
+    if (window.marked && window.DOMPurify) {
+      try { return DOMPurify.sanitize(marked.parse(text)); }
+      catch(e) { return text; }
+    }
+    return text;
+  }
+
+  $('.item-review-display, .review-md-readonly').each(function() {
+    var raw = $(this).data('raw') || '';
+    if (raw) $(this).html(renderMd(raw));
+  });
+
+  // ---- 名称内联编辑 ----
+  function enterNameEdit() {
+    $('.bl-name-display, .bl-name-start').closest('.bl-name-wrap').addClass('hidden');
+    $('.bl-name-edit').removeClass('hidden').addClass('flex');
+    var $input = $('.bl-name-input').val($('.bl-name-display').text().trim()).focus();
+    $input[0].setSelectionRange($input.val().length, $input.val().length);
+  }
+  function exitNameEdit() {
+    $('.bl-name-edit').removeClass('flex').addClass('hidden');
+    $('.bl-name-wrap').removeClass('hidden');
+  }
+  function saveName() {
+    var val = $('.bl-name-input').val().trim();
+    if (!val) { notify('名称不能为空', 'warning'); return; }
+    $.ajax({
+      url: editUrl,
+      type: 'post',
+      data: { name: val, csrfmiddlewaretoken: csrf },
+      success: function(resp) {
+        if (resp && resp.success) {
+          $('.bl-name-display').text(resp.name);
+          document.title = '书单 - ' + resp.name;
+          exitNameEdit();
+          notify('书单名称已更新', 'success');
+        } else {
+          notify((resp && resp.error) || '保存失败', 'error');
+        }
+      },
+      error: function() { ajaxError('保存'); }
+    });
+  }
+  $('.bl-name-start').click(enterNameEdit);
+  $('.bl-name-save').click(saveName);
+  $('.bl-name-cancel').click(exitNameEdit);
+  $('.bl-name-input').on('keydown', function(e) {
+    if (e.which === 13) { e.preventDefault(); saveName(); }
+    if (e.which === 27) { e.preventDefault(); exitNameEdit(); }
+  });
+
+  // ---- 简介点击编辑 ----
+  function enterDescEdit() {
+    $('.bl-desc-display, .bl-desc-placeholder').hide();
+    var $input = $('.bl-desc-input').removeClass('hidden').focus();
+    $input[0].setSelectionRange($input.val().length, $input.val().length);
+  }
+  function exitDescEdit(desc) {
+    $('.bl-desc-input').addClass('hidden');
+    var $display = $('.bl-desc-display');
+    var $placeholder = $('.bl-desc-placeholder');
+    if (desc) { $display.text(desc).show(); $placeholder.hide(); }
+    else { $display.hide(); $placeholder.show(); }
+  }
+  $('.bl-desc-display, .bl-desc-placeholder').click(enterDescEdit);
+  $('.bl-desc-input').on('blur', function() {
+    var val = $(this).val().trim();
+    exitDescEdit(val);
+    $.ajax({
+      url: editUrl,
+      type: 'post',
+      data: { description: val, csrfmiddlewaretoken: csrf },
+      success: function(resp) {
+        if (resp && resp.success) notify('简介已更新', 'success');
+        else notify((resp && resp.error) || '保存失败', 'error');
+      },
+      error: function() { ajaxError('保存'); }
+    });
+  });
+  $('.bl-desc-input').on('keydown', function(e) {
+    if (e.ctrlKey && (e.which === 13 || e.which === 10)) { e.preventDefault(); $(this).blur(); }
+    if (e.which === 27) {
+      e.preventDefault();
+      var orig = $('.bl-desc-display').text().trim();
+      $(this).val(orig);
+      exitDescEdit(orig);
+      $(this).addClass('hidden');
+    }
+  });
+
+  // ---- 公开/私有切换 ----
+  $('.share-toggle').click(function() {
+    var $btn = $(this).prop('disabled', true);
+    $.ajax({
+      url: $btn.data('url'),
+      type: 'post',
+      data: { csrfmiddlewaretoken: csrf },
+      success: function(resp) {
+        $btn.prop('disabled', false);
+        if (resp && resp.success) {
+          if (resp.is_public) {
+            $btn.removeClass('btn-ghost border border-base-300').addClass('btn-success').html('<iconify-icon icon="bi:globe"></iconify-icon> 公开');
+          } else {
+            $btn.removeClass('btn-success').addClass('btn-ghost border border-base-300').html('<iconify-icon icon="bi:lock"></iconify-icon> 私有');
+          }
+          notify('已切换为' + (resp.is_public ? '公开' : '私有'), 'success');
+        } else {
+          notify((resp && resp.error) || '操作失败', 'error');
+        }
+      },
+      error: function() { $btn.prop('disabled', false); ajaxError('操作'); }
+    });
+  });
+
+  // ---- 添加书籍 Tab 切换 ----
+  $('.add-tab').click(function() {
+    var tab = $(this).data('tab');
+    $('.add-tab').removeClass('tab-active');
+    $(this).addClass('tab-active');
+    $('.add-panel').addClass('hidden');
+    $('.add-panel[data-panel="' + tab + '"]').removeClass('hidden');
+  });
+
+  // ---- 从书库搜索 ----
+  $('#library-search').on('input', function() {
+    var kwd = $(this).val().trim().toLowerCase();
+    $('.library-item').each(function() {
+      var name = ($(this).data('book-name') || '').toString();
+      $(this).toggle(kwd === '' || name.indexOf(kwd) !== -1);
+    });
+  });
+
+  // ---- 从书库添加 ----
+  var libAddBookId = null;
+  $(document).on('click', '.library-add-btn', function() {
+    libAddBookId = $(this).data('book-id');
+    $('#library_add_book_name').text($(this).data('book-title') || '');
+    $('#library-add-rating input').prop('checked', false);
+    $('#library-add-review').val('');
+    document.getElementById('library_add_modal').showModal();
+  });
+
+  $('#library-add-confirm').click(function() {
+    if (!libAddBookId) return;
+    var $btn = $(this).prop('disabled', true);
+    var data = { book_id: libAddBookId, csrfmiddlewaretoken: csrf };
+    var rating = $('#library-add-rating input:checked').val();
+    var review = $('#library-add-review').val().trim();
+    if (rating) data.rating = rating;
+    if (review) data.review = review;
+    $.ajax({
+      url: addBookUrl,
+      type: 'post',
+      data: data,
+      success: function(resp) {
+        $btn.prop('disabled', false);
+        if (resp && resp.success) { notify('已添加到书单', 'success'); location.reload(); }
+        else notify((resp && resp.error) || '添加失败', 'error');
+      },
+      error: function() { $btn.prop('disabled', false); ajaxError('添加'); }
+    });
+  });
+
+  // ---- 手动添加 ----
+  $('#manual-add-btn').click(function() {
+    var $form = $('#manual-add-form');
+    if (!$form.find('[name="manual_name"]').val().trim()) { notify('书名不能为空', 'warning'); return; }
+    var $btn = $(this).prop('disabled', true);
+    $.ajax({
+      url: addBookUrl,
+      type: 'post',
+      data: $form.serialize(),
+      success: function(resp) {
+        $btn.prop('disabled', false);
+        if (resp && resp.success) { notify('已添加到书单', 'success'); location.reload(); }
+        else notify((resp && resp.error) || '添加失败', 'error');
+      },
+      error: function() { $btn.prop('disabled', false); ajaxError('添加'); }
+    });
+  });
+
+  // ---- 评分保存 ----
+  $(document).on('change', '.rating-input', function() {
+    var $row = $(this).closest('.item-row');
+    $.ajax({
+      url: $row.data('update-url'),
+      type: 'post',
+      data: { rating: $(this).val(), csrfmiddlewaretoken: csrf },
+      success: function(resp) {
+        if (resp && resp.success) notify('评分已保存', 'success');
+        else notify((resp && resp.error) || '保存失败', 'error');
+      },
+      error: function() { ajaxError('保存'); }
+    });
+  });
+
+  // ---- 短评点击编辑 ----
+  var reviewTimer = null;
+  function enterReviewEdit($wrapper) {
+    var $textarea = $wrapper.find('.item-review').val($wrapper.find('.item-review-display').data('raw') || '');
+    $wrapper.find('.item-review-display, .item-review-placeholder').hide();
+    $textarea.removeClass('hidden').focus();
+    $textarea[0].setSelectionRange($textarea.val().length, $textarea.val().length);
+  }
+  function exitReviewEdit($wrapper, review) {
+    var $textarea = $wrapper.find('.item-review').addClass('hidden');
+    var $display = $wrapper.find('.item-review-display');
+    var $placeholder = $wrapper.find('.item-review-placeholder');
+    if (review) {
+      $display.html(renderMd(review)).data('raw', review).show();
+      $placeholder.hide();
+    } else {
+      $display.html('').data('raw', '').hide();
+      $placeholder.show();
+    }
+  }
+  $(document)
+    .on('click', '.item-review-display, .item-review-placeholder', function() {
+      enterReviewEdit($(this).closest('.item-review-wrapper'));
+    })
+    .on('blur', '.item-review', function() {
+      var $wrapper = $(this).closest('.item-review-wrapper');
+      var review = $(this).val().trim();
+      clearTimeout(reviewTimer);
+      exitReviewEdit($wrapper, review);
+      reviewTimer = setTimeout(function() {
+        $.ajax({
+          url: $wrapper.data('update-url'),
+          type: 'post',
+          data: { review: review, csrfmiddlewaretoken: csrf },
+          success: function(resp) {
+            if (resp && resp.success) notify('短评已保存', 'success');
+            else notify((resp && resp.error) || '保存失败', 'error');
+          },
+          error: function() { ajaxError('保存'); }
+        });
+      }, 300);
+    })
+    .on('keydown', '.item-review', function(e) {
+      if (e.ctrlKey && (e.which === 13 || e.which === 10)) { e.preventDefault(); $(this).blur(); }
+      if (e.which === 27) {
+        e.preventDefault();
+        var $wrapper = $(this).closest('.item-review-wrapper');
+        exitReviewEdit($wrapper, $wrapper.find('.item-review-display').text().trim());
+        $(this).addClass('hidden');
+      }
+    });
+
+  // ---- 移除条目 ----
+  $(document).on('click', '.item-remove', function() {
+    var $row = $(this).closest('.item-row');
+    var $btn = $(this);
+    confirmDialog('确定从书单中移除该书？').then(function(ok) {
+      if (!ok) return;
+      $btn.prop('disabled', true);
+      $.ajax({
+        url: $row.data('remove-url'),
+        type: 'post',
+        data: { csrfmiddlewaretoken: csrf },
+        success: function(resp) {
+          if (resp && resp.success) {
+            notify('已移除', 'success');
+            $row.fadeOut(200, function() {
+              $(this).remove();
+              $('#item-count-badge').text(resp.item_count + ' 本书');
+              if (resp.item_count === 0) $('#items-container').append(EMPTY_STATE_HTML);
+            });
+          } else {
+            $btn.prop('disabled', false);
+            notify((resp && resp.error) || '移除失败', 'error');
+          }
+        },
+        error: function() { $btn.prop('disabled', false); ajaxError('移除'); }
+      });
+    });
+  });
+})();
+</script>
+
+{% endblock %}

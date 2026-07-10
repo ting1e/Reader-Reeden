@@ -14,3 +14,8 @@ from .books import (
 )
 from .reader import BookView, chapter_content, chapter_list_ajax, keyword_search
 from .fonts import font_admin, font_download, font_del, font_file
+from .booklist import (
+    booklist_admin, booklist_create, booklist_detail, booklist_edit,
+    booklist_delete, booklist_share_toggle, booklist_add_book,
+    booklist_update_item, booklist_remove_item,
+)

@@ -1,4 +1,3 @@
-
 {% extends "base.html" %}
 
 {% block title %}书签管理{% endblock %}
@@ -8,47 +7,68 @@
 <main>
   {% include 'header.html' %}
 
-  <div class="container mx-auto px-4 py-4 shadow-sm border border-base-200 mt-8 mb-4 card">
-    <h2 class="text-2xl font-bold mb-4 flex items-center gap-2"><iconify-icon icon="bi:bookmark-star"></iconify-icon>书签管理</h2>
+  <div class="container mx-auto px-4 py-4">
+    <div class="card bg-base-100 shadow-sm border border-base-200/70 mt-6 mb-5 overflow-hidden">
+      <div class="card-body p-0">
+        <div class="p-5 sm:p-6 pb-4 flex items-start gap-4 flex-wrap justify-between">
+          <div class="flex-1 min-w-0">
+            <h2 class="text-2xl font-bold tracking-tight flex items-center gap-2.5 mb-1">
+              书签管理
+              <span class="badge badge-ghost gap-1 text-sm py-2.5 px-3">
+                <iconify-icon icon="bi:bookmark-star" class="text-[0.6rem]"></iconify-icon>
+                <span id="bookmark-count">{{ bookmark_list|length }}</span>
+              </span>
+            </h2>
+            <p class="text-sm text-base-content/55">管理所有书籍的书签，跨书籍浏览和删除。</p>
+          </div>
+        </div>
 
-    {% if bookmark_list %}
-    <div class="overflow-x-auto">
-      <table class="table text-base">
-        <thead>
-          <tr>
-            <th>书名</th>
-            <th>章节</th>
-            <th class="hidden md:table-cell">内容</th>
-            <th class="hidden sm:table-cell">添加时间</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for m in bookmark_list %}
-          <tr>
-            <td class="break-words max-w-xs">
-              {{ m.book_obj.name|default:"(已删除)" }}
-            </td>
-            <td class="break-words max-w-xs">{{ m.chapter_title }}</td>
-            <td class="hidden md:table-cell break-words max-w-sm text-base-content/70">{{ m.content|truncatechars:60 }}</td>
-            <td class="hidden sm:table-cell">{{ m.add_time|date:"Y-m-d H:i" }}</td>
-            <td>
-              <form method="POST" action="{% url 'reader:bookmark_del' m.id %}" class="inline bookmark-del-form"
-                    data-chapter="{{ m.chapter_title|escapejs }}">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-sm btn-error btn-outline">
-                  <iconify-icon icon="bi:trash"></iconify-icon> 删除
-                </button>
-              </form>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+        {% if bookmark_list %}
+        <div class="overflow-x-auto">
+          <table class="table text-base">
+            <thead class="bg-base-200/40 text-base-content/70">
+              <tr>
+                <th class="font-medium">书名</th>
+                <th class="font-medium">章节</th>
+                <th class="hidden md:table-cell font-medium">内容</th>
+                <th class="hidden sm:table-cell font-medium">添加时间</th>
+                <th class="font-medium">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for m in bookmark_list %}
+              <tr class="group">
+                <td class="break-words max-w-xs align-middle">
+                  <span class="font-semibold">{{ m.book_obj.name|default:"(已删除)" }}</span>
+                </td>
+                <td class="break-words max-w-xs align-middle text-sm text-base-content/60">{{ m.chapter_title }}</td>
+                <td class="hidden md:table-cell break-words max-w-sm align-middle text-sm text-base-content/55">{{ m.content|truncatechars:60 }}</td>
+                <td class="hidden sm:table-cell text-sm text-base-content/55 align-middle">{{ m.add_time|date:"Y-m-d H:i" }}</td>
+                <td class="align-middle">
+                  <form method="POST" action="{% url 'reader:bookmark_del' m.id %}" class="inline bookmark-del-form"
+                        data-chapter="{{ m.chapter_title }}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline btn-error gap-1 h-8 min-h-8">
+                      <iconify-icon icon="bi:trash"></iconify-icon> 删除
+                    </button>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-base-content/45 py-16 text-center border-t border-base-200/60">
+          <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-base-200/70 flex items-center justify-center">
+            <iconify-icon icon="bi:bookmark-star" class="text-2xl opacity-50"></iconify-icon>
+          </div>
+          <p class="text-base font-medium">暂无书签</p>
+          <p class="text-sm text-base-content/45 mt-1">阅读时添加的书签会显示在这里</p>
+        </div>
+        {% endif %}
+      </div>
     </div>
-    {% else %}
-    <div class="text-base-content/50 py-8 text-center">暂无书签</div>
-    {% endif %}
   </div>
 
 </main>
@@ -58,15 +78,21 @@
 {% block body-bottom %}
 
 <script>
+(function() {
   var csrf = '{{ csrf_token }}';
 
-  // 删除书签：AJAX + notify（与书名改名同样的通知风格）
+  var EMPTY_STATE_HTML =
+    '<div class="text-base-content/45 py-16 text-center border-t border-base-200/60">' +
+    '<div class="w-16 h-16 mx-auto mb-4 rounded-full bg-base-200/70 flex items-center justify-center">' +
+    '<iconify-icon icon="bi:bookmark-star" class="text-2xl opacity-50"></iconify-icon></div>' +
+    '<p class="text-base font-medium">暂无书签</p>' +
+    '<p class="text-sm text-base-content/45 mt-1">阅读时添加的书签会显示在这里</p></div>';
+
   $('.bookmark-del-form').on('submit', function(e) {
     e.preventDefault();
     var $form = $(this);
     var chapter = $form.data('chapter');
-    var $btn = $form.find('button[type="submit"]');
-    $btn.prop('disabled', true);
+    var $btn = $form.find('button[type="submit"]').prop('disabled', true);
     $.ajax({
       url: $form.attr('action'),
       type: 'post',
@@ -76,6 +102,10 @@
         if (resp && resp.success) {
           notify('书签《' + chapter + '》已删除', 'success');
           $form.closest('tr').fadeOut(200, function() { $(this).remove(); });
+          var $cnt = $('#bookmark-count');
+          var n = ($cnt.data('count') || {{ bookmark_list|length }}) - 1;
+          $cnt.data('count', n).text(n);
+          if (n === 0) $cnt.closest('.card').find('table').parent().replace(EMPTY_STATE_HTML);
         } else {
           notify((resp && resp.error) || '删除失败', 'error');
         }
@@ -86,6 +116,7 @@
       }
     });
   });
+})();
 </script>
 
 {% endblock %}

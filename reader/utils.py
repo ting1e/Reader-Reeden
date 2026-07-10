@@ -144,6 +144,26 @@ def can_admin_book(book, user):
     return user.is_superuser or user.id == book.uploader
 
 
+def get_accessible_books(user):
+    """返回用户可访问的书籍 queryset（共享书、自己上传的、超管全部）。"""
+    from .models import Book
+    if user.is_superuser:
+        return Book.objects.all()
+    if user.is_authenticated:
+        return Book.objects.filter(share=True) | Book.objects.filter(uploader=user.id)
+    return Book.objects.filter(share=True)
+
+
+def can_admin_booklist(booklist, user):
+    """检查用户是否有权管理书单（编辑/删除/添加/移除）：超级管理员或创建者本人。"""
+    return user.is_superuser or user.id == booklist.user_id
+
+
+def can_view_booklist(booklist, user):
+    """检查用户是否有权查看书单：公开书单、自己创建的、或超级管理员。"""
+    return booklist.is_public or user.is_superuser or user.id == booklist.user_id
+
+
 def get_or_create_user_setting(user):
     """获取或创建用户设置，统一默认值。"""
     from .models import UserSetting

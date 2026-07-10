@@ -38,4 +38,14 @@ urlpatterns = [
     path('chapter_content/<int:chapter_id>/', views.chapter_content, name='chapter_content'),
     path('chapter_list_ajax/<int:book_id>/', views.chapter_list_ajax, name='chapter_list_ajax'),
 
+    path('booklist/', views.booklist_admin, name='booklist_admin'),
+    path('booklist/create/', views.booklist_create, name='booklist_create'),
+    path('booklist/<int:pk>/', views.booklist_detail, name='booklist_detail'),
+    path('booklist/<int:pk>/edit/', views.booklist_edit, name='booklist_edit'),
+    path('booklist/<int:pk>/delete/', views.booklist_delete, name='booklist_delete'),
+    path('booklist/<int:pk>/share_toggle/', views.booklist_share_toggle, name='booklist_share_toggle'),
+    path('booklist/<int:pk>/add_book/', views.booklist_add_book, name='booklist_add_book'),
+    path('booklist/<int:pk>/update_item/<int:item_id>/', views.booklist_update_item, name='booklist_update_item'),
+    path('booklist/<int:pk>/remove_item/<int:item_id>/', views.booklist_remove_item, name='booklist_remove_item'),
+
 ]

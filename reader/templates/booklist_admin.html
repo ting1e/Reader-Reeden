@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+
+{% block title %}书单管理{% endblock %}
+
+{% block content %}
+
+<main>
+  {% include 'header.html' %}
+
+  <div class="container mx-auto px-4 py-4">
+    <div class="card bg-base-100 shadow-sm border border-base-200/70 mt-6 mb-5 overflow-hidden">
+      <div class="card-body p-0">
+        <div class="p-5 sm:p-6 pb-4 flex items-start gap-4 flex-wrap justify-between">
+          <div class="flex-1 min-w-0">
+            <h2 class="text-2xl font-bold tracking-tight flex items-center gap-2.5 mb-1">
+              书单管理
+              <span class="badge badge-ghost gap-1 text-sm py-2.5 px-3">
+                <iconify-icon icon="bi:collection" class="text-[0.6rem]"></iconify-icon>
+                <span id="booklist-count">{{ booklist_list|length }}</span>
+              </span>
+            </h2>
+            <p class="text-sm text-base-content/55">管理你的书单，查看每本书的评价和共享状态。</p>
+          </div>
+          <button type="button" class="btn btn-sm btn-neutral btn-outline" onclick="create_modal.showModal()">
+            <iconify-icon icon="bi:plus-lg"></iconify-icon>新建书单
+          </button>
+        </div>
+
+        {% if booklist_list %}
+        <div class="overflow-x-auto">
+          <table class="table text-base">
+            <thead class="bg-base-200/40 text-base-content/70">
+              <tr>
+                <th class="font-medium">名称</th>
+                <th class="hidden sm:table-cell font-medium">简介</th>
+                <th class="font-medium">书籍数</th>
+                <th class="font-medium">共享</th>
+                <th class="hidden md:table-cell font-medium">创建时间</th>
+                <th class="font-medium">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for bl in booklist_list %}
+              <tr class="booklist-row group" data-booklist-id="{{ bl.id }}" data-booklist-name="{{ bl.name|escapejs }}">
+                <td class="break-words max-w-xs align-middle">
+                  <a href="{% url 'reader:booklist_detail' bl.id %}" class="font-semibold text-base-content hover:text-primary transition-colors">
+                    {{ bl.name }}
+                  </a>
+                </td>
+                <td class="hidden sm:table-cell break-words max-w-sm text-sm text-base-content/60 align-middle">
+                  <a href="{% url 'reader:booklist_detail' bl.id %}" class="hover:text-primary transition-colors">
+                    {{ bl.description|truncatechars:45|default:"—" }}
+                  </a>
+                </td>
+                <td class="align-middle">
+                  <div class="flex items-center gap-1 text-sm text-base-content/70">
+                    <iconify-icon icon="bi:book" class="text-xs opacity-50"></iconify-icon>
+                    <span class="font-medium">{{ bl.item_count }}</span>
+                  </div>
+                </td>
+                <td class="align-middle">
+                  <form method="POST" action="{% url 'reader:booklist_share_toggle' bl.id %}" class="inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm {% if bl.is_public %}btn-warning{% else %}btn-outline btn-ghost{% endif %} gap-1 h-8 min-h-8">
+                      <iconify-icon icon="bi:{% if bl.is_public %}globe{% else %}lock{% endif %}"></iconify-icon>
+                      {% if bl.is_public %}共享{% else %}私有{% endif %}
+                    </button>
+                  </form>
+                </td>
+                <td class="hidden md:table-cell text-sm text-base-content/55 align-middle">{{ bl.created_time|date:"Y-m-d H:i" }}</td>
+                <td class="align-middle">
+                  <div class="flex items-center gap-2.5 whitespace-nowrap">
+                    <a href="{% url 'reader:booklist_detail' bl.id %}" class="btn btn-sm btn-outline btn-primary gap-1 h-8 min-h-8">
+                      <iconify-icon icon="bi:eye"></iconify-icon> 查看
+                    </a>
+                    <form method="POST" action="{% url 'reader:booklist_delete' bl.id %}" class="inline booklist-del-form"
+                          data-name="{{ bl.name|escapejs }}"
+                          data-confirm="确定删除书单《{{ bl.name|escapejs }}》？\n\n书单中的所有书籍评价将一并删除。">
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-sm btn-outline btn-error gap-1 h-8 min-h-8">
+                        <iconify-icon icon="bi:trash"></iconify-icon> 删除
+                      </button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-base-content/45 py-16 text-center border-t border-base-200/60">
+          <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-base-200/70 flex items-center justify-center">
+            <iconify-icon icon="bi:collection" class="text-2xl opacity-50"></iconify-icon>
+          </div>
+          <p class="text-base font-medium">暂无书单</p>
+          <p class="text-sm text-base-content/45 mt-1">点击右上角"新建书单"按钮开始创建</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- 新建书单弹窗 -->
+  <dialog id="create_modal" class="modal">
+    <div class="modal-box max-w-md">
+      <form method="dialog">
+        <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+      </form>
+      <h3 class="text-lg font-bold mb-4">新建书单</h3>
+      <form id="create-form" class="flex flex-col gap-3">
+        {% csrf_token %}
+        <div>
+          <label class="text-sm font-semibold text-base-content/70 mb-1 block">书单名称</label>
+          <input type="text" name="name" class="input input-bordered w-full" placeholder="输入书单名称" maxlength="128" required />
+        </div>
+        <div>
+          <label class="text-sm font-semibold text-base-content/70 mb-1 block">简介（可选）</label>
+          <textarea name="description" class="textarea textarea-bordered w-full" rows="3" placeholder="简单描述这个书单"></textarea>
+        </div>
+        <div class="modal-action">
+          <button type="button" class="btn btn-ghost btn-sm" onclick="create_modal.close()">取消</button>
+          <button type="button" class="btn btn-primary btn-sm" id="create-submit">创建</button>
+        </div>
+      </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+  </dialog>
+
+</main>
+
+{% endblock %}
+
+{% block body-bottom %}
+
+<script>
+(function() {
+  var csrf = '{{ csrf_token }}';
+
+  var EMPTY_STATE_HTML =
+    '<div class="text-base-content/45 py-16 text-center border-t border-base-200/60">' +
+    '<div class="w-16 h-16 mx-auto mb-4 rounded-full bg-base-200/70 flex items-center justify-center">' +
+    '<iconify-icon icon="bi:collection" class="text-2xl opacity-50"></iconify-icon></div>' +
+    '<p class="text-base font-medium">暂无书单</p>' +
+    '<p class="text-sm text-base-content/45 mt-1">点击右上角"新建书单"按钮开始创建</p></div>';
+
+  function ajaxError(msg) {
+    notify('网络错误，' + msg + '失败', 'error');
+  }
+
+  function confirmSubmit($form, onConfirm) {
+    var msg = $form.data('confirm').replace(/\\n/g, '\n');
+    confirmDialog(msg).then(function(ok) { if (ok) onConfirm(); });
+  }
+
+  // ---- 新建书单 ----
+  $('#create-submit').click(function() {
+    var $form = $('#create-form');
+    if (!$form.find('[name="name"]').val().trim()) { notify('名称不能为空', 'warning'); return; }
+    var $btn = $(this).prop('disabled', true);
+    $.ajax({
+      url: '{% url "reader:booklist_create" %}',
+      type: 'post',
+      data: $form.serialize(),
+      success: function(resp) {
+        $btn.prop('disabled', false);
+        if (resp && resp.success) {
+          window.location.href = '{% url "reader:booklist_detail" 0 %}'.replace('/0/', '/' + resp.id + '/');
+        } else {
+          notify((resp && resp.error) || '创建失败', 'error');
+        }
+      },
+      error: function() { $btn.prop('disabled', false); ajaxError('创建'); }
+    });
+  });
+
+  // ---- 删除书单 ----
+  $('.booklist-del-form').on('submit', function(e) {
+    e.preventDefault();
+    var $form = $(this);
+    var name = $form.data('name');
+    confirmSubmit($form, function() {
+      var $btn = $form.find('button[type="submit"]').prop('disabled', true);
+      $.ajax({
+        url: $form.attr('action'),
+        type: 'post',
+        data: { csrfmiddlewaretoken: csrf },
+        success: function(resp) {
+          $btn.prop('disabled', false);
+          if (resp && resp.success) {
+            notify('书单《' + (resp.name || name) + '》已删除', 'success');
+            $form.closest('tr').fadeOut(200, function() { $(this).remove(); });
+            var $cnt = $('#booklist-count');
+            var n = ($cnt.data('count') || {{ booklist_list|length }}) - 1;
+            $cnt.data('count', n).text(n);
+            if (n === 0) $cnt.closest('.card').find('table').parent().replace(EMPTY_STATE_HTML);
+          } else {
+            notify((resp && resp.error) || '删除失败', 'error');
+          }
+        },
+        error: function() { $btn.prop('disabled', false); ajaxError('删除'); }
+      });
+    });
+  });
+})();
+</script>
+
+{% endblock %}

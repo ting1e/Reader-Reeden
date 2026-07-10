@@ -6,103 +6,124 @@
 
 <main>
   {% include 'header.html' %}
-  
 
-  <div class="container mx-auto px-4 py-4 shadow-sm border border-base-200 mt-8 mb-4 card">
-    <h2 class="text-2xl font-bold mb-4 flex items-center gap-2">
-      <iconify-icon icon="bi:journal-text"></iconify-icon>书籍管理
-      <span class="badge" id="book-count">共 {{ book_list|length }} 本</span>
-    </h2>
+  <div class="container mx-auto px-4 py-4">
+    <div class="card bg-base-100 shadow-sm border border-base-200/70 mt-6 mb-5 overflow-hidden">
+      <div class="card-body p-0">
+        <div class="p-5 sm:p-6 pb-4 flex items-start gap-4 flex-wrap justify-between">
+          <div class="flex-1 min-w-0">
+            <h2 class="text-2xl font-bold tracking-tight flex items-center gap-2.5 mb-1">
+              书籍管理
+              <span class="badge badge-ghost gap-1 text-sm py-2.5 px-3">
+                <iconify-icon icon="bi:book" class="text-[0.6rem]"></iconify-icon>
+                <span id="book-count">{{ book_list|length }}</span>
+              </span>
+            </h2>
+            <p class="text-sm text-base-content/55">管理本地书籍，重新分章、共享、删除等。</p>
+          </div>
+          <a href="{% url 'reader:upload_file' %}" class="btn btn-sm btn-neutral btn-outline">
+            <iconify-icon icon="bi:upload"></iconify-icon>上传书籍
+          </a>
+        </div>
 
-    {% if book_list %}
-    <div class="overflow-x-auto">
-      <table class="table hover text-base">
-        <thead>
-          <tr>
-            <th>书名</th>
-            <th class="hidden sm:table-cell">字数</th>
-            <th class="hidden sm:table-cell">章节</th>
-            <th>进度</th>
-            <th>共享</th>
-            <th class="hidden md:table-cell">上传时间</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% load static %}
-          {% for book in book_list %}
-          <tr>
-            <td class="break-words max-w-xs">
-              <div class="rename-container flex items-center gap-1" data-book-id="{{ book.id }}">
-                <span class="inline-flex items-center justify-center mr-2" title="{{ book.local_only|yesno:'仅本地,云端同步' }}">
-                  {% if book.local_only %}
-                  <iconify-icon icon="bi:hdd" class="text-base-content/40 text-lg"></iconify-icon>
-                  {% else %}
-                  <iconify-icon icon="bi:cloud-check" class="text-base-content/40 text-lg"></iconify-icon>
-                  {% endif %}
-                </span>
-                <span class="rename-display break-words">{{ book.name }}</span>
-                <button type="button" class="rename-start btn btn-ghost btn-xs btn-circle shrink-0" aria-label="编辑书名" title="编辑书名">
-                  <iconify-icon icon="bi:pencil"></iconify-icon>
-                </button>
-                <div class="rename-edit hidden items-center gap-1 flex-1">
-                  <input type="text" class="rename-input input input-bordered input-sm flex-1 min-w-0" value="{{ book.name }}" maxlength="64" />
-                  <button type="button" class="rename-save btn btn-sm btn-primary btn-circle shrink-0 ml-2" aria-label="保存" title="保存">
-                    <iconify-icon icon="bi:check-lg"></iconify-icon>
-                  </button>
-                  <button type="button" class="rename-cancel btn btn-sm btn-ghost btn-circle shrink-0" aria-label="取消" title="取消">
-                    <iconify-icon icon="bi:x"></iconify-icon>
-                  </button>
-                </div>
-              </div>
-            </td>
-            <td class="hidden sm:table-cell cell-word-count">{{ book.word_count }}</td>
-            <td class="hidden sm:table-cell cell-chapter-num">{{ book.total_chapter_num }}</td>
-            <td>{{ book.progress_value|floatformat:2 }}%</td>
-            <td>
-              <form method="POST" action="{% url 'reader:book_share_toggle' book.id %}" class="inline">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-sm {% if book.share %}btn-success{% else %} btn-outline{% endif %}">
-                  {% if book.share %}已共享{% else %}私有{% endif %}
-                </button>
-              </form>
-            </td>
-            <td class="hidden md:table-cell">{{ book.upload_time|date:"Y-m-d H:i" }}</td>
-            <td>
-              <div class="flex items-center gap-2 whitespace-nowrap">
-                <form method="POST" action="{% url 'reader:book_rechapter' book.id %}" class="inline book-rechapter-form"
-                      data-name="{{ book.name|escapejs }}"
-                      data-confirm="确定对《{{ book.name|escapejs }}》重新分章？\n\n将删除旧章节并重新解析，阅读进度会根据百分比自动映射到新章节。">
-                  {% csrf_token %}
-                  <div class="join">
-                    <select name="rule_choice" class="btn btn-sm btn-outline select join-item mr-1">
-                      <option value="main">主规则</option>
-                      <option value="rule_2">规则1</option>
-                      <option value="rule_3">规则2</option>
-                    </select>
-                    <button type="submit" class="btn btn-sm btn-outline join-item">
-                      <iconify-icon icon="bi:arrow-repeat"></iconify-icon> 重新分章
+        {% if book_list %}
+        <div class="overflow-x-auto">
+          <table class="table text-base">
+            <thead class="bg-base-200/40 text-base-content/70">
+              <tr>
+                <th class="font-medium">书名</th>
+                <th class="hidden sm:table-cell font-medium">字数</th>
+                <th class="hidden sm:table-cell font-medium">章节</th>
+                <th class="font-medium">进度</th>
+                <th class="font-medium">共享</th>
+                <th class="hidden md:table-cell font-medium">上传时间</th>
+                <th class="font-medium">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for book in book_list %}
+              <tr class="group" data-book-id="{{ book.id }}">
+                <td class="break-words max-w-xs align-middle">
+                  <div class="rename-container flex items-center gap-1.5" data-book-id="{{ book.id }}">
+                    <iconify-icon icon="{% if book.local_only %}bi:hdd{% else %}bi:cloud-check{% endif %}"
+                                 class="text-base-content/35 text-base shrink-0"
+                                 title="{{ book.local_only|yesno:'仅本地,云端同步' }}"></iconify-icon>
+                    <span class="rename-display break-words font-semibold">{{ book.name }}</span>
+                    <button type="button" class="rename-start btn btn-ghost btn-xs btn-circle shrink-0 h-6 w-6 min-h-6" aria-label="编辑书名" title="编辑书名">
+                      <iconify-icon icon="bi:pencil" class="text-xs opacity-50"></iconify-icon>
                     </button>
+                    <div class="rename-edit hidden items-center gap-1 flex-1">
+                      <input type="text" class="rename-input input input-bordered input-sm flex-1 min-w-0 mr-2" value="{{ book.name }}" maxlength="64" />
+                      <button type="button" class="rename-save btn btn-sm btn-primary btn-circle shrink-0" aria-label="保存" title="保存">
+                        <iconify-icon icon="bi:check-lg"></iconify-icon>
+                      </button>
+                      <button type="button" class="rename-cancel btn btn-sm btn-ghost btn-circle shrink-0" aria-label="取消" title="取消">
+                        <iconify-icon icon="bi:x"></iconify-icon>
+                      </button>
+                    </div>
                   </div>
-                </form>
-                <form method="POST" action="{% url 'reader:book_local_del' book.id %}" class="inline book-del-form"
-                      data-name="{{ book.name|escapejs }}"
-                      data-confirm="确定删除《{{ book.name|escapejs }}》？\n\n只会删除本地文件和数据库记录，不会影响 S3 云端的书籍和进度。">
-                  {% csrf_token %}
-                  <button type="submit" class="btn btn-sm btn-error btn-outline">
-                    <iconify-icon icon="bi:trash"></iconify-icon> 删除
-                  </button>
-                </form>
-              </div>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+                </td>
+                <td class="hidden sm:table-cell cell-word-count align-middle text-sm text-base-content/60">{{ book.word_count }}</td>
+                <td class="hidden sm:table-cell cell-chapter-num align-middle text-sm text-base-content/60">{{ book.total_chapter_num }}</td>
+                <td class="align-middle">
+                  <div class="flex items-center gap-1.5 text-sm text-base-content/60">
+                    <div class="w-16 h-1.5 bg-base-200 rounded-full overflow-hidden">
+                      <div class="h-full bg-primary/60 rounded-full" style="width: {{ book.progress_value }}%;"></div>
+                    </div>
+                    <span>{{ book.progress_value|floatformat:0 }}%</span>
+                  </div>
+                </td>
+                <td class="align-middle">
+                  <form method="POST" action="{% url 'reader:book_share_toggle' book.id %}" class="inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm {% if book.share %}btn-warning{% else %}btn-outline btn-ghost{% endif %} gap-1 h-8 min-h-8">
+                      <iconify-icon icon="bi:{% if book.share %}globe{% else %}lock{% endif %}"></iconify-icon>
+                      {% if book.share %}共享{% else %}私有{% endif %}
+                    </button>
+                  </form>
+                </td>
+                <td class="hidden md:table-cell text-sm text-base-content/55 align-middle">{{ book.upload_time|date:"Y-m-d H:i" }}</td>
+                <td class="align-middle">
+                  <div class="flex items-center gap-2 whitespace-nowrap">
+                    <form method="POST" action="{% url 'reader:book_rechapter' book.id %}" class="inline-flex items-center gap-1 book-rechapter-form"
+                          data-name="{{ book.name|escapejs }}"
+                          data-confirm="确定对《{{ book.name|escapejs }}》重新分章？\n\n将删除旧章节并重新解析，阅读进度会根据百分比自动映射到新章节。">
+                      {% csrf_token %}
+                      <select name="rule_choice" class="select select-sm select-bordered h-8 min-h-8">
+                        <option value="main">主规则</option>
+                        <option value="rule_2">规则1</option>
+                        <option value="rule_3">规则2</option>
+                      </select>
+                      <button type="submit" class="btn btn-sm btn-outline h-8 min-h-8">
+                        <iconify-icon icon="bi:arrow-repeat"></iconify-icon> 分章
+                      </button>
+                    </form>
+                    <form method="POST" action="{% url 'reader:book_local_del' book.id %}" class="inline book-del-form"
+                          data-name="{{ book.name|escapejs }}"
+                          data-confirm="确定删除《{{ book.name|escapejs }}》？\n\n只会删除本地文件和数据库记录，不会影响 S3 云端的书籍和进度。">
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-sm btn-outline btn-error gap-1 h-8 min-h-8">
+                        <iconify-icon icon="bi:trash"></iconify-icon> 删除
+                      </button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-base-content/45 py-16 text-center border-t border-base-200/60">
+          <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-base-200/70 flex items-center justify-center">
+            <iconify-icon icon="bi:journal-text" class="text-2xl opacity-50"></iconify-icon>
+          </div>
+          <p class="text-base font-medium">暂无本地书籍</p>
+          <p class="text-sm text-base-content/45 mt-1">点击右上角"上传书籍"按钮开始添加</p>
+        </div>
+        {% endif %}
+      </div>
     </div>
-    {% else %}
-    <div class="text-base-content/50 py-8 text-center">暂无本地书籍</div>
-    {% endif %}
   </div>
 
 </main>
@@ -111,16 +132,42 @@
 
 {% block body-bottom %}
 
+<style>
+.rename-input, .select {
+  --input-color: oklch(var(--bc)/0.3);
+}
+.rename-input:focus {
+  outline: none;
+  border-color: oklch(var(--bc)/0.3);
+  box-shadow: none;
+}
+</style>
+
 <script>
 (function() {
   var csrf = '{{ csrf_token }}';
 
+  var EMPTY_STATE_HTML =
+    '<div class="text-base-content/45 py-16 text-center border-t border-base-200/60">' +
+    '<div class="w-16 h-16 mx-auto mb-4 rounded-full bg-base-200/70 flex items-center justify-center">' +
+    '<iconify-icon icon="bi:journal-text" class="text-2xl opacity-50"></iconify-icon></div>' +
+    '<p class="text-base font-medium">暂无本地书籍</p>' +
+    '<p class="text-sm text-base-content/45 mt-1">点击右上角"上传书籍"按钮开始添加</p></div>';
+
+  function ajaxError(msg) {
+    notify('网络错误，' + msg + '失败', 'error');
+  }
+
+  function confirmSubmit($form, onConfirm) {
+    var msg = $form.data('confirm').replace(/\\n/g, '\n');
+    confirmDialog(msg).then(function(ok) { if (ok) onConfirm(); });
+  }
+
+  // ---- 重命名 ----
   function enterEdit($c) {
     $c.find('.rename-display, .rename-start').addClass('hidden');
-    var $edit = $c.find('.rename-edit').removeClass('hidden').addClass('flex');
-    var $input = $c.find('.rename-input');
-    $input.val($c.find('.rename-display').text().trim());
-    $input.focus();
+    $c.find('.rename-edit').removeClass('hidden').addClass('flex');
+    var $input = $c.find('.rename-input').val($c.find('.rename-display').text().trim()).focus();
     $input[0].setSelectionRange($input.val().length, $input.val().length);
   }
 
@@ -130,13 +177,11 @@
   }
 
   function saveRename($c) {
-    var bid = $c.data('book-id');
     var val = $c.find('.rename-input').val().trim();
     if (!val) { notify('名称不能为空', 'warning'); return; }
-    var $btn = $c.find('.rename-save');
-    $btn.prop('disabled', true);
+    var $btn = $c.find('.rename-save').prop('disabled', true);
     $.ajax({
-      url: '{% url "reader:book_rename" 0 %}'.replace('/0/', '/' + bid + '/'),
+      url: '{% url "reader:book_rename" 0 %}'.replace('/0/', '/' + $c.data('book-id') + '/'),
       type: 'post',
       data: { name: val, csrfmiddlewaretoken: csrf },
       success: function(resp) {
@@ -149,37 +194,27 @@
           notify((resp && resp.error) || '改名失败', 'error');
         }
       },
-      error: function() {
-        $btn.prop('disabled', false);
-        notify('网络错误，改名失败', 'error');
-      }
+      error: function() { $btn.prop('disabled', false); ajaxError('改名'); }
     });
   }
 
-  $('.rename-container').on('click', '.rename-start', function() {
-    enterEdit($(this).closest('.rename-container'));
-  });
-  $('.rename-container').on('click', '.rename-save', function() {
-    saveRename($(this).closest('.rename-container'));
-  });
-  $('.rename-container').on('click', '.rename-cancel', function() {
-    exitEdit($(this).closest('.rename-container'));
-  });
-  $('.rename-container').on('keydown', '.rename-input', function(e) {
-    if (e.which === 13) { e.preventDefault(); saveRename($(this).closest('.rename-container')); }
-    if (e.which === 27) { e.preventDefault(); exitEdit($(this).closest('.rename-container')); }
-  });
+  $('.rename-container')
+    .on('click', '.rename-start', function() { enterEdit($(this).closest('.rename-container')); })
+    .on('click', '.rename-save', function() { saveRename($(this).closest('.rename-container')); })
+    .on('click', '.rename-cancel', function() { exitEdit($(this).closest('.rename-container')); })
+    .on('keydown', '.rename-input', function(e) {
+      var $c = $(this).closest('.rename-container');
+      if (e.which === 13) { e.preventDefault(); saveRename($c); }
+      if (e.which === 27) { e.preventDefault(); exitEdit($c); }
+    });
 
-  // 删除书籍：先二次确认，确认后 AJAX + notify + 移除行
+  // ---- 删除书籍 ----
   $('.book-del-form').on('submit', function(e) {
     e.preventDefault();
     var $form = $(this);
     var name = $form.data('name');
-    var msg = $form.data('confirm').replace(/\\n/g, '\n');
-    confirmDialog(msg).then(function(ok) {
-      if (!ok) return;
-      var $btn = $form.find('button[type="submit"]');
-      $btn.prop('disabled', true);
+    confirmSubmit($form, function() {
+      var $btn = $form.find('button[type="submit"]').prop('disabled', true);
       $.ajax({
         url: $form.attr('action'),
         type: 'post',
@@ -189,30 +224,25 @@
           if (resp && resp.success) {
             notify('《' + (resp.name || name) + '》已删除', 'success');
             $form.closest('tr').fadeOut(200, function() { $(this).remove(); });
-            // 更新书籍计数
             var $cnt = $('#book-count');
             var n = ($cnt.data('count') || {{ book_list|length }}) - 1;
-            $cnt.data('count', n).text('共 ' + n + ' 本');
+            $cnt.data('count', n).text(n);
+            if (n === 0) $cnt.closest('.card').find('table').parent().replace(EMPTY_STATE_HTML);
           } else {
             notify((resp && resp.error) || '删除失败', 'error');
           }
         },
-        error: function() {
-          $btn.prop('disabled', false);
-          notify('网络错误，删除失败', 'error');
-        }
+        error: function() { $btn.prop('disabled', false); ajaxError('删除'); }
       });
     });
   });
 
-  // 重新分章：先二次确认，确认后 AJAX + notify + 更新行内字数/章节数
+  // ---- 重新分章 ----
   $('.book-rechapter-form').on('submit', function(e) {
     e.preventDefault();
     var $form = $(this);
     var name = $form.data('name');
-    var msg = $form.data('confirm').replace(/\\n/g, '\n');
-    confirmDialog(msg).then(function(ok) {
-      if (!ok) return;
+    confirmSubmit($form, function() {
       var $btn = $form.find('button[type="submit"]');
       var $select = $form.find('select[name="rule_choice"]');
       $btn.prop('disabled', true);
@@ -222,8 +252,7 @@
         type: 'post',
         data: { rule_choice: $select.val(), csrfmiddlewaretoken: csrf },
         success: function(resp) {
-          $btn.prop('disabled', false);
-          $select.prop('disabled', false);
+          $btn.add($select).prop('disabled', false);
           if (resp && resp.success) {
             notify('《' + (resp.name || name) + '》重新分章完成', 'success');
             var $row = $form.closest('tr');
@@ -234,9 +263,8 @@
           }
         },
         error: function() {
-          $btn.prop('disabled', false);
-          $select.prop('disabled', false);
-          notify('网络错误，重新分章失败', 'error');
+          $btn.add($select).prop('disabled', false);
+          ajaxError('重新分章');
         }
       });
     });

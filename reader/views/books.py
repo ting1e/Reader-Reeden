@@ -9,7 +9,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.contrib.auth.decorators import login_required
 from django.utils.text import get_valid_filename
 
-from ..models import Book, Chapter, UserBookRecord, UserBookMark
+from ..models import Book, Chapter, UserBookRecord, UserBookMark, BookListItem
 from ..utils import get_file_md5, get_local_books_dir, get_upload_dir, get_progress_dir, can_admin_book, fmt_file_size
 from ..services.progress import (
     get_books_progress, _parse_progress_time,
@@ -242,6 +242,13 @@ def book_local_del(request, pk):
             except Exception:
                 logger.exception("Error deleting progress file for user %s", uid)
 
+    # 书单中引用了此书的条目转为外部书籍，保留评分和评价
+    BookListItem.objects.filter(book_id=pk).update(
+        book_id=0,
+        manual_name=_book.name,
+        manual_author=_book.author or '',
+    )
+
     Chapter.objects.filter(book_id=pk).delete()
     UserBookRecord.objects.filter(book_id=pk).delete()
     UserBookMark.objects.filter(book_id=pk).delete()
@@ -421,9 +428,19 @@ def upload_file(request):
             result = book_parser.handle_local_book(request, local_path, local_only=True)
         except Exception as e:
             logger.exception("upload_file: error processing %s", safe_name)
+            if os.path.exists(local_path):
+                try:
+                    os.remove(local_path)
+                except OSError:
+                    pass
             return JsonResponse({'success': False, 'name': safe_name, 'error': f'处理失败: {e}'})
         if result:
             return JsonResponse({'success': True, 'name': safe_name})
+        if os.path.exists(local_path):
+            try:
+                os.remove(local_path)
+            except OSError:
+                pass
         return JsonResponse({'success': False, 'name': safe_name, 'error': '分章失败'})
     return render(request, 'upload_file.html')
 
