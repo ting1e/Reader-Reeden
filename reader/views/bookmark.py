@@ -32,6 +32,8 @@ def bookmark_admin(request):
 @login_required(login_url='reader:index')
 def bookmark_del(request, pk):
     """删除单条书签（AJAX，返回 JSON）"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'method not allowed'}, status=405)
     mark = get_object_or_404(UserBookMark, pk=pk)
     if not (request.user.is_superuser or request.user.id == mark.user_id):
         return JsonResponse({'success': False, 'error': '无权限'})

@@ -40,7 +40,8 @@ class FirstRunMiddleware:
                 # auth_user 表不存在（未运行 migrate），重定向到 setup 页
                 return self._redirect_to_setup(request)
             except Exception:
-                _users_exist = False
+                # DB 临时故障：放行请求，下次重新检查
+                return self.get_response(request)
 
         if _users_exist:
             return self.get_response(request)

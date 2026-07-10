@@ -207,6 +207,8 @@ def book_admin(request):
 @login_required(login_url='reader:index')
 def book_local_del(request, pk):
     """删除本地书籍：只删除本地文件、进度、数据库记录，不触碰 S3（AJAX，返回 JSON）"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'method not allowed'}, status=405)
     _book = get_object_or_404(Book, id=pk)
     if not can_admin_book(_book, request.user):
         return JsonResponse({'success': False, 'error': '无权限'})
@@ -264,6 +266,8 @@ def book_rechapter(request, pk):
     words_read 在系统中是 text-only 偏移（不含换行符，相对章首）。
     重新分章时需要：旧章内 text-only → 全书 raw → 新章内 raw → 新章内 text-only。
     """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'method not allowed'}, status=405)
     _book = get_object_or_404(Book, id=pk)
     if not can_admin_book(_book, request.user):
         return JsonResponse({'success': False, 'error': '无权限'})
