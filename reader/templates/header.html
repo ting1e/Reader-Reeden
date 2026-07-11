@@ -11,6 +11,9 @@
       <a role="tab" href="{% url 'reader:booklist_list'%}" class="text-base tab {% if url_name == 'booklist_list' or url_name == 'booklist_detail' or  url_name == 'booklist_admin'%}tab-active font-medium{% endif %}">
         <iconify-icon icon="bi:collection" class="me-1.5"></iconify-icon>书单
       </a>
+      <a role="tab" href="{% url 'reader:reading_stats' %}" class="text-base tab {% if url_name == 'reading_stats' %}tab-active font-medium{% endif %}">
+        <iconify-icon icon="bi:bar-chart-line" class="me-1.5"></iconify-icon>阅读统计
+      </a>
       {% endwith %}
 
       {% if 'book_view' in request.resolver_match.url_name %}
@@ -82,6 +85,7 @@
           <iconify-icon icon="bi:person-circle" class="text-xl text-base-content/80"></iconify-icon>
         </button>
         <ul tabindex="-1" class="menu menu-md text-base dropdown-content bg-base-100 rounded-box z-50 mt-3 w-48 p-2 shadow-xl border border-base-200">
+          <div class="divider my-1 h-px"></div>
           <li><a href="{% url 'reader:upload_file' %}"><iconify-icon icon="bi:upload" class="text-xl opacity-70"></iconify-icon>上传书籍</a></li>
           <li><a href="{% url 'reader:book_admin' %}"><iconify-icon icon="bi:journal-text" class="text-xl opacity-70"></iconify-icon>书籍管理</a></li>
           <li><a href="{% url 'reader:bookmark_admin' %}"><iconify-icon icon="bi:bookmark-star" class="text-xl opacity-70"></iconify-icon>书签管理</a></li>

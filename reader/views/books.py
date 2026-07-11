@@ -9,8 +9,11 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.contrib.auth.decorators import login_required
 from django.utils.text import get_valid_filename
 
-from ..models import Book, Chapter, UserBookRecord, UserBookMark, BookListItem
-from ..utils import get_file_md5, get_local_books_dir, get_upload_dir, get_progress_dir, can_admin_book, fmt_file_size
+from ..models import Book, Chapter, UserBookRecord, UserBookMark, BookListItem, ReadStat
+from ..utils import (
+    get_file_md5, get_local_books_dir, get_upload_dir, get_progress_dir,
+    can_admin_book, fmt_file_size, link_external_booklist_items,
+)
 from ..services.progress import (
     get_books_progress, _parse_progress_time,
 )
@@ -150,11 +153,8 @@ def open_remote_book(request):
     if not book:
         return HttpResponse('入库失败')
 
-    # 自动关联书单中以外部书籍形式引用的条目
-    book_name_without_ext = os.path.splitext(book_name)[0]
-    BookListItem.objects.filter(
-        book_id=0, manual_name__iexact=book_name_without_ext
-    ).update(book_id=book.id, manual_name='', manual_author='')
+    # 仅关联当前用户书单中匹配的外部条目
+    link_external_booklist_items(request.user, book)
 
     try:
         md5_val = book.md5 or get_file_md5(local_path)
@@ -256,6 +256,9 @@ def book_local_del(request, pk):
         manual_name=_book.name,
         manual_author=_book.author or '',
     )
+
+    # 阅读统计保留历史数据，仅将 book_id 置 0（书名已存在 book_name 字段中）
+    ReadStat.objects.filter(book_id=pk).update(book_id=0)
 
     Chapter.objects.filter(book_id=pk).delete()
     UserBookRecord.objects.filter(book_id=pk).delete()
@@ -445,6 +448,9 @@ def upload_file(request):
                     pass
             return JsonResponse({'success': False, 'name': safe_name, 'error': f'处理失败: {e}'})
         if result:
+            book = Book.objects.filter(file_name=safe_name).first()
+            if book:
+                link_external_booklist_items(request.user, book)
             return JsonResponse({'success': True, 'name': safe_name})
         if os.path.exists(local_path):
             try:

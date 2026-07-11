@@ -5,9 +5,10 @@ import os
 from zoneinfo import ZoneInfo
 
 from django.conf import settings as dj_settings
+from django.db.models import F
 from django.utils import timezone
 
-from ..models import UserBookRecord
+from ..models import UserBookRecord, ReadStat
 from ..utils import get_progress_dir, get_file_md5, get_element_index, get_device_id
 
 logger = logging.getLogger('reader')
@@ -100,23 +101,102 @@ def get_books_progress(user, books):
     return result
 
 
+def _upsert_readstat(user_id, book_id, date_str, book_name, delta_seconds, delta_words, now_utc, progress_val=0):
+    """安全写入 ReadStat：已有记录用 F() 累加，新建记录用字面值。"""
+    naive_now = now_utc.replace(tzinfo=None)
+    updated = ReadStat.objects.filter(
+        user_id=user_id, book_id=book_id, date=date_str
+    ).update(
+        read_seconds=F('read_seconds') + delta_seconds,
+        word_count=F('word_count') + delta_words,
+        last_save_time=naive_now,
+        last_progress=progress_val,
+    )
+    if not updated:
+        ReadStat.objects.create(
+            user_id=user_id,
+            book_id=book_id,
+            book_name=book_name[:128],
+            date=date_str,
+            read_seconds=delta_seconds,
+            word_count=delta_words,
+            last_save_time=naive_now,
+            last_progress=progress_val,
+        )
+    else:
+        ReadStat.objects.filter(
+            user_id=user_id, book_id=book_id, date=date_str
+        ).update(book_name=book_name[:128])
+
+
+def _record_readstat_local_only(book, chapter, words_read, user_id, now_utc, current_date_str):
+    """local_only 书籍：不写 JSON 文件，直接写 ReadStat。"""
+    progress_val = calculate_read_progress(book, chapter, words_read)
+    prev_stat = ReadStat.objects.filter(
+        user_id=user_id, book_id=book.id, date=current_date_str
+    ).first()
+
+    delta_seconds = 0
+    delta_words = 0
+    old_progress = 0
+    if prev_stat:
+        old_progress = prev_stat.last_progress
+        if prev_stat.last_save_time:
+            prev_utc = prev_stat.last_save_time
+            if prev_utc.tzinfo is None:
+                prev_utc = prev_utc.replace(tzinfo=datetime.timezone.utc)
+            gap = int((now_utc - prev_utc).total_seconds())
+            if 0 < gap <= 600:
+                delta_seconds = gap
+    if progress_val > old_progress and book.word_count > 0:
+        delta_words = int((progress_val - old_progress) / 10000.0 * book.word_count)
+        if delta_words > 5000:
+            delta_words = 0
+
+    try:
+        book_name = getattr(book, 'name', '') or getattr(book, 'file_name', '') or ''
+        _upsert_readstat(
+            user_id, book.id, current_date_str, book_name,
+            delta_seconds, delta_words, now_utc, progress_val
+        )
+    except Exception:
+        logger.exception("Error writing ReadStat (local_only)")
+
+
+def _record_readstat(book, user_id, current_date_str, now_utc, delta_seconds, delta_words, progress_val):
+    """非 local_only 书籍：写完 JSON 后追加 ReadStat。"""
+    try:
+        book_name = getattr(book, 'name', '') or getattr(book, 'file_name', '') or ''
+        _upsert_readstat(
+            user_id, book.id, current_date_str, book_name,
+            delta_seconds, delta_words, now_utc, progress_val
+        )
+    except Exception:
+        logger.exception("Error writing ReadStat")
+
+
 def save_progress_json(book, chapter, words_read, user_id):
+    """保存进度 JSON + 写入 ReadStat（非 local_only）。"""
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+
+    # 显式使用 Django TIME_ZONE 设置计算本地时间（上海时间）
+    local_tz = ZoneInfo(dj_settings.TIME_ZONE)
+    local_now = datetime.datetime.now(local_tz)
+    current_date_str = local_now.strftime('%Y-%m-%d')
+
     if getattr(book, 'local_only', False):
+        _record_readstat_local_only(book, chapter, words_read, user_id, now_utc, current_date_str)
         return
+
+    # 以下为非 local_only 的原有逻辑：写 JSON 文件 + ReadStat
+    device_id = get_device_id()
+    now_iso = now_utc.isoformat().replace('+00:00', 'Z')
+
     try:
         md5_val = book.md5 or get_file_md5(book.abs_path())
     except Exception:
         logger.exception("Error calculating MD5")
         return
-
-    device_id = get_device_id()
-    now_utc = datetime.datetime.now(datetime.timezone.utc)
-    now_iso = now_utc.isoformat().replace('+00:00', 'Z')
-
-    # 显式使用 Django TIME_ZONE 设置计算本地时间，不依赖容器系统时区
-    local_tz = ZoneInfo(dj_settings.TIME_ZONE)
-    local_now = datetime.datetime.now(local_tz)
-    current_date_str = local_now.strftime('%Y-%m-%d')
 
     try:
         with open(book.abs_path(), 'r', encoding=book.charset) as f:
@@ -166,11 +246,14 @@ def save_progress_json(book, chapter, words_read, user_id):
         old_time = _parse_progress_time(old_data)
         if old_time:
             old_dt = old_time.replace(tzinfo=datetime.timezone.utc)
-            delta_seconds = int((now_utc - old_dt).total_seconds())
-            delta_seconds = min(max(0, delta_seconds), 600)
+            gap = int((now_utc - old_dt).total_seconds())
+            if 0 < gap <= 600:
+                delta_seconds = gap
         old_progress = old_data.get('readProgress', 0)
         if progress_val > old_progress and book.word_count > 0:
             delta_words = int((progress_val - old_progress) / 10000.0 * book.word_count)
+            if delta_words > 5000:
+                delta_words = 0
 
     if old_data and isinstance(old_data.get('todayStats'), dict):
         stats = old_data['todayStats']
@@ -206,6 +289,8 @@ def save_progress_json(book, chapter, words_read, user_id):
             json.dump(new_data, f, ensure_ascii=False)
     except Exception:
         logger.exception("Error writing progress JSON")
+
+    _record_readstat(book, user_id, current_date_str, now_utc, delta_seconds, delta_words, progress_val)
 
 
 def _parse_progress_time(obj):

@@ -103,3 +103,14 @@ class BookListItem(models.Model):
     sort_order = models.IntegerField(default=0)
     added_time = models.DateTimeField(default=timezone.now)
 
+
+class ReadStat(models.Model):
+    user_id = models.IntegerField()
+    book_id = models.IntegerField(default=0)
+    book_name = models.CharField(max_length=128, default='')
+    date = models.CharField(max_length=10)
+    read_seconds = models.IntegerField(default=0)
+    word_count = models.IntegerField(default=0)
+    last_save_time = models.DateTimeField(null=True, blank=True)
+    last_progress = models.IntegerField(default=0)
+

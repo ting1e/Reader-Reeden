@@ -28,6 +28,7 @@ urlpatterns = [
     path('user_settings/s3/', views.user_settings_s3, name='user_settings_s3'),
     path('user_settings/rule/', views.user_settings_rule, name='user_settings_rule'),
     path('user_settings/password/', views.user_settings_password, name='user_settings_password'),
+    path('reading_stats/', views.reading_stats, name='reading_stats'),
 
     path('font_admin/', views.font_admin, name='font_admin'),
     path('font_download/', views.font_download, name='font_download'),

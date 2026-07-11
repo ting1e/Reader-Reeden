@@ -5,6 +5,7 @@ import json
 import uuid
 
 from django.conf import settings
+from django.db.models import Q
 
 BASE_DIR = str(settings.BASE_DIR)
 logger = logging.getLogger('reader')
@@ -162,6 +163,49 @@ def can_admin_booklist(booklist, user):
 def can_view_booklist(booklist, user):
     """检查用户是否有权查看书单：公开书单、自己创建的、或超级管理员。"""
     return booklist.is_public or user.is_superuser or user.id == booklist.user_id
+
+
+def link_external_booklist_items(user, book):
+    """将当前用户书单中匹配的外部条目关联到已入库书籍。
+
+    仅更新 user 自己创建的书单；按 book.name / file_name 及其去扩展名形式匹配 manual_name。
+    返回更新行数。
+    """
+    if not user or not getattr(user, 'is_authenticated', False) or not book:
+        return 0
+
+    names = set()
+    for raw in (getattr(book, 'name', None), getattr(book, 'file_name', None)):
+        if not raw:
+            continue
+        text = str(raw).strip()
+        if not text:
+            continue
+        names.add(text)
+        stem, _ = os.path.splitext(text)
+        if stem:
+            names.add(stem)
+    if not names:
+        return 0
+
+    from .models import BookList, BookListItem
+
+    my_list_ids = list(BookList.objects.filter(user_id=user.id).values_list('id', flat=True))
+    if not my_list_ids:
+        return 0
+
+    name_q = Q()
+    for n in names:
+        name_q |= Q(manual_name__iexact=n)
+
+    return BookListItem.objects.filter(
+        book_list_id__in=my_list_ids,
+        book_id=0,
+    ).filter(name_q).update(
+        book_id=book.id,
+        manual_name='',
+        manual_author='',
+    )
 
 
 def get_or_create_user_setting(user):

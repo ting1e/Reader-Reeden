@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+
+{% block title %}阅读统计{% endblock %}
+
+{% block content %}
+
+<main>
+  {% include 'header.html' %}
+
+  <div class="container mx-auto px-4 py-4">
+    <div class="card bg-base-100 shadow-sm border border-base-200/70 mt-6 mb-5 overflow-hidden">
+      <div class="card-body p-0">
+        <div class="p-5 sm:p-6 pb-4">
+          <h2 class="text-2xl font-bold tracking-tight flex items-center gap-2.5 mb-1">
+            <iconify-icon icon="bi:bar-chart-line"></iconify-icon>
+            阅读统计
+          </h2>
+          <p class="text-base text-base-content">追踪你的阅读时长和字数。</p>
+        </div>
+
+        <!-- 概览卡片 -->
+        <div class="px-5 sm:px-6 py-4 border-t border-base-200/60">
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div class="rounded-lg bg-base-200/40 p-4">
+              <div class="text-xs text-base-content/60 mb-1">今日时长</div>
+              <div class="text-xl font-bold">{{ today_fmt }}</div>
+            </div>
+            <div class="rounded-lg bg-base-200/40 p-4">
+              <div class="text-xs text-base-content/60 mb-1">今日字数</div>
+              <div class="text-xl font-bold">{{ today_words|default:"0" }}</div>
+            </div>
+            <div class="rounded-lg bg-base-200/40 p-4">
+              <div class="text-xs text-base-content/60 mb-1">累计时长</div>
+              <div class="text-xl font-bold">{{ total_fmt }}</div>
+            </div>
+            <div class="rounded-lg bg-base-200/40 p-4">
+              <div class="text-xs text-base-content/60 mb-1">已读书籍</div>
+              <div class="text-xl font-bold">{{ total_books }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 30 天热力图 -->
+        <div class="px-5 sm:px-6 py-4 border-t border-base-200/60">
+          <h3 class="text-base font-bold mb-3 flex items-center gap-2">
+            <iconify-icon icon="bi:calendar-week"></iconify-icon>最近 30 天
+            <span class="text-xs font-normal text-base-content/55">{{ month30_total_fmt }} · {{ month30_total_words }} 字</span>
+          </h3>
+          <div class="flex flex-wrap gap-1.5">
+            {% for day in calendar_30 %}
+            {% if forloop.counter0 > 0 and day.weekday == 0 %}<div class="w-0.5 h-6 self-center bg-base-content/40 rounded-full"></div>{% endif %}
+            <div class="group relative w-7 h-7 rounded transition-colors {% if day.level == 0 %}bg-base-200/60{% elif day.level == 1 %}bg-primary/20{% elif day.level == 2 %}bg-primary/40{% elif day.level == 3 %}bg-primary/60{% else %}bg-primary/80{% endif %}">
+              <div class="absolute bottom-full left-0 mb-2 px-2 py-1 rounded bg-base-300 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg">
+                {{ day.date|slice:"5:" }} · {{ day.fmt }} · {{ day.words }} 字
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          <div class="flex items-center gap-1.5 mt-3 text-xs text-base-content/50">
+            <span>少</span>
+            <div class="w-3 h-3 rounded bg-base-200/60"></div>
+            <div class="w-3 h-3 rounded bg-primary/20"></div>
+            <div class="w-3 h-3 rounded bg-primary/40"></div>
+            <div class="w-3 h-3 rounded bg-primary/60"></div>
+            <div class="w-3 h-3 rounded bg-primary/80"></div>
+            <span>多</span>
+          </div>
+        </div>
+
+        <!-- 近一年热力图 -->
+        <div class="px-5 sm:px-6 py-6 border-t border-base-200/60">
+          <h3 class="text-base font-bold mb-3 flex items-center gap-2">
+            <iconify-icon icon="bi:calendar2-month"></iconify-icon>近一年阅读
+            <span class="text-xs font-normal text-base-content/55">{{ year_total_fmt }} · {{ year_total_words }} 字</span>
+          </h3>
+          <div class="w-[90%] mx-auto">
+            <!-- 月份标签行 -->
+            <div class="flex gap-1 mb-4 h-3 ml-5">
+              {% for col in year_columns %}
+              <div class="flex-1 min-w-0">
+                {% for mi, mlabel in month_labels %}
+                  {% if mi == forloop.parentloop.counter0 %}<span class="text-[0.7rem] leading-3 text-base-content/70 whitespace-nowrap">{{ mlabel }}</span>{% endif %}
+                {% endfor %}
+              </div>
+              {% endfor %}
+            </div>
+            <!-- 方格网格 + 周几标签：用 CSS grid 统一行高 -->
+            <div class="grid" style="grid-template-columns: 1rem repeat({{ year_columns|length }}, 1fr); gap: 0.25rem;">
+              <!-- 周几标签：每行一个 -->
+              <div class="text-[0.7rem] flex items-center justify-center text-base-content/70">一</div>
+              <!-- 第一行方格（weekday=0） -->
+              {% for col in year_columns %}
+              {% with day=col.0 %}
+              <div class="aspect-square rounded-sm {% if not day %}opacity-0{% elif day.level == 0 %}bg-base-200/60{% elif day.level == 1 %}bg-primary/20{% elif day.level == 2 %}bg-primary/40{% elif day.level == 3 %}bg-primary/60{% else %}bg-primary/80{% endif %} group relative transition-colors hover:ring-1 hover:ring-base-content/20">
+                {% if day %}<div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 rounded bg-base-300 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg">{{ day.date }} · {{ day.fmt }} · {{ day.words }} 字</div>{% endif %}
+              </div>
+              {% endwith %}
+              {% endfor %}
+
+              <div></div>
+              {% for col in year_columns %}
+              {% with day=col.1 %}
+              <div class="aspect-square rounded-sm {% if not day %}opacity-0{% elif day.level == 0 %}bg-base-200/60{% elif day.level == 1 %}bg-primary/20{% elif day.level == 2 %}bg-primary/40{% elif day.level == 3 %}bg-primary/60{% else %}bg-primary/80{% endif %} group relative transition-colors hover:ring-1 hover:ring-base-content/20">
+                {% if day %}<div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 rounded bg-base-300 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg">{{ day.date }} · {{ day.fmt }} · {{ day.words }} 字</div>{% endif %}
+              </div>
+              {% endwith %}
+              {% endfor %}
+
+              <div class="text-[0.7rem] flex items-center justify-center text-base-content/70">三</div>
+              {% for col in year_columns %}
+              {% with day=col.2 %}
+              <div class="aspect-square rounded-sm {% if not day %}opacity-0{% elif day.level == 0 %}bg-base-200/60{% elif day.level == 1 %}bg-primary/20{% elif day.level == 2 %}bg-primary/40{% elif day.level == 3 %}bg-primary/60{% else %}bg-primary/80{% endif %} group relative transition-colors hover:ring-1 hover:ring-base-content/20">
+                {% if day %}<div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 rounded bg-base-300 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg">{{ day.date }} · {{ day.fmt }} · {{ day.words }} 字</div>{% endif %}
+              </div>
+              {% endwith %}
+              {% endfor %}
+
+              <div></div>
+              {% for col in year_columns %}
+              {% with day=col.3 %}
+              <div class="aspect-square rounded-sm {% if not day %}opacity-0{% elif day.level == 0 %}bg-base-200/60{% elif day.level == 1 %}bg-primary/20{% elif day.level == 2 %}bg-primary/40{% elif day.level == 3 %}bg-primary/60{% else %}bg-primary/80{% endif %} group relative transition-colors hover:ring-1 hover:ring-base-content/20">
+                {% if day %}<div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 rounded bg-base-300 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg">{{ day.date }} · {{ day.fmt }} · {{ day.words }} 字</div>{% endif %}
+              </div>
+              {% endwith %}
+              {% endfor %}
+
+              <div class="text-[0.7rem] flex items-center justify-center text-base-content/70">五</div>
+              {% for col in year_columns %}
+              {% with day=col.4 %}
+              <div class="aspect-square rounded-sm {% if not day %}opacity-0{% elif day.level == 0 %}bg-base-200/60{% elif day.level == 1 %}bg-primary/20{% elif day.level == 2 %}bg-primary/40{% elif day.level == 3 %}bg-primary/60{% else %}bg-primary/80{% endif %} group relative transition-colors hover:ring-1 hover:ring-base-content/20">
+                {% if day %}<div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 rounded bg-base-300 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg">{{ day.date }} · {{ day.fmt }} · {{ day.words }} 字</div>{% endif %}
+              </div>
+              {% endwith %}
+              {% endfor %}
+
+              <div></div>
+              {% for col in year_columns %}
+              {% with day=col.5 %}
+              <div class="aspect-square rounded-sm {% if not day %}opacity-0{% elif day.level == 0 %}bg-base-200/60{% elif day.level == 1 %}bg-primary/20{% elif day.level == 2 %}bg-primary/40{% elif day.level == 3 %}bg-primary/60{% else %}bg-primary/80{% endif %} group relative transition-colors hover:ring-1 hover:ring-base-content/20">
+                {% if day %}<div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 rounded bg-base-300 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg">{{ day.date }} · {{ day.fmt }} · {{ day.words }} 字</div>{% endif %}
+              </div>
+              {% endwith %}
+              {% endfor %}
+
+              <div class="text-[0.7rem] flex items-center justify-center text-base-content/70">日</div>
+              {% for col in year_columns %}
+              {% with day=col.6 %}
+              <div class="aspect-square rounded-sm {% if not day %}opacity-0{% elif day.level == 0 %}bg-base-200/60{% elif day.level == 1 %}bg-primary/20{% elif day.level == 2 %}bg-primary/40{% elif day.level == 3 %}bg-primary/60{% else %}bg-primary/80{% endif %} group relative transition-colors hover:ring-1 hover:ring-base-content/20">
+                {% if day %}<div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 rounded bg-base-300 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg">{{ day.date }} · {{ day.fmt }} · {{ day.words }} 字</div>{% endif %}
+              </div>
+              {% endwith %}
+              {% endfor %}
+            </div>
+          </div>
+          <div class="flex items-center gap-1.5 mt-3 text-xs text-base-content/50">
+            <span>少</span>
+            <div class="w-3 h-3 rounded-sm bg-base-200/60"></div>
+            <div class="w-3 h-3 rounded-sm bg-primary/20"></div>
+            <div class="w-3 h-3 rounded-sm bg-primary/40"></div>
+            <div class="w-3 h-3 rounded-sm bg-primary/60"></div>
+            <div class="w-3 h-3 rounded-sm bg-primary/80"></div>
+            <span>多</span>
+          </div>
+        </div>
+
+        <!-- 今日 Top 5 书籍 -->
+        <div class="px-5 sm:px-6 py-4 border-t border-base-200/60">
+          <h3 class="text-base font-bold mb-3 flex items-center gap-1.5">
+            <iconify-icon icon="bi:star"></iconify-icon>今日阅读时长 Top 5
+          </h3>
+          {% if today_top_books %}
+          <div class="flex flex-col gap-3">
+            {% for book in today_top_books %}
+            <div class="flex items-center gap-3">
+              <span class="text-sm font-bold text-base-content/40 w-5 shrink-0">{{ forloop.counter }}</span>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between gap-2 mb-1">
+                  <span class="text-sm font-medium truncate">{{ book.book_name|default:"已删除" }}</span>
+                  <span class="text-xs text-base-content/60 shrink-0">{{ book.fmt }} · {{ book.words }} 字</span>
+                </div>
+                <div class="h-2 bg-base-200 rounded-full overflow-hidden">
+                  <div class="h-full bg-primary/60 rounded-full" style="width: {% if today_top_books.0.secs > 0 %}{% widthratio book.secs today_top_books.0.secs 100 %}{% else %}0{% endif %}%;"></div>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="text-base-content/45 py-8 text-center">
+            <iconify-icon icon="bi:star" class="text-2xl opacity-50"></iconify-icon>
+            <p class="text-sm mt-2">今日暂无阅读数据</p>
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- 所有书籍阅读时长排行 -->
+        <div class="px-5 sm:px-6 py-4 border-t border-base-200/60">
+          <h3 class="text-base font-bold mb-3 flex items-center gap-1.5">
+            <iconify-icon icon="bi:trophy"></iconify-icon>所有书籍阅读时长
+          </h3>
+          {% if top_books %}
+          <div class="flex flex-col gap-3">
+            {% for book in top_books %}
+            <div class="flex items-center gap-3">
+              <span class="text-sm font-bold text-base-content/40 w-5 shrink-0">{{ forloop.counter }}</span>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between gap-2 mb-1">
+                  <span class="text-sm font-medium truncate">{{ book.book_name|default:"已删除" }}</span>
+                  <span class="text-xs text-base-content/60 shrink-0">{{ book.fmt }} · {{ book.words }} 字</span>
+                </div>
+                <div class="h-2 bg-base-200 rounded-full overflow-hidden">
+                  <div class="h-full bg-primary/60 rounded-full" style="width: {% if top_books.0.secs > 0 %}{% widthratio book.secs top_books.0.secs 100 %}{% else %}0{% endif %}%;"></div>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="text-base-content/45 py-8 text-center">
+            <iconify-icon icon="bi:trophy" class="text-2xl opacity-50"></iconify-icon>
+            <p class="text-sm mt-2">还没有阅读数据</p>
+          </div>
+          {% endif %}
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</main>
+
+{% endblock %}
