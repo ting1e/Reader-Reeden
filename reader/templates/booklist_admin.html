@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}书单管理{% endblock %}
+{% block title %}{% if can_delete %}书单管理{% else %}书单{% endif %}{% endblock %}
 
 {% block content %}
 
@@ -13,17 +13,21 @@
         <div class="p-5 sm:p-6 pb-4 flex items-start gap-4 flex-wrap justify-between">
           <div class="flex-1 min-w-0">
             <h2 class="text-2xl font-bold tracking-tight flex items-center gap-2.5 mb-1">
-              书单管理
+              {% if can_delete %}书单管理{% else %}书单{% endif %}
               <span class="badge badge-ghost gap-1 text-sm py-2.5 px-3">
                 <iconify-icon icon="bi:collection" class="text-[0.6rem]"></iconify-icon>
                 <span id="booklist-count">{{ booklist_list|length }}</span>
               </span>
             </h2>
-            <p class="text-sm text-base-content/55">管理你的书单，查看每本书的评价和共享状态。</p>
+            <p class="text-sm text-base-content/55">
+              {% if can_delete %}管理你的书单，查看每本书的评价和共享状态。{% else %}浏览所有公开书单和你自己的书单。{% endif %}
+            </p>
           </div>
+          {% if can_create %}
           <button type="button" class="btn btn-sm btn-neutral btn-outline" onclick="create_modal.showModal()">
             <iconify-icon icon="bi:plus-lg"></iconify-icon>新建书单
           </button>
+          {% endif %}
         </div>
 
         {% if booklist_list %}
@@ -59,6 +63,7 @@
                   </div>
                 </td>
                 <td class="align-middle">
+                  {% if can_delete %}
                   <form method="POST" action="{% url 'reader:booklist_share_toggle' bl.id %}" class="inline">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-sm {% if bl.is_public %}btn-warning{% else %}btn-outline btn-ghost{% endif %} gap-1 h-8 min-h-8">
@@ -66,6 +71,12 @@
                       {% if bl.is_public %}共享{% else %}私有{% endif %}
                     </button>
                   </form>
+                  {% else %}
+                  <span class="badge badge-sm {% if bl.is_public %}badge-warning{% else %}badge-ghost{% endif %} gap-1">
+                    <iconify-icon icon="bi:{% if bl.is_public %}globe{% else %}lock{% endif %}" class="text-[0.6rem]"></iconify-icon>
+                    {% if bl.is_public %}共享{% else %}私有{% endif %}
+                  </span>
+                  {% endif %}
                 </td>
                 <td class="hidden md:table-cell text-sm text-base-content/55 align-middle">{{ bl.created_time|date:"Y-m-d H:i" }}</td>
                 <td class="align-middle">
@@ -73,14 +84,16 @@
                     <a href="{% url 'reader:booklist_detail' bl.id %}" class="btn btn-sm btn-outline btn-primary gap-1 h-8 min-h-8">
                       <iconify-icon icon="bi:eye"></iconify-icon> 查看
                     </a>
+                    {% if can_delete %}
                     <form method="POST" action="{% url 'reader:booklist_delete' bl.id %}" class="inline booklist-del-form"
-                          data-name="{{ bl.name|escapejs }}"
-                          data-confirm="确定删除书单《{{ bl.name|escapejs }}》？\n\n书单中的所有书籍评价将一并删除。">
+                          data-name="{{ bl.name }}"
+                          data-confirm="确定删除书单《{{ bl.name }}》？\n\n书单中的所有书籍评价将一并删除。">
                       {% csrf_token %}
                       <button type="submit" class="btn btn-sm btn-outline btn-error gap-1 h-8 min-h-8">
                         <iconify-icon icon="bi:trash"></iconify-icon> 删除
                       </button>
                     </form>
+                    {% endif %}
                   </div>
                 </td>
               </tr>
@@ -94,7 +107,9 @@
             <iconify-icon icon="bi:collection" class="text-2xl opacity-50"></iconify-icon>
           </div>
           <p class="text-base font-medium">暂无书单</p>
-          <p class="text-sm text-base-content/45 mt-1">点击右上角"新建书单"按钮开始创建</p>
+          <p class="text-sm text-base-content/45 mt-1">
+            {% if can_create %}点击右上角"新建书单"按钮开始创建{% else %}还没有任何书单{% endif %}
+          </p>
         </div>
         {% endif %}
       </div>
@@ -102,6 +117,7 @@
   </div>
 
   <!-- 新建书单弹窗 -->
+  {% if can_create %}
   <dialog id="create_modal" class="modal">
     <div class="modal-box max-w-md">
       <form method="dialog">
@@ -126,6 +142,7 @@
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
   </dialog>
+  {% endif %}
 
 </main>
 
@@ -142,7 +159,7 @@
     '<div class="w-16 h-16 mx-auto mb-4 rounded-full bg-base-200/70 flex items-center justify-center">' +
     '<iconify-icon icon="bi:collection" class="text-2xl opacity-50"></iconify-icon></div>' +
     '<p class="text-base font-medium">暂无书单</p>' +
-    '<p class="text-sm text-base-content/45 mt-1">点击右上角"新建书单"按钮开始创建</p></div>';
+    '<p class="text-sm text-base-content/45 mt-1">{% if can_create %}点击右上角"新建书单"按钮开始创建{% else %}还没有任何书单{% endif %}</p></div>';
 
   function ajaxError(msg) {
     notify('网络错误，' + msg + '失败', 'error');
@@ -153,6 +170,7 @@
     confirmDialog(msg).then(function(ok) { if (ok) onConfirm(); });
   }
 
+  {% if can_create %}
   // ---- 新建书单 ----
   $('#create-submit').click(function() {
     var $form = $('#create-form');
@@ -173,7 +191,9 @@
       error: function() { $btn.prop('disabled', false); ajaxError('创建'); }
     });
   });
+  {% endif %}
 
+  {% if can_delete %}
   // ---- 删除书单 ----
   $('.booklist-del-form').on('submit', function(e) {
     e.preventDefault();
@@ -202,6 +222,7 @@
       });
     });
   });
+  {% endif %}
 })();
 </script>
 

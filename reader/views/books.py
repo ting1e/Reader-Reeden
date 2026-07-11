@@ -150,6 +150,12 @@ def open_remote_book(request):
     if not book:
         return HttpResponse('入库失败')
 
+    # 自动关联书单中以外部书籍形式引用的条目
+    book_name_without_ext = os.path.splitext(book_name)[0]
+    BookListItem.objects.filter(
+        book_id=0, manual_name__iexact=book_name_without_ext
+    ).update(book_id=book.id, manual_name='', manual_author='')
+
     try:
         md5_val = book.md5 or get_file_md5(local_path)
         progress_key = f'{prefix}book_progress/{md5_val}.json'

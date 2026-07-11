@@ -45,12 +45,12 @@
                 <iconify-icon icon="bi:{% if booklist.is_public %}globe{% else %}lock{% endif %}"></iconify-icon>
                 {% if booklist.is_public %}公开{% else %}私有{% endif %}
               </button>
-              <a href="{% url 'reader:booklist_admin' %}" class="btn btn-sm btn-ghost">
+              <a href="{% url 'reader:booklist_list' %}" class="btn btn-sm btn-ghost">
                 <iconify-icon icon="bi:arrow-left"></iconify-icon> 返回
               </a>
             </div>
             {% else %}
-            <a href="{% url 'reader:booklist_admin' %}" class="btn btn-sm btn-ghost shrink-0">
+            <a href="{% url 'reader:booklist_list' %}" class="btn btn-sm btn-ghost shrink-0">
               <iconify-icon icon="bi:arrow-left"></iconify-icon> 返回
             </a>
             {% endif %}
@@ -127,7 +127,7 @@
                         <iconify-icon icon="bi:chat-square-text" class="opacity-60"></iconify-icon>写点评价…
                       </div>
                       <textarea class="textarea textarea-bordered w-full text-sm item-review hidden leading-relaxed"
-                                rows="3"
+                                rows="7"
                                 placeholder="写点评价…（支持 Markdown，Ctrl+Enter 保存）">{{ item.review|default:'' }}</textarea>
                       {% else %}
                       <div class="review-md-readonly review-md text-sm text-base-content/80 min-h-[2rem] pl-1 pr-1 py-1.5"
@@ -167,7 +167,9 @@
         <h3 class="text-lg font-bold mb-4 flex items-center gap-1.5"><iconify-icon icon="bi:plus-circle"></iconify-icon>添加书籍</h3>
         <div role="tablist" class="tabs tabs-boxed tabs-sm mb-3">
           <button role="tab" class="tab tab-active add-tab" data-tab="library">从书库选择</button>
+          <button role="tab" class="tab add-tab" data-tab="remote">从远程书库</button>
           <button role="tab" class="tab add-tab" data-tab="manual">手动添加</button>
+          <button role="tab" class="tab add-tab" data-tab="batch">批量添加</button>
         </div>
 
         <!-- 从书库选择 -->
@@ -176,7 +178,7 @@
             <iconify-icon icon="bi:search" class="text-base-content/80"></iconify-icon>
             <input type="search" id="library-search" class="grow" placeholder="搜索书库名称…" />
           </label>
-          <div class="max-h-48 overflow-y-auto border border-base-200 rounded-lg" id="library-results">
+          <div class="max-h-64 overflow-y-auto border border-base-200 rounded-lg" id="library-results">
             {% for book in accessible_books %}
             <div class="library-item flex items-center justify-between px-3 py-2 hover:bg-base-200/50 border-b border-base-200 last:border-0"
                  data-book-name="{{ book.name|default:book.file_name|lower }}"
@@ -192,6 +194,17 @@
             {% empty %}
             <div class="text-base-content/80 py-4 text-center text-sm">书库无可访问的书籍</div>
             {% endfor %}
+          </div>
+        </div>
+
+        <!-- 从远程书库 -->
+        <div class="add-panel hidden min-h-[18rem]" data-panel="remote">
+          <label class="input input-bordered input-sm flex items-center gap-2 w-full mb-2 bg-base-200/50">
+            <iconify-icon icon="bi:search" class="text-base-content/80"></iconify-icon>
+            <input type="search" id="remote-search" class="grow" placeholder="搜索远程书库名称…" disabled />
+          </label>
+          <div class="max-h-64 overflow-y-auto border border-base-200 rounded-lg" id="remote-results">
+            <div class="text-base-content/80 py-4 text-center text-sm">加载中…</div>
           </div>
         </div>
 
@@ -256,6 +269,26 @@
             </button>
           </form>
         </div>
+
+        <!-- 批量添加 -->
+        <div class="add-panel hidden min-h-[18rem]" data-panel="batch">
+          <p class="text-xs text-base-content/60 mb-2">
+            Markdown 格式：标题（#）为书名，标题下方内容为评价（可选）。
+          </p>
+          <textarea id="batch-input" class="textarea textarea-bordered w-full text-sm font-mono leading-relaxed"
+                    rows="10" placeholder="# 三体&#10;很好的科幻小说，推荐。&#10;&#10;# 基地&#10;阿西莫夫经典之作。"></textarea>
+          <div class="flex justify-end items-center gap-3 mt-3">
+            <button type="button" class="btn btn-sm btn-ghost gap-1" id="batch-preview-btn">
+              <iconify-icon icon="bi:eye"></iconify-icon> 解析预览
+            </button>
+            <button type="button" class="btn btn-sm btn-primary gap-1 hidden" id="batch-confirm-btn">
+              <iconify-icon icon="bi:check-lg"></iconify-icon> 确认添加
+            </button>
+          </div>
+          <div id="batch-preview" class="hidden mt-3 border-t border-base-200 pt-3">
+            <div class="max-h-48 overflow-y-auto flex flex-col gap-2" id="batch-preview-list"></div>
+          </div>
+        </div>
       </div>
       <form method="dialog" class="modal-backdrop"><button>close</button></form>
     </dialog>
@@ -276,9 +309,6 @@
   background-size: 0.7rem;
 }
 
-textarea, input[type="text"], input[type="password"] {
-  --input-color: oklch(var(--bc)/0.3);
-}
 textarea:focus, input[type="text"]:focus, input[type="password"]:focus {
   outline: none;
   border-color: oklch(var(--bc)/0.5);
@@ -452,6 +482,7 @@ textarea:focus, input[type="text"]:focus, input[type="password"]:focus {
     $(this).addClass('tab-active');
     $('.add-panel').addClass('hidden');
     $('.add-panel[data-panel="' + tab + '"]').removeClass('hidden');
+    if (tab === 'remote' && !remoteBooksLoaded) loadRemoteBooks();
   });
 
   // ---- 从书库搜索 ----
@@ -463,10 +494,12 @@ textarea:focus, input[type="text"]:focus, input[type="password"]:focus {
     });
   });
 
-  // ---- 从书库添加 ----
+  // ---- 从书库添加 / 从远程添加（共用弹窗）----
   var libAddBookId = null;
+  var libAddManualName = null;
   $(document).on('click', '.library-add-btn', function() {
     libAddBookId = $(this).data('book-id');
+    libAddManualName = null;
     $('#library_add_book_name').text($(this).data('book-title') || '');
     $('#library-add-rating input').prop('checked', false);
     $('#library-add-review').val('');
@@ -474,11 +507,13 @@ textarea:focus, input[type="text"]:focus, input[type="password"]:focus {
   });
 
   $('#library-add-confirm').click(function() {
-    if (!libAddBookId) return;
+    if (!libAddBookId && !libAddManualName) return;
     var $btn = $(this).prop('disabled', true);
-    var data = { book_id: libAddBookId, csrfmiddlewaretoken: csrf };
     var rating = $('#library-add-rating input:checked').val();
     var review = $('#library-add-review').val().trim();
+    var data = { csrfmiddlewaretoken: csrf };
+    if (libAddBookId) data.book_id = libAddBookId;
+    else data.manual_name = libAddManualName;
     if (rating) data.rating = rating;
     if (review) data.review = review;
     $.ajax({
@@ -492,6 +527,59 @@ textarea:focus, input[type="text"]:focus, input[type="password"]:focus {
       },
       error: function() { $btn.prop('disabled', false); ajaxError('添加'); }
     });
+  });
+
+  // ---- 从远程书库加载 ----
+  var remoteBooksLoaded = false;
+  function loadRemoteBooks() {
+    $.ajax({
+      url: '{% url "reader:booklist_remote_books" %}',
+      type: 'get',
+      success: function(resp) {
+        if (resp && resp.success) {
+          remoteBooksLoaded = true;
+          $('#remote-search').prop('disabled', false);
+          var $container = $('#remote-results').empty();
+          if (resp.books.length === 0) {
+            $container.append('<div class="text-base-content/80 py-4 text-center text-sm">远程书库无可添加的书籍</div>');
+            return;
+          }
+          resp.books.forEach(function(book) {
+            $container.append(
+              '<div class="remote-item flex items-center justify-between px-3 py-2 hover:bg-base-200/50 border-b border-base-200 last:border-0" data-book-name="' + book.name.toLowerCase() + '">' +
+              '<div class="min-w-0"><span class="text-sm font-medium truncate block">' + book.name + '</span>' +
+              '<span class="text-xs text-base-content/60">' + book.size_display + '</span></div>' +
+              '<button type="button" class="btn btn-xs btn-primary btn-outline remote-add-btn" data-book-name="' + book.name + '">' +
+              '<iconify-icon icon="bi:plus-lg"></iconify-icon> 添加</button></div>'
+            );
+          });
+        } else {
+          $('#remote-results').empty().append('<div class="text-base-content/80 py-4 text-center text-sm">' + ((resp && resp.error) || '加载失败') + '</div>');
+          notify((resp && resp.error) || '加载失败', 'error');
+        }
+      },
+      error: function() {
+        $('#remote-results').empty().append('<div class="text-base-content/80 py-4 text-center text-sm">网络错误，加载失败</div>');
+        ajaxError('加载');
+      }
+    });
+  }
+
+  $('#remote-search').on('input', function() {
+    var kwd = $(this).val().trim().toLowerCase();
+    $('.remote-item').each(function() {
+      var name = ($(this).data('book-name') || '').toString();
+      $(this).toggle(kwd === '' || name.indexOf(kwd) !== -1);
+    });
+  });
+
+  $(document).on('click', '.remote-add-btn', function() {
+    libAddBookId = null;
+    libAddManualName = $(this).data('book-name');
+    $('#library_add_book_name').text(libAddManualName);
+    $('#library-add-rating input').prop('checked', false);
+    $('#library-add-review').val('');
+    document.getElementById('library_add_modal').showModal();
   });
 
   // ---- 手动添加 ----
@@ -510,6 +598,71 @@ textarea:focus, input[type="text"]:focus, input[type="password"]:focus {
       },
       error: function() { $btn.prop('disabled', false); ajaxError('添加'); }
     });
+  });
+
+  // ---- 批量添加 ----
+  function parseBatchMarkdown(text) {
+    var lines = text.split('\n');
+    var books = [], curTitle = null, curReview = [];
+    for (var i = 0; i < lines.length; i++) {
+      var m = lines[i].match(/^#{1,3}\s+(.+)$/);
+      if (m) {
+        if (curTitle) books.push({ name: curTitle, review: curReview.join('\n').trim() });
+        curTitle = m[1].trim();
+        curReview = [];
+      } else if (curTitle) {
+        curReview.push(lines[i]);
+      }
+    }
+    if (curTitle) books.push({ name: curTitle, review: curReview.join('\n').trim() });
+    return books;
+  }
+
+  var batchBooks = [];
+
+  $('#batch-preview-btn').click(function() {
+    batchBooks = parseBatchMarkdown($('#batch-input').val().trim());
+    if (!batchBooks.length) { notify('未解析到书籍，请用 # 标题格式', 'warning'); return; }
+    var $list = $('#batch-preview-list').empty();
+    batchBooks.forEach(function(b, i) {
+      var reviewSummary = b.review ? b.review.replace(/\n/g, ' ').substring(0, 50) : '—';
+      $list.append(
+        '<div class="flex items-start gap-2 px-3 py-2 rounded-lg bg-base-200/40">' +
+        '<span class="text-xs font-bold text-base-content/40 shrink-0 mt-0.5">' + (i + 1) + '</span>' +
+        '<div class="min-w-0 flex-1"><span class="text-sm font-medium block truncate">' + $('<span>').text(b.name).html() + '</span>' +
+        '<span class="text-xs text-base-content/60 line-clamp-1">' + $('<span>').text(reviewSummary).html() + '</span></div></div>'
+      );
+    });
+    $('#batch-preview').removeClass('hidden');
+    $('#batch-confirm-btn').removeClass('hidden').html(
+      '<iconify-icon icon="bi:check-lg"></iconify-icon> 确认添加（' + batchBooks.length + ' 本）'
+    );
+  });
+
+  $('#batch-confirm-btn').click(function() {
+    if (!batchBooks.length) return;
+    var $btn = $(this).prop('disabled', true);
+    var $previewBtn = $('#batch-preview-btn').prop('disabled', true);
+    var ok = 0, fail = 0, total = batchBooks.length;
+    (function next(i) {
+      if (i >= total) {
+        $btn.prop('disabled', false);
+        $previewBtn.prop('disabled', false);
+        if (ok > 0) {
+          notify('批量添加完成：成功 ' + ok + ' 本' + (fail > 0 ? '，失败 ' + fail + ' 本' : ''),
+                 fail > 0 ? 'warning' : 'success');
+          location.reload();
+        } else { notify('全部添加失败', 'error'); }
+        return;
+      }
+      $btn.html('<span class="loading loading-spinner loading-xs"></span> 添加中 ' + (i + 1) + '/' + total);
+      $.ajax({
+        url: addBookUrl, type: 'post',
+        data: { manual_name: batchBooks[i].name, review: batchBooks[i].review, csrfmiddlewaretoken: csrf },
+        success: function(resp) { if (resp && resp.success) ok++; else fail++; next(i + 1); },
+        error: function() { fail++; next(i + 1); }
+      });
+    })(0);
   });
 
   // ---- 评分保存 ----

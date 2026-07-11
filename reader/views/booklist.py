@@ -3,13 +3,42 @@ import logging
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.contrib.auth.decorators import login_required
+from django.db.models import Q as models_Q
 
 from ..models import BookList, BookListItem, Book
 from ..utils import (
     get_accessible_books, can_admin_booklist, can_view_booklist, can_access_book,
+    fmt_file_size,
 )
+from ..services.s3 import get_s3_config, _get_s3_client
 
 logger = logging.getLogger('reader')
+
+
+@login_required(login_url='reader:index')
+def booklist_list(request):
+    """书单浏览：列出公开书单和用户自己的书单（只读）"""
+    if request.user.is_superuser:
+        booklists = list(BookList.objects.all().order_by('-updated_time'))
+    else:
+        booklists = list(
+            BookList.objects.filter(
+                models_Q(user_id=request.user.id) | models_Q(is_public=True)
+            ).order_by('-updated_time')
+        )
+
+    booklist_ids = [bl.id for bl in booklists]
+    item_counts = {}
+    for item in BookListItem.objects.filter(book_list_id__in=booklist_ids):
+        item_counts[item.book_list_id] = item_counts.get(item.book_list_id, 0) + 1
+    for bl in booklists:
+        bl.item_count = item_counts.get(bl.id, 0)
+
+    return render(request, 'booklist_admin.html', {
+        'booklist_list': booklists,
+        'can_create': True,
+        'can_delete': False,
+    })
 
 
 @login_required(login_url='reader:index')
@@ -27,7 +56,11 @@ def booklist_admin(request):
     for bl in booklists:
         bl.item_count = item_counts.get(bl.id, 0)
 
-    return render(request, 'booklist_admin.html', {'booklist_list': booklists})
+    return render(request, 'booklist_admin.html', {
+        'booklist_list': booklists,
+        'can_create': True,
+        'can_delete': True,
+    })
 
 
 @login_required(login_url='reader:index')
@@ -253,3 +286,34 @@ def booklist_remove_item(request, pk, item_id):
     item.delete()
     item_count = BookListItem.objects.filter(book_list_id=pk).count()
     return JsonResponse({'success': True, 'item_count': item_count})
+
+
+@login_required(login_url='reader:index')
+def booklist_remote_books(request):
+    """AJAX：列出 S3 远程书库中的 .txt 文件（排除已在本地的）"""
+    cfg = get_s3_config(request.user)
+    if not cfg:
+        return JsonResponse({'success': False, 'error': '未配置 S3'})
+    try:
+        client = _get_s3_client(cfg)
+        target_prefix = cfg['prefix'] + 'books/'
+        response = client.list_objects_v2(Bucket=cfg['bucket'], Prefix=target_prefix)
+        local_names = set(Book.objects.values_list('file_name', flat=True))
+        result = []
+        if 'Contents' in response:
+            for obj in response['Contents']:
+                if obj['Key'] == target_prefix:
+                    continue
+                filename = obj['Key'][len(target_prefix):]
+                if not filename.endswith('.txt'):
+                    continue
+                if filename in local_names:
+                    continue
+                result.append({
+                    'name': filename,
+                    'size_display': fmt_file_size(obj.get('Size', 0)),
+                })
+        return JsonResponse({'success': True, 'books': result})
+    except Exception as e:
+        logger.exception("booklist_remote_books: S3 list error")
+        return JsonResponse({'success': False, 'error': f'远程书库列表获取失败: {e}'})
