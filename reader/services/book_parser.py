@@ -78,7 +78,7 @@ def _split_into_chapters(book, data, match, url, set_md5):
 def handle_local_book(request, url, local_only=False):
     if Path(url).suffix.lower() != '.txt':
         return False
-    file_name = os.path.basename(url).replace('.txt', '')
+    file_name = os.path.splitext(os.path.basename(url))[0]
     book = Book(book_url=to_rel_path(url))
     book.name = file_name
     book.file_name = os.path.basename(url)
@@ -89,7 +89,7 @@ def handle_local_book(request, url, local_only=False):
 
     charset = 'utf-8'
     with open(url, 'rb') as f:
-        charset = chardet.detect(f.read(5000))["encoding"]
+        charset = chardet.detect(f.read(5000))["encoding"] or 'utf-8'
     book.charset = charset
 
     with open(url, 'r', encoding=charset) as f:

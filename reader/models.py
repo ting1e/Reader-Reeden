@@ -17,9 +17,9 @@ class Book(models.Model):
     word_count = models.IntegerField(default=0)
     total_chapter_num = models.IntegerField(default=0)
 
-    first_chapter_title = models.CharField(max_length=64)
+    first_chapter_title = models.CharField(max_length=256)
     first_chapter_id = models.IntegerField(default=0)
-    last_chapter_title = models.CharField(max_length=64)
+    last_chapter_title = models.CharField(max_length=256)
     last_chapter_id = models.IntegerField(default=0)
 
 

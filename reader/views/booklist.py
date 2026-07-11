@@ -6,7 +6,7 @@ from django.contrib.auth.decorators import login_required
 
 from ..models import BookList, BookListItem, Book
 from ..utils import (
-    get_accessible_books, can_admin_booklist, can_view_booklist,
+    get_accessible_books, can_admin_booklist, can_view_booklist, can_access_book,
 )
 
 logger = logging.getLogger('reader')
@@ -161,8 +161,11 @@ def booklist_add_book(request, pk):
             book_id = int(book_id)
         except (TypeError, ValueError):
             return JsonResponse({'success': False, 'error': '无效的书籍 ID'})
-        if not Book.objects.filter(id=book_id).exists():
+        book = Book.objects.filter(id=book_id).first()
+        if not book:
             return JsonResponse({'success': False, 'error': '书籍不存在'})
+        if not can_access_book(book, request.user):
+            return JsonResponse({'success': False, 'error': '无权限访问该书'})
         if BookListItem.objects.filter(book_list_id=pk, book_id=book_id).exists():
             return JsonResponse({'success': False, 'error': '该书已在书单中'})
         max_order = 0

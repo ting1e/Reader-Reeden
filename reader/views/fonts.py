@@ -41,7 +41,7 @@ def font_admin(request):
                     })
         except Exception as e:
             logger.exception("font_admin: S3 list error")
-            s3_error = str(e)
+            s3_error = f'云端字体库列表获取失败: {e}'
 
     local_fonts = get_local_fonts(request.user.id)
     for f in local_fonts:
@@ -71,7 +71,7 @@ def font_download(request):
         client.download_file(cfg['bucket'], s3_key, local_path)
     except Exception as e:
         logger.exception("font_download error")
-        return JsonResponse({'success': False, 'error': f'下载失败: {e}'})
+        return JsonResponse({'success': False, 'error': f'字体下载失败: {e}'})
     try:
         size = os.path.getsize(local_path)
     except OSError:

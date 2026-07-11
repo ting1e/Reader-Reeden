@@ -577,7 +577,7 @@ if (localStorage.getItem('prev-chapter')) {
 if (read_mode === 'slide') ensureSlideAppend();
 
 // ===== 搜索 =====
-$('.content-serarch').on('search', function() {
+$('.content-search').on('search', function() {
     var kwd = $(this).val();
     if (!kwd) return;
     $.ajax({
@@ -586,7 +586,7 @@ $('.content-serarch').on('search', function() {
         data: { book_id: book_id, chapter_id: chapter_id, kwd: kwd, csrfmiddlewaretoken: csrf_token },
         success: function(data) {
             $('.search-res').html(data);
-            $('.modal .content-serarch').val(kwd);
+            $('.modal .content-search').val(kwd);
             var $active = $('.search-res .list-group-item.active');
             if ($active[0]) $active[0].scrollIntoView({ block: 'nearest' });
         }

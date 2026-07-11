@@ -104,7 +104,7 @@ def user_settings_password(request):
 @login_required(login_url='reader:index')
 def update_setting(request):
     if request.method != 'POST':
-        return HttpResponse('not login')
+        return HttpResponse('method not allowed', status=405)
     try:
         font_size = int(request.POST.get('font_size', ''))
     except (TypeError, ValueError):

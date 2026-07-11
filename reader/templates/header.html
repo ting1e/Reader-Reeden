@@ -39,7 +39,7 @@
         <iconify-icon icon="bi:search" class="text-base-content/50"></iconify-icon>
         <input type="search" 
                placeholder="{% if url_name == 'book_list' or url_name == 'book_list_remote' %}书籍搜索{% else %}全文搜索{% endif %}" 
-               class="grow content-serarch {% if url_name == 'book_list' or url_name == 'book_list_remote' %}book-search{% endif %}" />
+               class="grow content-search {% if url_name == 'book_list' or url_name == 'book_list_remote' %}book-search{% endif %}" />
       </label>
       {% endwith %}
 

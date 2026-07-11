@@ -81,7 +81,7 @@ class BookListRemoteView(generic.ListView):
                             })
             except Exception as e:
                 logger.exception("BookListRemoteView: S3 list error")
-                self.s3_error = str(e)
+                self.s3_error = f'远程书库列表获取失败: {e}'
             else:
                 self.s3_error = None
         else:
@@ -140,7 +140,7 @@ def open_remote_book(request):
         s3_client.download_file(bucket, s3_key, local_path)
     except Exception as e:
         logger.exception("Error downloading book from S3")
-        return HttpResponse(f'下载失败: {e}')
+        return HttpResponse(f'远程书籍下载失败: {e}')
 
     result = book_parser.handle_local_book(request, local_path)
     if not result:
