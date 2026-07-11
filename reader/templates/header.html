@@ -8,7 +8,7 @@
       <a role="tab" href="{% url 'reader:book_list_remote'%}" class="text-base tab {% if url_name == 'book_list_remote' %}tab-active font-medium{% endif %}">
         <iconify-icon icon="bi:cloud" class="me-1.5"></iconify-icon>远程书库
       </a>
-      <a role="tab" href="{% url 'reader:booklist_list'%}" class="text-base tab {% if url_name == 'booklist_list' or url_name == 'booklist_detail' %}tab-active font-medium{% endif %}">
+      <a role="tab" href="{% url 'reader:booklist_list'%}" class="text-base tab {% if url_name == 'booklist_list' or url_name == 'booklist_detail' or  url_name == 'booklist_admin'%}tab-active font-medium{% endif %}">
         <iconify-icon icon="bi:collection" class="me-1.5"></iconify-icon>书单
       </a>
       {% endwith %}
@@ -19,9 +19,7 @@
       {% if request.resolver_match.url_name == 'book_admin' %}
         <a role="tab" class="text-base tab tab-active font-medium"><iconify-icon icon="bi:journal-text" class="me-1.5"></iconify-icon>书籍管理</a>
       {% endif %}
-      {% if request.resolver_match.url_name == 'booklist_admin' %}
-        <a role="tab" class="text-base tab tab-active font-medium"><iconify-icon icon="bi:collection" class="me-1.5"></iconify-icon>书单管理</a>
-      {% endif %}
+
       {% if request.resolver_match.url_name == 'bookmark_admin' %}
         <a role="tab" class="text-base tab tab-active font-medium"><iconify-icon icon="bi:bookmark-star" class="me-1.5"></iconify-icon>书签管理</a>
       {% endif %}
