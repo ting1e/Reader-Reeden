@@ -1,0 +1,311 @@
+{% extends "base.html" %}
+
+{% block title %}阅读统计管理{% endblock %}
+
+{% block content %}
+
+<main>
+  {% include 'header.html' %}
+
+  <div class="container mx-auto px-4 py-4">
+    <div class="card bg-base-100 shadow-sm border border-base-200/70 mt-6 mb-5 overflow-hidden">
+      <div class="card-body p-0">
+        <div class="p-5 sm:p-6 pb-4 flex items-start gap-4 flex-wrap justify-between">
+          <div class="flex-1 min-w-0">
+            <h2 class="text-2xl font-bold tracking-tight flex items-center gap-2.5 mb-1">
+              <iconify-icon icon="bi:bar-chart-line"></iconify-icon>
+              阅读统计管理
+              <span class="badge badge-ghost gap-1 text-sm py-2.5 px-3">
+                <iconify-icon icon="bi:book" class="text-[0.6rem]"></iconify-icon>
+                <span id="stats-count">{{ stats_list|length }}</span>
+              </span>
+            </h2>
+            <p class="text-sm text-base-content/55">按书浏览阅读统计，支持删除整本或某天的记录。删除不影响阅读进度与书签。</p>
+          </div>
+          <a href="{% url 'reader:reading_stats' %}" class="btn btn-sm btn-ghost gap-1 shrink-0">
+            <iconify-icon icon="bi:arrow-left"></iconify-icon>返回统计
+          </a>
+        </div>
+
+        {% if stats_list %}
+        <div class="overflow-x-auto">
+          <table class="table table-fixed text-base">
+            <thead class="bg-base-200/40 text-base-content/70">
+              <tr>
+                <th class="font-medium w-[32%]">书名</th>
+                <th class="font-medium w-[12%]">累计时长</th>
+                <th class="font-medium w-[12%]">累计字数</th>
+                <th class="font-medium w-[8%]">天数</th>
+                <th class="hidden sm:table-cell font-medium w-[16%]">最近阅读</th>
+                <th class="font-medium w-[20%]">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for s in stats_list %}
+              <tr class="group align-top" data-book-row
+                  data-book-id="{{ s.book_id }}" data-book-name="{{ s.book_name }}">
+                <td class="break-words align-top">
+                  <button type="button" class="stat-toggle btn btn-ghost btn-xs btn-square mr-1 align-middle"
+                          aria-label="展开明细">
+                    <iconify-icon icon="bi:caret-right-fill" class="stat-caret transition-transform"></iconify-icon>
+                  </button>
+                  <span class="font-semibold align-middle stat-toggle cursor-pointer hover:text-primary transition-colors">{{ s.book_name }}</span>
+                  {% if s.book_id == 0 %}<span class="badge badge-ghost badge-xs ml-1 align-middle">已删除</span>{% endif %}
+                </td>
+                <td class="align-top" data-cell="fmt">{{ s.fmt }}</td>
+                <td class="align-top" data-cell="words">{{ s.words }}</td>
+                <td class="align-top" data-cell="days">{{ s.days }}</td>
+                <td class="hidden sm:table-cell align-top text-sm text-base-content/60" data-cell="lastdate">{{ s.last_date|default:"—" }}</td>
+                <td class="align-top">
+                  <button type="button"
+                          class="btn btn-sm btn-outline btn-error gap-1 h-8 min-h-8 stat-del-book"
+                          data-book-id="{{ s.book_id }}" data-book-name="{{ s.book_name }}">
+                    <iconify-icon icon="bi:trash"></iconify-icon>删除全书
+                  </button>
+                </td>
+              </tr>
+              <tr class="stat-detail hidden">
+                <td colspan="6" class="p-0">
+                  <div class="bg-base-200/30 px-6 py-4">
+                    {% if s.days_list %}
+                    <div class="overflow-x-auto pb-1 w-full min-w-0">
+                      <div class="inline-flex flex-col pl-2 pr-10">
+                        <div class="stat-chart-track inline-flex items-end gap-[3px] h-40"
+                             data-book-id="{{ s.book_id }}" data-book-name="{{ s.book_name }}"
+                             data-max="{{ s.max_secs }}">
+                          {% for d in s.days_list %}
+                          {% if d.secs > 0 %}
+                          <button type="button"
+                                  class="stat-bar-col flex flex-col items-center justify-end h-full shrink-0 group/bar focus:outline-none"
+                                  data-book-id="{{ s.book_id }}" data-book-name="{{ s.book_name }}"
+                                  data-date="{{ d.date }}" data-secs="{{ d.secs }}"
+                                  data-words="{{ d.words }}" data-fmt="{{ d.fmt }}">
+                            <div class="stat-bar w-4 sm:w-5 rounded-t bg-primary/70 group-hover/bar:bg-primary transition-colors"
+                                 style="height: {% widthratio d.secs s.max_secs 100 %}%"></div>
+                          </button>
+                          {% else %}
+                          <div class="stat-bar-col w-4 sm:w-5 h-full shrink-0" aria-hidden="true"></div>
+                          {% endif %}
+                          {% endfor %}
+                        </div>
+                        <div class="inline-flex gap-[3px] pt-1.5 border-t border-base-300/40 text-[10px] leading-none text-base-content/55 h-4">
+                          {% for d in s.days_list %}
+                          <div class="shrink-0 w-4 sm:w-5">
+                            {% if d.month_label %}<span class="block whitespace-nowrap">{{ d.month_label }}</span>{% endif %}
+                          </div>
+                          {% endfor %}
+                        </div>
+                      </div>
+                    </div>
+                    {% else %}
+                    <p class="text-sm text-base-content/45">无明细数据</p>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-base-content/45 py-16 text-center border-t border-base-200/60">
+          <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-base-200/70 flex items-center justify-center">
+            <iconify-icon icon="bi:bar-chart-line" class="text-2xl opacity-50"></iconify-icon>
+          </div>
+          <p class="text-base font-medium">暂无阅读统计</p>
+          <p class="text-sm text-base-content/45 mt-1">阅读后这里会显示统计记录</p>
+        </div>
+        {% endif %}
+
+      </div>
+    </div>
+  </div>
+
+</main>
+
+{% endblock %}
+
+{% block body-bottom %}
+
+<div id="stat-bar-tip" class="hidden fixed z-[90] px-3 py-2.5 rounded-lg bg-base-100 shadow-xl border border-base-300/70 text-sm" style="max-width: 240px;">
+  <div class="text-xs text-base-content/55 mb-1" id="stat-bar-tip-date"></div>
+  <div class="flex items-center gap-1.5 mb-1">
+    <iconify-icon icon="bi:clock"></iconify-icon>
+    <span class="font-semibold" id="stat-bar-tip-fmt"></span>
+  </div>
+  <div class="flex items-center gap-1.5 mb-2">
+    <iconify-icon icon="bi:card-text"></iconify-icon>
+    <span class="text-base-content/80"><span id="stat-bar-tip-words"></span> 字</span>
+  </div>
+  <button type="button" id="stat-bar-tip-del"
+          class="btn btn-xs btn-ghost btn-error gap-1 w-full">
+    <iconify-icon icon="bi:trash"></iconify-icon>删除该天
+  </button>
+</div>
+
+<script>
+(function() {
+  var csrf = '{{ csrf_token }}';
+  var delUrl = '{% url "reader:reading_stats_del" %}';
+
+  var EMPTY_STATE_HTML =
+    '<div class="text-base-content/45 py-16 text-center border-t border-base-200/60">' +
+    '<div class="w-16 h-16 mx-auto mb-4 rounded-full bg-base-200/70 flex items-center justify-center">' +
+    '<iconify-icon icon="bi:bar-chart-line" class="text-2xl opacity-50"></iconify-icon></div>' +
+    '<p class="text-base font-medium">暂无阅读统计</p>' +
+    '<p class="text-sm text-base-content/45 mt-1">阅读后这里会显示统计记录</p></div>';
+
+  function postDel(data, done) {
+    data.csrfmiddlewaretoken = csrf;
+    $.ajax({
+      url: delUrl, type: 'post', data: data,
+      success: function(resp) {
+        if (resp && resp.success) done(resp);
+        else notify((resp && resp.error) || '删除失败', 'error');
+      },
+      error: function() { notify('网络错误，删除失败', 'error'); }
+    });
+  }
+
+  // 展开/收起明细（点击书名标题或左侧箭头均可）
+  $('.stat-toggle').on('click', function() {
+    var $tr = $(this).closest('tr');
+    var $detail = $tr.next('.stat-detail');
+    var $caret = $tr.find('.stat-caret');
+    $detail.toggleClass('hidden');
+    $caret.css('transform', $detail.hasClass('hidden') ? '' : 'rotate(90deg)');
+  });
+
+  // 删除全书
+  $('.stat-del-book').on('click', function() {
+    var $btn = $(this);
+    var name = $btn.data('book-name');
+    var $row = $btn.closest('tr');
+    confirmDialog('确定删除《' + name + '》的全部阅读统计？\n此操作不可恢复。').then(function(ok) {
+      if (!ok) return;
+      $btn.prop('disabled', true);
+      postDel({ book_id: $btn.data('book-id'), book_name: name }, function(resp) {
+        notify('《' + name + '》统计已删除', 'success');
+        $row.add($row.next('.stat-detail')).fadeOut(200, function() {
+          $(this).remove();
+          var $cnt = $('#stats-count');
+          var n = (parseInt($cnt.text(), 10) || 0) - 1;
+          $cnt.text(n);
+          if (n === 0) $cnt.closest('.card').find('table').parent().replace(EMPTY_STATE_HTML);
+        });
+      });
+    });
+  });
+
+  // ---- 柱状图 tip ----
+  var $tip = $('#stat-bar-tip');
+  var $tipDate = $('#stat-bar-tip-date');
+  var $tipFmt = $('#stat-bar-tip-fmt');
+  var $tipWords = $('#stat-bar-tip-words');
+  var $tipDel = $('#stat-bar-tip-del');
+  var currentBar = null;
+  var hideTimer = null;
+
+  function cancelHide() { if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; } }
+  function scheduleHide() { cancelHide(); hideTimer = setTimeout(hideTip, 150); }
+
+  function rescaleTrack($track) {
+    var max = 0;
+    $track.find('.stat-bar-col').each(function() {
+      var s = parseInt($(this).data('secs'), 10) || 0;
+      if (s > max) max = s;
+    });
+    if (max < 1) max = 1;
+    $track.data('max', max);
+    $track.find('.stat-bar').each(function() {
+      var secs = parseInt($(this).parent().data('secs'), 10) || 0;
+      $(this).css('height', Math.round(secs * 100 / max) + '%');
+    });
+  }
+
+  function showTip($bar) {
+    cancelHide();
+    currentBar = $bar;
+    $tipDate.text($bar.data('date'));
+    $tipFmt.text($bar.data('fmt'));
+    $tipWords.text($bar.data('words'));
+    $tipDel.data('book-id', $bar.data('book-id'))
+           .data('book-name', $bar.data('book-name'))
+           .data('date', $bar.data('date'));
+    $tip.removeClass('hidden');
+    // 定位：tip 为 fixed，直接使用视口坐标
+    var rect = $bar[0].getBoundingClientRect();
+    var tw = $tip.outerWidth(), th = $tip.outerHeight();
+    var top = rect.top - th - 8;
+    var left = rect.left + rect.width / 2 - tw / 2;
+    if (top < 8) top = rect.bottom + 8; // 放下方
+    left = Math.max(8, Math.min(left, window.innerWidth - tw - 8));
+    $tip.css({ top: top, left: left });
+  }
+
+  function hideTip() {
+    cancelHide();
+    $tip.addClass('hidden');
+    currentBar = null;
+  }
+
+  // 悬停柱子即显示 tip（无统计的占位没有 data-secs，跳过）
+  $(document).on('mouseenter', '.stat-bar-col', function() {
+    if (!$(this).data('secs')) return;
+    showTip($(this));
+  });
+  $(document).on('mouseleave', '.stat-bar-col', function() {
+    if (!$(this).data('secs')) return;
+    scheduleHide();
+  });
+
+  // 鼠标移入 tip 时不隐藏，移出再隐藏
+  $tip.on('mouseenter', cancelHide).on('mouseleave', scheduleHide);
+
+  $(window).on('scroll resize', function() { if (currentBar) showTip(currentBar); });
+
+  // tip 内删除该天
+  $tipDel.on('click', function() {
+    if (!currentBar) return;
+    var $bar = currentBar;
+    var name = $bar.data('book-name');
+    var date = $bar.data('date');
+    var $track = $bar.closest('.stat-chart-track');
+    var $detailRow = $track.closest('tr.stat-detail');
+    var $bookRow = $detailRow.prev('[data-book-row]');
+    confirmDialog('删除《' + name + '》在 ' + date + ' 的统计记录？').then(function(ok) {
+      if (!ok) return;
+      postDel({ book_id: $bar.data('book-id'), book_name: name, date: date }, function(resp) {
+        notify(date + ' 记录已删除', 'success');
+        hideTip();
+        // 刷新该书的累计栏
+        $bookRow.find('[data-cell="fmt"]').text(resp.remaining_fmt);
+        $bookRow.find('[data-cell="words"]').text(resp.remaining_words);
+        $bookRow.find('[data-cell="days"]').text(resp.remaining_days);
+        $bookRow.find('[data-cell="lastdate"]').text(resp.remaining_last_date || '—');
+        $bar.fadeOut(200, function() {
+          $(this).remove();
+          if ($track.find('.stat-bar-col').length === 0) {
+            $track.closest('.stat-detail').find('.bg-base-200\\/30')
+              .html('<p class="text-sm text-base-content/45 py-4">无明细数据</p>');
+          } else {
+            rescaleTrack($track);
+          }
+        });
+        // 该书已无任何统计：移除整行
+        if (!resp.remaining_days && !resp.remaining_secs && !resp.remaining_words) {
+          $bookRow.add($detailRow).fadeOut(200, function() {
+            $(this).remove();
+            var $cnt = $('#stats-count');
+            var n = (parseInt($cnt.text(), 10) || 0) - 1;
+            $cnt.text(n);
+            if (n === 0) $cnt.closest('.card').find('table').parent().replaceWith(EMPTY_STATE_HTML);
+          });
+        }
+      });
+    });
+  });
+})();
+</script>
+
+{% endblock %}

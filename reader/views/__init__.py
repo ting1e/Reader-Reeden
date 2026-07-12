@@ -7,7 +7,7 @@ from .settings import (
     user_settings, user_settings_s3, user_settings_rule,
     user_settings_password, update_setting, set_theme,
 )
-from .stats import reading_stats
+from .stats import reading_stats, reading_stats_admin, reading_stats_del
 from .books import (
     BookListView, BookListRemoteView, IndexView,
     open_remote_book, book_admin, book_local_del, book_rechapter,

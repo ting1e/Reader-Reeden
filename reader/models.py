@@ -105,6 +105,11 @@ class BookListItem(models.Model):
 
 
 class ReadStat(models.Model):
+    # 注意：禁止为本表添加任何唯一约束（如 unique_together / UniqueConstraint）。
+    # 历史上曾有过 (user_id, book_id, date) 的 unique_together，已在 migration 0024 移除。
+    # upsert 逻辑（_upsert_readstat）依赖 "update 命中则累加，否则 create" 的模式，
+    # 若加回唯一约束，并发保存会产生 IntegrityError 而非幂等累加。
+    # 以后也不得添加唯一约束 —— 如需去重请另建去重任务/迁移，勿改表约束。
     user_id = models.IntegerField()
     book_id = models.IntegerField(default=0)
     book_name = models.CharField(max_length=128, default='')

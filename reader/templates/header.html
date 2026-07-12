@@ -26,6 +26,9 @@
       {% if request.resolver_match.url_name == 'bookmark_admin' %}
         <a role="tab" class="text-base tab tab-active font-medium"><iconify-icon icon="bi:bookmark-star" class="me-1.5"></iconify-icon>书签管理</a>
       {% endif %}
+      {% if request.resolver_match.url_name == 'reading_stats_admin' %}
+        <a role="tab" class="text-base tab tab-active font-medium"><iconify-icon icon="bi:bar-chart-line" class="me-1.5"></iconify-icon>阅读统计管理</a>
+      {% endif %}
       {% if request.resolver_match.url_name == 'upload_file' %}
         <a role="tab" class="text-base tab tab-active font-medium"><iconify-icon icon="bi:upload" class="me-1.5"></iconify-icon>上传书籍</a>
       {% endif %}
@@ -90,6 +93,7 @@
           <li><a href="{% url 'reader:book_admin' %}"><iconify-icon icon="bi:journal-text" class="text-xl opacity-70"></iconify-icon>书籍管理</a></li>
           <li><a href="{% url 'reader:bookmark_admin' %}"><iconify-icon icon="bi:bookmark-star" class="text-xl opacity-70"></iconify-icon>书签管理</a></li>
           <li><a href="{% url 'reader:booklist_admin' %}"><iconify-icon icon="bi:collection" class="text-xl opacity-70"></iconify-icon>书单管理</a></li>
+          <li><a href="{% url 'reader:reading_stats_admin' %}"><iconify-icon icon="bi:bar-chart-line" class="text-xl opacity-70"></iconify-icon>阅读统计管理</a></li>
           <li><a href="{% url 'reader:font_admin' %}"><iconify-icon icon="bi:fonts" class="text-xl opacity-70"></iconify-icon>字体管理</a></li>
           <li><a href="{% url 'reader:user_settings' %}"><iconify-icon icon="bi:person-gear" class="text-xl opacity-70"></iconify-icon>个人设置</a></li>
           <div class="divider my-1 h-px"></div>

@@ -8,33 +8,42 @@
   {% include 'header.html' %}
 
   <div class="container mx-auto px-4 py-4">
-    <div class="card bg-base-100 shadow-sm border border-base-200/70 mt-6 mb-5 overflow-hidden">
+    <div class="card bg-base-100 shadow-sm border border-base-200/70 mt-6 mb-5">
       <div class="card-body p-0">
-        <div class="p-5 sm:p-6 pb-4">
-          <h2 class="text-2xl font-bold tracking-tight flex items-center gap-2.5 mb-1">
-            <iconify-icon icon="bi:bar-chart-line"></iconify-icon>
-            阅读统计
-          </h2>
-          <p class="text-base text-base-content">追踪你的阅读时长和字数。</p>
+        <div class="p-5 sm:p-6 pb-4 flex items-start gap-4 flex-wrap justify-between">
+          <div class="flex-1 min-w-0">
+            <h2 class="text-2xl font-bold tracking-tight flex items-center gap-2.5 mb-1">
+              <iconify-icon icon="bi:bar-chart-line"></iconify-icon>
+              阅读统计
+            </h2>
+            <p class="text-base text-base-content">追踪你的阅读时长和字数。</p>
+          </div>
+          <a href="{% url 'reader:reading_stats_admin' %}" class="btn btn-sm btn-ghost gap-1 shrink-0">
+            <iconify-icon icon="bi:gear"></iconify-icon>管理
+          </a>
         </div>
 
         <!-- 概览卡片 -->
         <div class="px-5 sm:px-6 py-4 border-t border-base-200/60">
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
             <div class="rounded-lg bg-base-200/40 p-4">
-              <div class="text-xs text-base-content/60 mb-1">今日时长</div>
+              <div class="text-xs text-base-content/60 mb-1 flex items-center gap-1"><iconify-icon icon="bi:clock"></iconify-icon>今日时长</div>
               <div class="text-xl font-bold">{{ today_fmt }}</div>
             </div>
             <div class="rounded-lg bg-base-200/40 p-4">
-              <div class="text-xs text-base-content/60 mb-1">今日字数</div>
+              <div class="text-xs text-base-content/60 mb-1 flex items-center gap-1"><iconify-icon icon="bi:card-text"></iconify-icon>今日字数</div>
               <div class="text-xl font-bold">{{ today_words|default:"0" }}</div>
             </div>
             <div class="rounded-lg bg-base-200/40 p-4">
-              <div class="text-xs text-base-content/60 mb-1">累计时长</div>
+              <div class="text-xs text-base-content/60 mb-1 flex items-center gap-1"><iconify-icon icon="bi:clock"></iconify-icon>累计时长</div>
               <div class="text-xl font-bold">{{ total_fmt }}</div>
             </div>
             <div class="rounded-lg bg-base-200/40 p-4">
-              <div class="text-xs text-base-content/60 mb-1">已读书籍</div>
+              <div class="text-xs text-base-content/60 mb-1 flex items-center gap-1"><iconify-icon icon="bi:card-text"></iconify-icon>累计字数</div>
+              <div class="text-xl font-bold">{{ total_words|default:"0" }}</div>
+            </div>
+            <div class="rounded-lg bg-base-200/40 p-4">
+              <div class="text-xs text-base-content/60 mb-1 flex items-center gap-1"><iconify-icon icon="bi:book"></iconify-icon>已读书籍</div>
               <div class="text-xl font-bold">{{ total_books }}</div>
             </div>
           </div>
@@ -44,14 +53,18 @@
         <div class="px-5 sm:px-6 py-4 border-t border-base-200/60">
           <h3 class="text-base font-bold mb-3 flex items-center gap-2">
             <iconify-icon icon="bi:calendar-week"></iconify-icon>最近 30 天
-            <span class="text-xs font-normal text-base-content/55">{{ month30_total_fmt }} · {{ month30_total_words }} 字</span>
+            <span class="text-xs font-normal text-base-content/55 flex items-center gap-1.5"><span class="flex items-center gap-1"><iconify-icon icon="bi:clock"></iconify-icon>{{ month30_total_fmt }}</span>·<span class="flex items-center gap-1"><iconify-icon icon="bi:card-text"></iconify-icon>{{ month30_total_words }} 字</span></span>
           </h3>
           <div class="flex flex-wrap gap-1.5">
             {% for day in calendar_30 %}
             {% if forloop.counter0 > 0 and day.weekday == 0 %}<div class="w-0.5 h-6 self-center bg-base-content/40 rounded-full"></div>{% endif %}
             <div class="group relative w-7 h-7 rounded transition-all hover:scale-125 hover:brightness-110 hover:z-10 {% if day.level == 0 %}bg-base-200/60{% elif day.level == 1 %}bg-primary/20{% elif day.level == 2 %}bg-primary/40{% elif day.level == 3 %}bg-primary/60{% else %}bg-primary/80{% endif %}">
-              <div class="absolute bottom-full left-0 mb-2 px-2 py-1 rounded bg-base-300 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg">
-                {{ day.date|slice:"5:" }} · {{ day.fmt }} · {{ day.words }} 字
+              <div class="absolute bottom-full left-0 mb-2 px-2 py-1 rounded bg-base-300 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg flex items-center gap-1.5">
+                <span>{{ day.date|slice:"5:" }}</span>
+                <span>·</span>
+                <span class="flex items-center gap-1"><iconify-icon icon="bi:clock"></iconify-icon>{{ day.fmt }}</span>
+                <span>·</span>
+                <span class="flex items-center gap-1"><iconify-icon icon="bi:card-text"></iconify-icon>{{ day.words }} 字</span>
               </div>
             </div>
             {% endfor %}
@@ -71,7 +84,7 @@
         <div class="px-5 sm:px-6 py-6 border-t border-base-200/60">
           <h3 class="text-base font-bold mb-3 flex items-center gap-2">
             <iconify-icon icon="bi:calendar2-month"></iconify-icon>近一年阅读
-            <span class="text-xs font-normal text-base-content/55">{{ year_total_fmt }} · {{ year_total_words }} 字</span>
+            <span class="text-xs font-normal text-base-content/55 flex items-center gap-1.5"><span class="flex items-center gap-1"><iconify-icon icon="bi:clock"></iconify-icon>{{ year_total_fmt }}</span>·<span class="flex items-center gap-1"><iconify-icon icon="bi:card-text"></iconify-icon>{{ year_total_words }} 字</span></span>
           </h3>
           <div class="w-[90%] mx-auto">
             <!-- 月份标签行 -->
@@ -92,7 +105,7 @@
               {% for col in year_columns %}
               {% with day=col.0 %}
               <div class="aspect-square rounded-sm {% if not day %}opacity-0{% elif day.level == 0 %}bg-base-200/60{% elif day.level == 1 %}bg-primary/20{% elif day.level == 2 %}bg-primary/40{% elif day.level == 3 %}bg-primary/60{% else %}bg-primary/80{% endif %} group relative transition-all hover:scale-125 hover:brightness-110 hover:z-10">
-                {% if day %}<div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 rounded bg-base-300 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg">{{ day.date }} · {{ day.fmt }} · {{ day.words }} 字</div>{% endif %}
+                {% if day %}<div class="absolute bottom-full mb-1 px-2 py-1 rounded bg-base-300 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-lg flex items-center gap-1.5 {% if forloop.counter0 < 4 %}left-0{% elif forloop.revcounter0 < 4 %}right-0{% else %}left-1/2 -translate-x-1/2{% endif %}"><span>{{ day.date }}</span><span>·</span><span class="flex items-center gap-1"><iconify-icon icon="bi:clock"></iconify-icon>{{ day.fmt }}</span><span>·</span><span class="flex items-center gap-1"><iconify-icon icon="bi:card-text"></iconify-icon>{{ day.words }} 字</span></div>{% endif %}
               </div>
               {% endwith %}
               {% endfor %}
@@ -101,7 +114,7 @@
               {% for col in year_columns %}
               {% with day=col.1 %}
               <div class="aspect-square rounded-sm {% if not day %}opacity-0{% elif day.level == 0 %}bg-base-200/60{% elif day.level == 1 %}bg-primary/20{% elif day.level == 2 %}bg-primary/40{% elif day.level == 3 %}bg-primary/60{% else %}bg-primary/80{% endif %} group relative transition-all hover:scale-125 hover:brightness-110 hover:z-10">
-                {% if day %}<div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 rounded bg-base-300 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg">{{ day.date }} · {{ day.fmt }} · {{ day.words }} 字</div>{% endif %}
+                {% if day %}<div class="absolute bottom-full mb-1 px-2 py-1 rounded bg-base-300 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-lg flex items-center gap-1.5 {% if forloop.counter0 < 4 %}left-0{% elif forloop.revcounter0 < 4 %}right-0{% else %}left-1/2 -translate-x-1/2{% endif %}"><span>{{ day.date }}</span><span>·</span><span class="flex items-center gap-1"><iconify-icon icon="bi:clock"></iconify-icon>{{ day.fmt }}</span><span>·</span><span class="flex items-center gap-1"><iconify-icon icon="bi:card-text"></iconify-icon>{{ day.words }} 字</span></div>{% endif %}
               </div>
               {% endwith %}
               {% endfor %}
@@ -110,7 +123,7 @@
               {% for col in year_columns %}
               {% with day=col.2 %}
               <div class="aspect-square rounded-sm {% if not day %}opacity-0{% elif day.level == 0 %}bg-base-200/60{% elif day.level == 1 %}bg-primary/20{% elif day.level == 2 %}bg-primary/40{% elif day.level == 3 %}bg-primary/60{% else %}bg-primary/80{% endif %} group relative transition-all hover:scale-125 hover:brightness-110 hover:z-10">
-                {% if day %}<div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 rounded bg-base-300 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg">{{ day.date }} · {{ day.fmt }} · {{ day.words }} 字</div>{% endif %}
+                {% if day %}<div class="absolute bottom-full mb-1 px-2 py-1 rounded bg-base-300 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-lg flex items-center gap-1.5 {% if forloop.counter0 < 4 %}left-0{% elif forloop.revcounter0 < 4 %}right-0{% else %}left-1/2 -translate-x-1/2{% endif %}"><span>{{ day.date }}</span><span>·</span><span class="flex items-center gap-1"><iconify-icon icon="bi:clock"></iconify-icon>{{ day.fmt }}</span><span>·</span><span class="flex items-center gap-1"><iconify-icon icon="bi:card-text"></iconify-icon>{{ day.words }} 字</span></div>{% endif %}
               </div>
               {% endwith %}
               {% endfor %}
@@ -119,7 +132,7 @@
               {% for col in year_columns %}
               {% with day=col.3 %}
               <div class="aspect-square rounded-sm {% if not day %}opacity-0{% elif day.level == 0 %}bg-base-200/60{% elif day.level == 1 %}bg-primary/20{% elif day.level == 2 %}bg-primary/40{% elif day.level == 3 %}bg-primary/60{% else %}bg-primary/80{% endif %} group relative transition-all hover:scale-125 hover:brightness-110 hover:z-10">
-                {% if day %}<div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 rounded bg-base-300 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg">{{ day.date }} · {{ day.fmt }} · {{ day.words }} 字</div>{% endif %}
+                {% if day %}<div class="absolute bottom-full mb-1 px-2 py-1 rounded bg-base-300 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-lg flex items-center gap-1.5 {% if forloop.counter0 < 4 %}left-0{% elif forloop.revcounter0 < 4 %}right-0{% else %}left-1/2 -translate-x-1/2{% endif %}"><span>{{ day.date }}</span><span>·</span><span class="flex items-center gap-1"><iconify-icon icon="bi:clock"></iconify-icon>{{ day.fmt }}</span><span>·</span><span class="flex items-center gap-1"><iconify-icon icon="bi:card-text"></iconify-icon>{{ day.words }} 字</span></div>{% endif %}
               </div>
               {% endwith %}
               {% endfor %}
@@ -128,7 +141,7 @@
               {% for col in year_columns %}
               {% with day=col.4 %}
               <div class="aspect-square rounded-sm {% if not day %}opacity-0{% elif day.level == 0 %}bg-base-200/60{% elif day.level == 1 %}bg-primary/20{% elif day.level == 2 %}bg-primary/40{% elif day.level == 3 %}bg-primary/60{% else %}bg-primary/80{% endif %} group relative transition-all hover:scale-125 hover:brightness-110 hover:z-10">
-                {% if day %}<div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 rounded bg-base-300 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg">{{ day.date }} · {{ day.fmt }} · {{ day.words }} 字</div>{% endif %}
+                {% if day %}<div class="absolute bottom-full mb-1 px-2 py-1 rounded bg-base-300 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-lg flex items-center gap-1.5 {% if forloop.counter0 < 4 %}left-0{% elif forloop.revcounter0 < 4 %}right-0{% else %}left-1/2 -translate-x-1/2{% endif %}"><span>{{ day.date }}</span><span>·</span><span class="flex items-center gap-1"><iconify-icon icon="bi:clock"></iconify-icon>{{ day.fmt }}</span><span>·</span><span class="flex items-center gap-1"><iconify-icon icon="bi:card-text"></iconify-icon>{{ day.words }} 字</span></div>{% endif %}
               </div>
               {% endwith %}
               {% endfor %}
@@ -137,7 +150,7 @@
               {% for col in year_columns %}
               {% with day=col.5 %}
               <div class="aspect-square rounded-sm {% if not day %}opacity-0{% elif day.level == 0 %}bg-base-200/60{% elif day.level == 1 %}bg-primary/20{% elif day.level == 2 %}bg-primary/40{% elif day.level == 3 %}bg-primary/60{% else %}bg-primary/80{% endif %} group relative transition-all hover:scale-125 hover:brightness-110 hover:z-10">
-                {% if day %}<div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 rounded bg-base-300 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg">{{ day.date }} · {{ day.fmt }} · {{ day.words }} 字</div>{% endif %}
+                {% if day %}<div class="absolute bottom-full mb-1 px-2 py-1 rounded bg-base-300 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-lg flex items-center gap-1.5 {% if forloop.counter0 < 4 %}left-0{% elif forloop.revcounter0 < 4 %}right-0{% else %}left-1/2 -translate-x-1/2{% endif %}"><span>{{ day.date }}</span><span>·</span><span class="flex items-center gap-1"><iconify-icon icon="bi:clock"></iconify-icon>{{ day.fmt }}</span><span>·</span><span class="flex items-center gap-1"><iconify-icon icon="bi:card-text"></iconify-icon>{{ day.words }} 字</span></div>{% endif %}
               </div>
               {% endwith %}
               {% endfor %}
@@ -146,7 +159,7 @@
               {% for col in year_columns %}
               {% with day=col.6 %}
               <div class="aspect-square rounded-sm {% if not day %}opacity-0{% elif day.level == 0 %}bg-base-200/60{% elif day.level == 1 %}bg-primary/20{% elif day.level == 2 %}bg-primary/40{% elif day.level == 3 %}bg-primary/60{% else %}bg-primary/80{% endif %} group relative transition-all hover:scale-125 hover:brightness-110 hover:z-10">
-                {% if day %}<div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 rounded bg-base-300 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg">{{ day.date }} · {{ day.fmt }} · {{ day.words }} 字</div>{% endif %}
+                {% if day %}<div class="absolute bottom-full mb-1 px-2 py-1 rounded bg-base-300 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-lg flex items-center gap-1.5 {% if forloop.counter0 < 4 %}left-0{% elif forloop.revcounter0 < 4 %}right-0{% else %}left-1/2 -translate-x-1/2{% endif %}"><span>{{ day.date }}</span><span>·</span><span class="flex items-center gap-1"><iconify-icon icon="bi:clock"></iconify-icon>{{ day.fmt }}</span><span>·</span><span class="flex items-center gap-1"><iconify-icon icon="bi:card-text"></iconify-icon>{{ day.words }} 字</span></div>{% endif %}
               </div>
               {% endwith %}
               {% endfor %}
@@ -176,7 +189,7 @@
               <div class="flex-1 min-w-0">
                 <div class="flex items-center justify-between gap-2 mb-1">
                   <span class="text-sm font-medium truncate">{{ book.book_name|default:"已删除" }}</span>
-                  <span class="text-xs text-base-content/60 shrink-0">{{ book.fmt }} · {{ book.words }} 字</span>
+                  <span class="text-xs text-base-content/60 shrink-0 flex items-center gap-1"><iconify-icon icon="bi:clock"></iconify-icon>{{ book.fmt }}<span class="mx-0.5">·</span><iconify-icon icon="bi:card-text"></iconify-icon>{{ book.words }} 字</span>
                 </div>
                 <div class="h-2 bg-base-200 rounded-full overflow-hidden">
                   <div class="h-full bg-primary/60 rounded-full" style="width: {% if today_top_books.0.secs > 0 %}{% widthratio book.secs today_top_books.0.secs 100 %}{% else %}0{% endif %}%;"></div>
@@ -201,17 +214,51 @@
           {% if top_books %}
           <div class="flex flex-col gap-3">
             {% for book in top_books %}
-            <div class="flex items-center gap-3">
-              <span class="text-sm font-bold text-base-content/40 w-5 shrink-0">{{ forloop.counter }}</span>
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center justify-between gap-2 mb-1">
-                  <span class="text-sm font-medium truncate">{{ book.book_name|default:"已删除" }}</span>
-                  <span class="text-xs text-base-content/60 shrink-0">{{ book.fmt }} · {{ book.words }} 字</span>
-                </div>
-                <div class="h-2 bg-base-200 rounded-full overflow-hidden">
-                  <div class="h-full bg-primary/60 rounded-full" style="width: {% if top_books.0.secs > 0 %}{% widthratio book.secs top_books.0.secs 100 %}{% else %}0{% endif %}%;"></div>
+            <div class="rounded-lg" data-book-row>
+              <div class="flex items-center gap-3 cursor-pointer stat-toggle hover:bg-base-200/40 rounded-lg px-1 -mx-1 py-0.5 transition-colors">
+                <span class="text-sm font-bold text-base-content/40 w-5 shrink-0">{{ forloop.counter }}</span>
+                <iconify-icon icon="bi:caret-right-fill" class="stat-caret text-[0.6rem] text-base-content/40 shrink-0 transition-transform"></iconify-icon>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center justify-between gap-2 mb-1">
+                    <span class="text-sm font-medium truncate">{{ book.book_name|default:"已删除" }}</span>
+                    <span class="text-xs text-base-content/60 shrink-0 flex items-center gap-1"><iconify-icon icon="bi:clock"></iconify-icon>{{ book.fmt }}<span class="mx-0.5">·</span><iconify-icon icon="bi:card-text"></iconify-icon>{{ book.words }} 字</span>
+                  </div>
+                  <div class="h-2 bg-base-200 rounded-full overflow-hidden">
+                    <div class="h-full bg-primary/60 rounded-full" style="width: {% if top_books.0.secs > 0 %}{% widthratio book.secs top_books.0.secs 100 %}{% else %}0{% endif %}%;"></div>
+                  </div>
                 </div>
               </div>
+              {% if book.days_list %}
+              <div class="stat-detail hidden mt-2 pl-8">
+                <div class="overflow-x-auto pb-1 w-full min-w-0">
+                  <div class="inline-flex flex-col pl-2 pr-10">
+                    <div class="stat-chart-track inline-flex items-end gap-[3px] h-32"
+                         data-max="{{ book.max_secs }}">
+                      {% for d in book.days_list %}
+                      {% if d.secs > 0 %}
+                      <button type="button"
+                              class="stat-bar-col flex flex-col items-center justify-end h-full shrink-0 group/bar focus:outline-none"
+                              data-date="{{ d.date }}" data-secs="{{ d.secs }}"
+                              data-words="{{ d.words }}" data-fmt="{{ d.fmt }}">
+                        <div class="stat-bar w-4 sm:w-5 rounded-t bg-primary/70 group-hover/bar:bg-primary transition-colors"
+                             style="height: {% widthratio d.secs book.max_secs 100 %}%"></div>
+                      </button>
+                      {% else %}
+                      <div class="stat-bar-col w-4 sm:w-5 h-full shrink-0" aria-hidden="true"></div>
+                      {% endif %}
+                      {% endfor %}
+                    </div>
+                    <div class="inline-flex gap-[3px] pt-1.5 border-t border-base-300/40 text-[10px] leading-none text-base-content/55 h-4">
+                      {% for d in book.days_list %}
+                      <div class="shrink-0 w-4 sm:w-5">
+                        {% if d.month_label %}<span class="block whitespace-nowrap">{{ d.month_label }}</span>{% endif %}
+                      </div>
+                      {% endfor %}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {% endif %}
             </div>
             {% endfor %}
           </div>
@@ -228,5 +275,81 @@
   </div>
 
 </main>
+
+{% endblock %}
+
+{% block body-bottom %}
+
+<div id="stat-bar-tip" class="hidden fixed z-[90] px-3 py-2.5 rounded-lg bg-base-100 shadow-xl border border-base-300/70 text-sm" style="max-width: 240px;">
+  <div class="text-xs text-base-content/55 mb-1" id="stat-bar-tip-date"></div>
+  <div class="flex items-center gap-1.5 mb-1">
+    <iconify-icon icon="bi:clock"></iconify-icon>
+    <span class="font-semibold" id="stat-bar-tip-fmt"></span>
+  </div>
+  <div class="flex items-center gap-1.5">
+    <iconify-icon icon="bi:card-text"></iconify-icon>
+    <span class="text-base-content/80"><span id="stat-bar-tip-words"></span> 字</span>
+  </div>
+</div>
+
+<script>
+(function() {
+  var $tip = $('#stat-bar-tip');
+  var $tipDate = $('#stat-bar-tip-date');
+  var $tipFmt = $('#stat-bar-tip-fmt');
+  var $tipWords = $('#stat-bar-tip-words');
+  var currentBar = null;
+  var hideTimer = null;
+
+  function cancelHide() { if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; } }
+  function scheduleHide() { cancelHide(); hideTimer = setTimeout(hideTip, 150); }
+
+  function showTip($bar) {
+    cancelHide();
+    currentBar = $bar;
+    $tipDate.text($bar.data('date'));
+    $tipFmt.text($bar.data('fmt'));
+    $tipWords.text($bar.data('words'));
+    $tip.removeClass('hidden');
+    var rect = $bar[0].getBoundingClientRect();
+    var tw = $tip.outerWidth(), th = $tip.outerHeight();
+    var top = rect.top - th - 8;
+    var left = rect.left + rect.width / 2 - tw / 2;
+    if (top < 8) top = rect.bottom + 8;
+    left = Math.max(8, Math.min(left, window.innerWidth - tw - 8));
+    $tip.css({ top: top, left: left });
+  }
+
+  function hideTip() {
+    cancelHide();
+    $tip.addClass('hidden');
+    currentBar = null;
+  }
+
+  // 展开/收起柱状图
+  $('.stat-toggle').on('click', function() {
+    var $row = $(this).closest('[data-book-row]');
+    var $detail = $row.find('.stat-detail');
+    var $caret = $row.find('.stat-caret');
+    $detail.toggleClass('hidden');
+    $caret.css('transform', $detail.hasClass('hidden') ? '' : 'rotate(90deg)');
+  });
+
+  // 悬停柱子显示 tip（无统计的占位无 data-secs，跳过）
+  $(document).on('mouseenter', '.stat-bar-col', function() {
+    if (!$(this).data('secs')) return;
+    showTip($(this));
+  });
+  $(document).on('mouseleave', '.stat-bar-col', function() {
+    if (!$(this).data('secs')) return;
+    scheduleHide();
+  });
+  $tip.on('mouseenter', cancelHide).on('mouseleave', scheduleHide);
+  $(document).on('click', function(e) {
+    if (!$(e.target).closest('#stat-bar-tip, .stat-bar-col').length) hideTip();
+  });
+  $(window).on('scroll resize', function() { if (currentBar) showTip(currentBar); });
+})();
+</script>
 
 {% endblock %}
