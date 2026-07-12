@@ -15,6 +15,8 @@ var initial_last_words = last_words;
 // ===== 章节缓存系统 =====
 const chapterCache = new Map();
 const PRELOAD_RANGE = 10;
+const SLIDE_KEEP_RANGE = 3;
+const SLIDE_LOAD_AHEAD_SCREENS = 1.5;
 
 function getChapterUrl(chapterId) {
     return url_chapter_content.replace('/0/', '/' + chapterId + '/');
@@ -201,6 +203,28 @@ $('.article-container').on('click wheel', function() {
     if (autoReadActive) pauseAutoReadByUser();
 });
 
+// ===== 翻页模式：鼠标滚轮 / 左右键翻页 =====
+// 复用 .next-page / .prev-page 按钮的委托处理器，自动处理跨章节边界与 save_record()
+var pageWheelLockTimer = null;
+$('.article-container').on('wheel', function(e) {
+    if (read_mode !== 'page') return;
+    var dy = e.originalEvent.deltaY;
+    if (dy === 0) return;
+    if (pageWheelLockTimer) return;  // 300ms 节流，防止一次滚动跳多页
+    pageWheelLockTimer = setTimeout(function() { pageWheelLockTimer = null; }, 300);
+    if (dy > 0) $('.next-page').click();   // 下滑 → 下一页
+    else $('.prev-page').click();          // 上滑 → 上一页
+});
+$('.article-container').on('click', function() {
+    if (read_mode !== 'page') return;
+    $('.next-page').click();   // 左键点击 → 下一页
+});
+$('.article-container').on('contextmenu', function(e) {
+    if (read_mode !== 'page') return;
+    e.preventDefault();         // 屏蔽系统右键菜单
+    $('.prev-page').click();    // 右键点击 → 上一页
+});
+
 // ===== 滑动模式：章节挂载 / 视口补偿 =====
 var slideLoadedChapters = new Set();
 
@@ -227,12 +251,14 @@ function appendSlideChapter(id)  { return mountSlideChapter(id, 'append'); }
 function prependSlideChapter(id) { return mountSlideChapter(id, 'prepend'); }
 
 // 按方向确保视口前后章节都已挂载；dir='append' 处理下方，'prepend' 处理上方
+// 提前加载：距离底部/顶部约 SLIDE_LOAD_AHEAD_SCREENS 个视口高度时即挂载相邻章节
 function ensureSlideChapters(dir) {
     var c = $('.article-container')[0];
     if (!c) return;
+    var ahead = c.clientHeight * SLIDE_LOAD_AHEAD_SCREENS;
     var needMore = dir === 'append'
-        ? function() { return c.scrollTop + c.clientHeight >= c.scrollHeight - 300; }
-        : function() { return c.scrollTop < 300; };
+        ? function() { return c.scrollTop + c.clientHeight >= c.scrollHeight - ahead; }
+        : function() { return c.scrollTop < ahead; };
 
     while (needMore()) {
         var $arts = $('.article-container article[data-chapter-id]');
@@ -252,6 +278,37 @@ function ensureSlideChapters(dir) {
 }
 function ensureSlideAppend()  { ensureSlideChapters('append'); }
 function ensureSlidePrepend() { ensureSlideChapters('prepend'); }
+
+// 裁剪 DOM 中远离当前章节的 article，防止滑动模式下 DOM 无限增长
+// 保留当前章节前后 keepRange 章内的 article；视口内可见的 article 始终保留
+function pruneSlideDom(currentId, keepRange) {
+    var c = $('.article-container')[0];
+    if (!c) return;
+    var curIdx = chapterIdx(currentId);
+    if (curIdx === -1) return;
+    var keepStart = Math.max(0, curIdx - keepRange);
+    var keepEnd = Math.min(chapter_ids.length - 1, curIdx + keepRange);
+    var $container = $('.article-container');
+    var containerTop = $container.offset().top;
+    var viewTop = c.scrollTop;
+    var viewBottom = c.scrollTop + c.clientHeight;
+    var removedAboveHeight = 0;
+    $('.article-container article[data-chapter-id]').each(function() {
+        var id = parseInt($(this).attr('data-chapter-id'));
+        var idx = chapterIdx(id);
+        if (idx === -1) return;                  // 未知章节，保留
+        if (idx >= keepStart && idx <= keepEnd) return;  // 保留窗口内
+        var artTopInContent = ($(this).offset().top - containerTop) + c.scrollTop;
+        var artBottomInContent = artTopInContent + this.offsetHeight;
+        var fullyAbove = artBottomInContent <= viewTop + 1;
+        var fullyBelow = artTopInContent >= viewBottom - 1;
+        if (!fullyAbove && !fullyBelow) return;   // 视口内可见，保留
+        if (fullyAbove) removedAboveHeight += this.offsetHeight;
+        $(this).remove();
+        slideLoadedChapters.delete(id);
+    });
+    if (removedAboveHeight > 0) c.scrollTop -= removedAboveHeight;
+}
 
 function initSlideMode() {
     $('article').css('transform', 'translateX(0px)');
@@ -559,6 +616,7 @@ $('.article-container').on('scroll', function() {
             if ($h3.length) chapter_title = $h3.text().trim();
             updateChapterDisplay();
             highlightChapter(chapter_id);
+            pruneSlideDom(chapter_id, SLIDE_KEEP_RANGE);
         }
     }
     ensureSlideAppend();
@@ -1038,8 +1096,10 @@ function loadChapterFromCache(chapterId, offset) {
         if (restorePrevChapter) {
             $('.article-container').scrollTop($('.article-container')[0].scrollHeight);
             localStorage.removeItem('prev-chapter');
-        } else if (useOffset) {
+        } else if (useOffset && offset > 0) {
             restoreSlideOffset(offset);
+        } else {
+            $('.article-container').scrollTop(0);
         }
     } else {
         $('.article-container').html(cached.chapter_view);
