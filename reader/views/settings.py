@@ -136,6 +136,22 @@ def update_setting(request):
     font_weight = (request.POST.get('font_weight') or '').strip()
     if font_weight and font_weight not in ('100','200','300','400','500','600','700','800','900','normal','bold','lighter','bolder'):
         return HttpResponse('invalid font_weight')
+    try:
+        page_width = int(request.POST.get('setting_page_width', 0) or 0)
+    except (TypeError, ValueError):
+        return HttpResponse('invalid page_width')
+    if not 0 <= page_width <= 1600:
+        return HttpResponse('invalid page_width')
+    if page_width < 200:
+        page_width = 0
+    try:
+        page_height = int(request.POST.get('setting_page_height', 0) or 0)
+    except (TypeError, ValueError):
+        return HttpResponse('invalid page_height')
+    if not 0 <= page_height <= 1200:
+        return HttpResponse('invalid page_height')
+    if page_height < 200:
+        page_height = 0
     UserSetting.objects.update_or_create(
         user_id=request.user.id,
         defaults={
@@ -147,6 +163,8 @@ def update_setting(request):
             'letter_spacing': letter_spacing,
             'line_height': line_height,
             'font_weight': font_weight,
+            'page_width': page_width,
+            'page_height': page_height,
         },
     )
     return HttpResponse('ok')

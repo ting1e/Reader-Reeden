@@ -39,6 +39,32 @@ function applyTypographyToArticle($el) {
     $target.css('line-height', lineHeight > 0 ? lineHeight : '');
 }
 
+// ===== 页面尺寸应用 =====
+var PAGE_SIZE_MIN = 200;
+var pageNavBuffer = 80;
+function measurePageNavHeight() {
+    var $nav = $('.page-nav');
+    if ($nav.length) {
+        var h = Math.ceil($nav.outerHeight(false) || 0);
+        if (h > 0) pageNavBuffer = h;
+    }
+}
+function applyPageSize() {
+    var w = parseInt($('#setting-page-width').val()) || 0;
+    var h = parseInt($('#setting-page-height').val()) || 0;
+    var $c = $('.article-container');
+    $c.css('max-width', w >= PAGE_SIZE_MIN ? w + 'px' : 'none');
+    $c.css('margin-left', w >= PAGE_SIZE_MIN ? 'auto' : '');
+    $c.css('margin-right', w >= PAGE_SIZE_MIN ? 'auto' : '');
+    $c.css('height', h >= PAGE_SIZE_MIN ? h + 'px' : '');
+    $c.css('max-height', h >= PAGE_SIZE_MIN ? 'calc(100% - ' + pageNavBuffer + 'px)' : '');
+    $c.css('flex', h >= PAGE_SIZE_MIN ? 'none' : '1 1 0%');
+    $('.page-nav').css('margin-top', h >= PAGE_SIZE_MIN ? 'auto' : '0');
+}
+
+function pageWidthLabel(v) { return v >= PAGE_SIZE_MIN ? v + 'px' : '默认'; }
+function pageHeightLabel(v) { return v >= PAGE_SIZE_MIN ? v + 'px' : '默认'; }
+
 // ===== 章节高亮（侧栏目录项） =====
 var CHAPTER_ACTIVE_CLASSES = 'active bg-base-content text-base-100 font-medium';
 function highlightChapter(id) {
@@ -569,6 +595,8 @@ function save_record(callback) {
 applyReadMode();
 updateModeButtons();
 if (read_mode === 'slide') initSlideMode();
+measurePageNavHeight();
+applyPageSize();
 reinitPages();
 
 // ===== 上下章按钮 =====
@@ -727,6 +755,8 @@ function collectSettings() {
         letter_spacing: $('#setting-letter-spacing').val() || '0',
         line_height: $('#setting-line-height').val() || '1.2',
         font_weight: $('#setting-font-weight').val() || '',
+        setting_page_width: $('#setting-page-width').val() || '0',
+        setting_page_height: $('#setting-page-height').val() || '0',
         csrfmiddlewaretoken: csrf_token
     };
 }
@@ -775,6 +805,38 @@ bindRangePreview('#setting-letter-spacing', '#setting-letter-spacing-val',
 bindRangePreview('#setting-line-height', '#setting-line-height-val',
     function(val) { $('article').css('line-height', val > 0 ? val : ''); },
     function(val) { return val > 0 ? val.toFixed(1) : '默认'; });
+
+// 页宽 / 页高：input 实时预览（不重算分页，避免拖动卡顿），change 时重算分页并保存
+$('#setting-page-width').on('input', function() {
+    var v = parseInt($(this).val()) || 0;
+    $('#setting-page-width-val').text(pageWidthLabel(v));
+    applyPageSize();
+});
+$('#setting-page-height').on('input', function() {
+    var v = parseInt($(this).val()) || 0;
+    $('#setting-page-height-val').text(pageHeightLabel(v));
+    applyPageSize();
+});
+$('#setting-page-width, #setting-page-height').on('change', function() {
+    var off = currentWordsRead();
+    applyPageSize();
+    if (read_mode !== 'slide') { reinitPages(); goToPageByOffset(off); }
+    saveSettings();
+});
+
+// 窗口缩放：重测 page-nav 高度并重算阅读区尺寸（翻页模式按进度恢复页位）
+var pageSizeResizeTimer = null;
+$(window).on('resize', function() {
+    if (pageSizeResizeTimer) clearTimeout(pageSizeResizeTimer);
+    pageSizeResizeTimer = setTimeout(function() {
+        var prevBuf = pageNavBuffer;
+        measurePageNavHeight();
+        if (pageNavBuffer === prevBuf) return;
+        var off = currentWordsRead();
+        applyPageSize();
+        if (read_mode !== 'slide') { reinitPages(); goToPageByOffset(off); }
+    }, 200);
+});
 
 // 阅读模式切换：先保存模式设置，再保存当前进度，最后按目标模式恢复
 $('.mode-setting').click(function() {

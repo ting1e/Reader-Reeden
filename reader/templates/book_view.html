@@ -57,6 +57,13 @@ article{ line-height: {{ user_setting.line_height }}; }
 {% if user_setting.font_weight %}
 article{ font-weight: {{ user_setting.font_weight }}; }
 {% endif %}
+{% if user_setting.page_width and user_setting.page_width >= 200 %}
+.article-container{ max-width:{{user_setting.page_width}}px; margin-left:auto; margin-right:auto; }
+{% endif %}
+{% if user_setting.page_height and user_setting.page_height >= 200 %}
+.article-container, .read-mode-slide .article-container{ height:{{user_setting.page_height}}px; max-height:calc(100% - 80px); flex:none; }
+.page-nav{ margin-top:auto; }
+{% endif %}
 {% endif %}
 
 </style>
@@ -188,8 +195,31 @@ article{ font-weight: {{ user_setting.font_weight }}; }
                         <div class="flex items-center justify-between gap-3">
                             <span class="text-base text-base-content/70 shrink-0 w-10">行距</span>
                             <div class="flex items-center gap-2 flex-1">
-                                <input type="range" min="0" max="3" step="0.1" value="{{ user_setting.line_height|default:'1.2' }}" class="range range-xs flex-1 [--range-fill:0]" id="setting-line-height">
+                                <input type="range" min="0" max="6" step="0.1" value="{{ user_setting.line_height|default:'1.2' }}" class="range range-xs flex-1 [--range-fill:0]" id="setting-line-height">
                                 <span class="text-base w-8 text-center" id="setting-line-height-val">{% if user_setting.line_height %}{{ user_setting.line_height }}{% else %}默认{% endif %}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="divider my-0 h-0"></div>
+
+                    <!-- 页面 -->
+                    <div class="flex flex-col gap-2.5">
+                        <div class="text-sm font-bold uppercase tracking-widest text-base-content/40 border-b border-base-200 pb-1">页面</div>
+
+                        <div class="flex items-center justify-between gap-3">
+                            <span class="text-base text-base-content/70 shrink-0 w-10">页宽</span>
+                            <div class="flex items-center gap-2 flex-1">
+                                <input type="range" min="0" max="1600" step="20" value="{{ user_setting.page_width|default:'0' }}" class="range range-xs flex-1 [--range-fill:0]" id="setting-page-width">
+                                <span class="text-base w-10 text-center" id="setting-page-width-val">{% if user_setting.page_width and user_setting.page_width >= 200 %}{{ user_setting.page_width }}px{% else %}默认{% endif %}</span>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between gap-3">
+                            <span class="text-base text-base-content/70 shrink-0 w-10">页高</span>
+                            <div class="flex items-center gap-2 flex-1">
+                                <input type="range" min="0" max="1200" step="20" value="{{ user_setting.page_height|default:'0' }}" class="range range-xs flex-1 [--range-fill:0]" id="setting-page-height">
+                                <span class="text-base w-10 text-center" id="setting-page-height-val">{% if user_setting.page_height and user_setting.page_height >= 200 %}{{ user_setting.page_height }}px{% else %}默认{% endif %}</span>
                             </div>
                         </div>
                     </div>
