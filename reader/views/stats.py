@@ -40,13 +40,16 @@ def _level(secs, max_secs):
 
 
 def _resolve_name(t, book_map):
-    """统一解析 books 聚合行的展示书名并补 fmt。"""
+    """统一解析 books 聚合行的展示书名并补 fmt/speed。"""
     bid = t.get('book_id')
     if bid and bid > 0 and bid in book_map:
         t['book_name'] = book_map[bid]
     elif not t['book_name']:
         t['book_name'] = '已删除'
     t['fmt'] = _fmt_duration(t['secs'])
+    secs = t.get('secs') or 0
+    words = t.get('words') or 0
+    t['speed'] = int(round(words * 60 / secs)) if secs > 0 else 0
     return t
 
 
@@ -102,6 +105,10 @@ def reading_stats(request):
     total_seconds = sum(s.read_seconds for s in all_stats)
     total_words = sum(s.word_count for s in all_stats)
     total_books = UserBookRecord.objects.filter(user_id=uid).count()
+
+    # 阅读速度（字/分钟）
+    today_speed = int(round(today_words * 60 / today_seconds)) if today_seconds > 0 else 0
+    total_speed = int(round(total_words * 60 / total_seconds)) if total_seconds > 0 else 0
 
     # 最近 30 天每日汇总
     start = (timezone.now() - timedelta(days=29)).strftime('%Y-%m-%d')
@@ -241,9 +248,11 @@ def reading_stats(request):
         'today_seconds': today_seconds,
         'today_words': today_words,
         'today_fmt': _fmt_duration(today_seconds),
+        'today_speed': today_speed,
         'total_seconds': total_seconds,
         'total_words': total_words,
         'total_fmt': _fmt_duration(total_seconds),
+        'total_speed': total_speed,
         'total_books': total_books,
         'calendar_30': calendar_30,
         'month30_total_fmt': _fmt_duration(month30_total_seconds),
@@ -301,14 +310,17 @@ def reading_stats_admin(request):
         name = book_map.get(bid) or '已删除'
         key = (bid, '')
         days_list = _expand_days(detail_map.get(key, []))
+        secs = r['secs'] or 0
+        words = r['words'] or 0
         stats_list.append({
             'book_id': bid,
             'book_name': name,
-            'secs': r['secs'] or 0,
-            'words': r['words'] or 0,
+            'secs': secs,
+            'words': words,
             'days': r['days'] or 0,
             'last_date': r['last_date'] or '',
-            'fmt': _fmt_duration(r['secs'] or 0),
+            'fmt': _fmt_duration(secs),
+            'speed': int(round(words * 60 / secs)) if secs > 0 else 0,
             'days_list': days_list,
             'max_secs': max((d['secs'] for d in days_list), default=0) or 1,
         })
@@ -317,14 +329,17 @@ def reading_stats_admin(request):
         bname = r['book_name'] or '已删除'
         key = (0, bname)
         days_list = _expand_days(detail_map.get(key, []))
+        secs = r['secs'] or 0
+        words = r['words'] or 0
         stats_list.append({
             'book_id': 0,
             'book_name': bname,
-            'secs': r['secs'] or 0,
-            'words': r['words'] or 0,
+            'secs': secs,
+            'words': words,
             'days': r['days'] or 0,
             'last_date': r['last_date'] or '',
-            'fmt': _fmt_duration(r['secs'] or 0),
+            'fmt': _fmt_duration(secs),
+            'speed': int(round(words * 60 / secs)) if secs > 0 else 0,
             'days_list': days_list,
             'max_secs': max((d['secs'] for d in days_list), default=0) or 1,
         })
@@ -393,4 +408,5 @@ def reading_stats_del(request):
         'remaining_days': rem_days,
         'remaining_last_date': rem['last'] or '',
         'remaining_fmt': _fmt_duration(rem_secs),
+        'remaining_speed': int(round(rem_words * 60 / rem_secs)) if rem_secs > 0 else 0,
     })

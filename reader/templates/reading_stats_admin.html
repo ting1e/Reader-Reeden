@@ -32,12 +32,13 @@
           <table class="table table-fixed text-base">
             <thead class="bg-base-200/40 text-base-content/70">
               <tr>
-                <th class="font-medium w-[32%]">书名</th>
-                <th class="font-medium w-[12%]">累计时长</th>
-                <th class="font-medium w-[12%]">累计字数</th>
-                <th class="font-medium w-[8%]">天数</th>
-                <th class="hidden sm:table-cell font-medium w-[16%]">最近阅读</th>
-                <th class="font-medium w-[20%]">操作</th>
+                <th class="font-medium w-[28%]">书名</th>
+                <th class="font-medium w-[11%]">累计时长</th>
+                <th class="font-medium w-[11%]">累计字数</th>
+                <th class="font-medium w-[10%]">速度</th>
+                <th class="font-medium w-[7%]">天数</th>
+                <th class="hidden sm:table-cell font-medium w-[14%]">最近阅读</th>
+                <th class="font-medium w-[19%]">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -54,6 +55,7 @@
                 </td>
                 <td class="align-top" data-cell="fmt">{{ s.fmt }}</td>
                 <td class="align-top" data-cell="words">{{ s.words }}</td>
+                <td class="align-top" data-cell="speed">{{ s.speed }} 字/分钟</td>
                 <td class="align-top" data-cell="days">{{ s.days }}</td>
                 <td class="hidden sm:table-cell align-top text-sm text-base-content/60" data-cell="lastdate">{{ s.last_date|default:"—" }}</td>
                 <td class="align-top">
@@ -65,7 +67,7 @@
                 </td>
               </tr>
               <tr class="stat-detail hidden">
-                <td colspan="6" class="p-0">
+                <td colspan="7" class="p-0">
                   <div class="bg-base-200/30 px-6 py-4">
                     {% if s.days_list %}
                     <div class="overflow-x-auto pb-1 w-full min-w-0">
@@ -281,6 +283,7 @@
         // 刷新该书的累计栏
         $bookRow.find('[data-cell="fmt"]').text(resp.remaining_fmt);
         $bookRow.find('[data-cell="words"]').text(resp.remaining_words);
+        $bookRow.find('[data-cell="speed"]').text(resp.remaining_speed + ' 字/分钟');
         $bookRow.find('[data-cell="days"]').text(resp.remaining_days);
         $bookRow.find('[data-cell="lastdate"]').text(resp.remaining_last_date || '—');
         $bar.fadeOut(200, function() {

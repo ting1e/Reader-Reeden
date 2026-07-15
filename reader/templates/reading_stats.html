@@ -25,7 +25,7 @@
 
         <!-- 概览卡片 -->
         <div class="px-5 sm:px-6 py-4 border-t border-base-200/60">
-          <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
             <div class="rounded-lg bg-base-200/40 p-4">
               <div class="text-xs text-base-content/60 mb-1 flex items-center gap-1"><iconify-icon icon="bi:clock"></iconify-icon>今日时长</div>
               <div class="text-xl font-bold">{{ today_fmt }}</div>
@@ -35,12 +35,20 @@
               <div class="text-xl font-bold">{{ today_words|default:"0" }}</div>
             </div>
             <div class="rounded-lg bg-base-200/40 p-4">
+              <div class="text-xs text-base-content/60 mb-1 flex items-center gap-1"><iconify-icon icon="bi:speedometer2"></iconify-icon>今日速度</div>
+              <div class="text-xl font-bold">{{ today_speed }}<span class="text-xs font-normal text-base-content/50 ml-1">字/分钟</span></div>
+            </div>
+            <div class="rounded-lg bg-base-200/40 p-4">
               <div class="text-xs text-base-content/60 mb-1 flex items-center gap-1"><iconify-icon icon="bi:clock"></iconify-icon>累计时长</div>
               <div class="text-xl font-bold">{{ total_fmt }}</div>
             </div>
             <div class="rounded-lg bg-base-200/40 p-4">
               <div class="text-xs text-base-content/60 mb-1 flex items-center gap-1"><iconify-icon icon="bi:card-text"></iconify-icon>累计字数</div>
               <div class="text-xl font-bold">{{ total_words|default:"0" }}</div>
+            </div>
+            <div class="rounded-lg bg-base-200/40 p-4">
+              <div class="text-xs text-base-content/60 mb-1 flex items-center gap-1"><iconify-icon icon="bi:speedometer2"></iconify-icon>累计速度</div>
+              <div class="text-xl font-bold">{{ total_speed }}<span class="text-xs font-normal text-base-content/50 ml-1">字/分钟</span></div>
             </div>
             <div class="rounded-lg bg-base-200/40 p-4">
               <div class="text-xs text-base-content/60 mb-1 flex items-center gap-1"><iconify-icon icon="bi:book"></iconify-icon>已读书籍</div>
@@ -189,7 +197,7 @@
               <div class="flex-1 min-w-0">
                 <div class="flex items-center justify-between gap-2 mb-1">
                   <span class="text-sm font-medium truncate">{{ book.book_name|default:"已删除" }}</span>
-                  <span class="text-xs text-base-content/60 shrink-0 flex items-center gap-1"><iconify-icon icon="bi:clock"></iconify-icon>{{ book.fmt }}<span class="mx-0.5">·</span><iconify-icon icon="bi:card-text"></iconify-icon>{{ book.words }} 字</span>
+                  <span class="text-xs text-base-content/60 shrink-0 flex items-center gap-1"><iconify-icon icon="bi:clock"></iconify-icon>{{ book.fmt }}<span class="mx-0.5">·</span><iconify-icon icon="bi:card-text"></iconify-icon>{{ book.words }} 字<span class="mx-0.5">·</span><iconify-icon icon="bi:speedometer2"></iconify-icon>{{ book.speed }} 字/分钟</span>
                 </div>
                 <div class="h-2 bg-base-200 rounded-full overflow-hidden">
                   <div class="h-full bg-primary/60 rounded-full" style="width: {% if today_top_books.0.secs > 0 %}{% widthratio book.secs today_top_books.0.secs 100 %}{% else %}0{% endif %}%;"></div>
@@ -221,7 +229,7 @@
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center justify-between gap-2 mb-1">
                     <span class="text-sm font-medium truncate">{{ book.book_name|default:"已删除" }}</span>
-                    <span class="text-xs text-base-content/60 shrink-0 flex items-center gap-1"><iconify-icon icon="bi:clock"></iconify-icon>{{ book.fmt }}<span class="mx-0.5">·</span><iconify-icon icon="bi:card-text"></iconify-icon>{{ book.words }} 字</span>
+                    <span class="text-xs text-base-content/60 shrink-0 flex items-center gap-1"><iconify-icon icon="bi:clock"></iconify-icon>{{ book.fmt }}<span class="mx-0.5">·</span><iconify-icon icon="bi:card-text"></iconify-icon>{{ book.words }} 字<span class="mx-0.5">·</span><iconify-icon icon="bi:speedometer2"></iconify-icon>{{ book.speed }} 字/分钟</span>
                   </div>
                   <div class="h-2 bg-base-200 rounded-full overflow-hidden">
                     <div class="h-full bg-primary/60 rounded-full" style="width: {% if top_books.0.secs > 0 %}{% widthratio book.secs top_books.0.secs 100 %}{% else %}0{% endif %}%;"></div>
