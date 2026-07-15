@@ -87,7 +87,8 @@ def sync_progress_to_s3(request, book):
             remote_time = None
         if remote_time is None or local_time > remote_time:
             if remote_data and isinstance(remote_data.get('todayStats'), dict) \
-               and isinstance(local_data.get('todayStats'), dict):
+               and isinstance(local_data.get('todayStats'), dict) \
+               and remote_data['todayStats'].get('date') == local_data['todayStats'].get('date'):
                 remote_devices = remote_data['todayStats'].get('devices', {})
                 local_devices = local_data['todayStats'].get('devices', {})
                 for dev_id, dev_stats in remote_devices.items():
