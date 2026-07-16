@@ -98,9 +98,9 @@
                         {% if item.book_obj.author %}<span class="text-xs text-base-content/70">{{ item.book_obj.author }}</span>{% endif %}
                       {% else %}
                         {% if item.manual_author %}<span class="text-xs text-base-content/70">{{ item.manual_author }}</span>{% endif %}
-                        <span class="badge badge-ghost badge-xs">外部</span>
+                        {% if can_edit %}<span class="badge badge-ghost badge-xs">外部</span>{% endif %}
                       {% endif %}
-                      {% if item.book_id > 0 and item.book_obj %}
+                      {% if can_edit and item.book_id > 0 and item.book_obj %}
                       <form method="POST" action="{% url 'reader:book_view' %}" class="inline">
                         {% csrf_token %}
                         <input type="hidden" name="book_id" value="{{ item.book_obj.id }}">

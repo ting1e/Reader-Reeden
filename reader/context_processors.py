@@ -3,7 +3,7 @@
 为每个请求注入当前用户选择的 daisyUI 主题名（daisyui_theme）和可选主题列表
 （daisyui_themes），供 base.html 的 <html data-theme="..."> 与 header 主题选择器使用。
 
-登录用户从 UserSetting.theme 读取；未登录用户返回 'light'（由前端 localStorage 覆盖）。
+登录用户从 UserSetting.theme 读取；未登录用户返回 'autumn'（由前端 localStorage 覆盖）。
 """
 
 DAISYUI_THEMES = [
@@ -55,7 +55,7 @@ THEME_LABELS = {
 
 
 def daisyui_theme(request):
-    theme = 'light'
+    theme = 'autumn'
     user = getattr(request, 'user', None)
     if user is not None and getattr(user, 'is_authenticated', False):
         try:

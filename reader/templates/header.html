@@ -185,7 +185,7 @@
   <script>
     {% if not request.user.is_authenticated %}
     (function() {
-      var currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+      var currentTheme = document.documentElement.getAttribute('data-theme') || 'autumn';
       $('.theme-option').each(function() {
         var t = $(this).data('themeval');
         var isActive = (t === currentTheme);

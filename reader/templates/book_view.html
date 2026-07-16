@@ -399,6 +399,63 @@ article{ font-weight: {{ user_setting.font_weight }}; }
     {% else %}
     var url_bookmark_list = "";
     {% endif %}
+
+    // 未登录用户：从 localStorage 恢复阅读设置（在 reader.js 初始化前应用，确保分页/排版正确）
+    var is_anon_reader = {% if user.is_authenticated %}false{% else %}true{% endif %};
+    if (is_anon_reader) {
+        try {
+            var raw = localStorage.getItem('reader_setting');
+            if (raw) {
+                var s = JSON.parse(raw);
+                if (s) {
+                    if (s.read_bg) user_setting_bg = s.read_bg;
+                    if (s.read_mode) user_setting_mode = s.read_mode;
+                    if (typeof s.font_color !== 'undefined') user_setting_font_color = s.font_color;
+                    if (s.letter_spacing != null) user_setting_letter_spacing = parseFloat(s.letter_spacing);
+                    if (s.line_height != null) user_setting_line_height = parseFloat(s.line_height);
+                    if (s.font_weight) user_setting_font_weight = s.font_weight;
+
+                    var font_size = parseInt(s.font_size) || 16;
+                    $('.font-value').text(font_size);
+                    $('.font-setting').val(s.font_family || '');
+                    $('.font-setting-label').text(s.font_family || '默认字体');
+                    $('#setting-font-weight').val(s.font_weight || '');
+                    $('.font-weight-label').text(({'300':'细','400':'常规','500':'中等','700':'粗','900':'特粗'})[s.font_weight] || '默认');
+                    $('#setting-font-color').val(s.font_color || '#333333');
+                    $('#enable-font-color').prop('checked', !!s.font_color);
+                    var ls = (s.letter_spacing != null ? parseFloat(s.letter_spacing) : 0); if (isNaN(ls)) ls = 0;
+                    $('#setting-letter-spacing').val(ls);
+                    $('#setting-letter-spacing-val').text(ls);
+                    var lh = (s.line_height != null ? parseFloat(s.line_height) : 0); if (isNaN(lh)) lh = 0;
+                    $('#setting-line-height').val(lh);
+                    $('#setting-line-height-val').text(lh > 0 ? lh.toFixed(1) : '默认');
+                    var pw = parseInt(s.page_width != null ? s.page_width : s.setting_page_width) || 0;
+                    $('#setting-page-width').val(pw);
+                    $('#setting-page-width-val').text(pw >= 200 ? pw + 'px' : '默认');
+                    var ph = parseInt(s.page_height != null ? s.page_height : s.setting_page_height) || 0;
+                    $('#setting-page-height').val(ph);
+                    $('#setting-page-height-val').text(ph >= 200 ? ph + 'px' : '默认');
+
+                    // 直接应用排版（reader.js 的 reinitPages 会基于此测算分页）
+                    $('article').css('font-size', font_size + 'px');
+                    $('article').css('font-family', s.font_family ? s.font_family + ', sans-serif' : '');
+                    $('article').css('font-weight', s.font_weight || '');
+                    $('article').css('letter-spacing', ls + 'px');
+                    $('article').css('line-height', lh > 0 ? lh : '');
+                    $('article').css('color', s.font_color || '');
+                    $('main').css('background', s.read_bg || '');
+                    var bg = s.read_bg || '', bgc = '';
+                    if (bg.indexOf('var(--color-base-100)') !== -1) bgc = 'var(--color-base-content)';
+                    else if (bg.indexOf('rgb(0, 0, 0)') !== -1 || bg.indexOf('rgb(0,0,0)') !== -1) bgc = 'rgb(90, 90, 90)';
+                    else if (bg.indexOf('rgb(195, 212, 230)') !== -1) bgc = '#1f3a5a';
+                    else if (bg.indexOf('rgb(200, 232, 200)') !== -1) bgc = '#1f3a1f';
+                    else if (bg.indexOf('rgb(196, 179, 149)') !== -1) bgc = '#3a2a1a';
+                    if (bgc) $('main').css('color', bgc);
+                    if (s.font_color) $('article').css('color', s.font_color);
+                }
+            }
+        } catch(e) { console.warn('reader_setting restore failed', e); }
+    }
     </script>
 
     <script src="{% static 'reader.js' %}"></script>

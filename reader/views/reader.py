@@ -4,7 +4,6 @@ import logging
 
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.contrib.auth.decorators import login_required
 from django.template.loader import render_to_string
 from django.utils import timezone
 
@@ -307,8 +306,8 @@ def BookView(request):
     return render(request, 'book_view.html', context)
 
 
-@login_required(login_url='reader:index')
 def chapter_content(request, chapter_id):
+    """AJAX 返回章节内容 HTML，匿名用户可访问共享书的章节。"""
     chapter = get_object_or_404(Chapter, pk=chapter_id)
     _book = get_object_or_404(Book, id=chapter.book_id)
     if not can_access_book(_book, request.user):

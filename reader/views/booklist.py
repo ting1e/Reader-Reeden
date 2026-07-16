@@ -15,17 +15,22 @@ from ..services.s3 import get_s3_config, _get_s3_client
 logger = logging.getLogger('reader')
 
 
-@login_required(login_url='reader:index')
 def booklist_list(request):
-    """书单浏览：列出公开书单和用户自己的书单（只读）"""
-    if request.user.is_superuser:
+    """书单浏览：列出公开书单和用户自己的书单（只读）。
+
+    未登录用户仅可查看公开书单，且不显示新建按钮。
+    """
+    user = request.user
+    if getattr(user, 'is_superuser', False):
         booklists = list(BookList.objects.all().order_by('-updated_time'))
-    else:
+    elif getattr(user, 'is_authenticated', False):
         booklists = list(
             BookList.objects.filter(
-                models_Q(user_id=request.user.id) | models_Q(is_public=True)
+                models_Q(user_id=user.id) | models_Q(is_public=True)
             ).order_by('-updated_time')
         )
+    else:
+        booklists = list(BookList.objects.filter(is_public=True).order_by('-updated_time'))
 
     booklist_ids = [bl.id for bl in booklists]
     item_counts = {}
@@ -36,7 +41,7 @@ def booklist_list(request):
 
     return render(request, 'booklist_admin.html', {
         'booklist_list': booklists,
-        'can_create': True,
+        'can_create': bool(getattr(user, 'is_authenticated', False)),
         'can_delete': False,
     })
 
@@ -83,12 +88,14 @@ def booklist_create(request):
     return JsonResponse({'success': True, 'id': bl.id, 'name': bl.name})
 
 
-@login_required(login_url='reader:index')
 def booklist_detail(request, pk):
-    """书单详情页：单页查看 + 内联编辑"""
+    """书单详情页：单页查看 + 内联编辑。
+
+    未登录用户可查看公开书单（只读）；私有书单重定向到书单浏览页。
+    """
     bl = get_object_or_404(BookList, id=pk)
     if not can_view_booklist(bl, request.user):
-        return redirect('reader:booklist_admin')
+        return redirect('reader:booklist_list')
 
     items = list(BookListItem.objects.filter(book_list_id=pk).order_by('sort_order', 'added_time'))
     book_ids = [it.book_id for it in items if it.book_id > 0]

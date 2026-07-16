@@ -762,6 +762,22 @@ function collectSettings() {
 }
 
 function saveSettings(successFn) {
+    if (is_anon_reader) {
+        try {
+            var s = collectSettings();
+            delete s.csrfmiddlewaretoken;
+            // normalize page size keys: collectSettings uses setting_ prefix for server API,
+            // localStorage uses clean names to match the restore script
+            s.page_width = s.setting_page_width;
+            s.page_height = s.setting_page_height;
+            delete s.setting_page_width;
+            delete s.setting_page_height;
+            if (!s.font_size) s.font_size = parseInt($('article').css('font-size')) || 16;
+            localStorage.setItem('reader_setting', JSON.stringify(s));
+        } catch(e) {}
+        if (typeof successFn === 'function') successFn();
+        return;
+    }
     $.ajax({
         url: url_update_setting,
         type: 'post',
@@ -858,30 +874,26 @@ $('.mode-setting').click(function() {
     var slideOffset = read_mode === 'slide' ? getSlideOffset() : page_contents_len[current_page_idx] ;
     
     read_mode = newMode;
-    $.ajax({
-        url: url_update_setting,
-        type: 'post',
-        data: collectSettings(),
-        success: function() {
-            // 用捕获的偏移直接上报进度，再按目标模式恢复
-            $.ajax({
-                url: url_book_reader,
-                type: 'post',
-                data: {
-                    book_id: book_id,
-                    chapter_id: chapter_id,
-                    words: slideOffset,
-                    csrfmiddlewaretoken: csrf_token
-                },
-                success: function(data) {
-                    if (typeof data === 'object' && data.success) {
-                        updateProgressBar(data.progress, data.words_read, data.total_words);
-                    }
-                    applyAfterModeSwitch(newMode, slideOffset);
-                },
-                error: function() { applyAfterModeSwitch(newMode, slideOffset); }
-            });
-        }
+    saveSettings(function() {
+        if (is_anon_reader) { applyAfterModeSwitch(newMode, slideOffset); return; }
+        // 用捕获的偏移直接上报进度，再按目标模式恢复
+        $.ajax({
+            url: url_book_reader,
+            type: 'post',
+            data: {
+                book_id: book_id,
+                chapter_id: chapter_id,
+                words: slideOffset,
+                csrfmiddlewaretoken: csrf_token
+            },
+            success: function(data) {
+                if (typeof data === 'object' && data.success) {
+                    updateProgressBar(data.progress, data.words_read, data.total_words);
+                }
+                applyAfterModeSwitch(newMode, slideOffset);
+            },
+            error: function() { applyAfterModeSwitch(newMode, slideOffset); }
+        });
     });
 });
 

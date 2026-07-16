@@ -70,7 +70,7 @@ class UserSetting(models.Model):
     font_weight = models.CharField(max_length=16, default='')
     page_width = models.IntegerField(default=0)
     page_height = models.IntegerField(default=0)
-    theme = models.CharField(max_length=32, default='light')
+    theme = models.CharField(max_length=32, default='autumn')
     s3_setting = models.CharField(max_length=4096,default='"{\"accessKeyId\":\"YOUR_ACCESS_KEY\",\"secretAccessKey\":\"YOUR_SECRET_KEY\",\"region\":\"us-east-1\",\"endpoint\":\"https://s3.us-east-1.amazonaws.com\",\"bucket\":\"YOUR_BUCKET_NAME\",\"prefix\":\"YOUR_FOLDER_NAME/\"}"')
     chapter_rule = models.CharField(max_length=1024, default=DEFAULT_CHAPTER_RULE)
     chapter_rule_2 = models.CharField(max_length=1024, default='')
