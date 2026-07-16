@@ -27,7 +27,7 @@
         <a role="tab" class="text-base tab tab-active font-medium"><iconify-icon icon="bi:bookmark-star" class="me-1.5"></iconify-icon>书签管理</a>
       {% endif %}
       {% if request.resolver_match.url_name == 'reading_stats_admin' %}
-        <a role="tab" class="text-base tab tab-active font-medium"><iconify-icon icon="bi:bar-chart-line" class="me-1.5"></iconify-icon>阅读统计管理</a>
+        <a role="tab" class="text-base tab tab-active font-medium"><iconify-icon icon="bi:bar-chart-line" class="me-1.5"></iconify-icon>统计管理</a>
       {% endif %}
       {% if request.resolver_match.url_name == 'upload_file' %}
         <a role="tab" class="text-base tab tab-active font-medium"><iconify-icon icon="bi:upload" class="me-1.5"></iconify-icon>上传书籍</a>
@@ -88,12 +88,11 @@
           <iconify-icon icon="bi:person-circle" class="text-xl text-base-content/80"></iconify-icon>
         </button>
         <ul tabindex="-1" class="menu menu-md text-base dropdown-content bg-base-100 rounded-box z-50 mt-3 w-48 p-2 shadow-xl border border-base-200">
-          <div class="divider my-1 h-px"></div>
           <li><a href="{% url 'reader:upload_file' %}"><iconify-icon icon="bi:upload" class="text-xl opacity-70"></iconify-icon>上传书籍</a></li>
           <li><a href="{% url 'reader:book_admin' %}"><iconify-icon icon="bi:journal-text" class="text-xl opacity-70"></iconify-icon>书籍管理</a></li>
           <li><a href="{% url 'reader:bookmark_admin' %}"><iconify-icon icon="bi:bookmark-star" class="text-xl opacity-70"></iconify-icon>书签管理</a></li>
           <li><a href="{% url 'reader:booklist_admin' %}"><iconify-icon icon="bi:collection" class="text-xl opacity-70"></iconify-icon>书单管理</a></li>
-          <li><a href="{% url 'reader:reading_stats_admin' %}"><iconify-icon icon="bi:bar-chart-line" class="text-xl opacity-70"></iconify-icon>阅读统计管理</a></li>
+          <li><a href="{% url 'reader:reading_stats_admin' %}"><iconify-icon icon="bi:bar-chart-line" class="text-xl opacity-70"></iconify-icon>统计管理</a></li>
           <li><a href="{% url 'reader:font_admin' %}"><iconify-icon icon="bi:fonts" class="text-xl opacity-70"></iconify-icon>字体管理</a></li>
           <li><a href="{% url 'reader:user_settings' %}"><iconify-icon icon="bi:person-gear" class="text-xl opacity-70"></iconify-icon>个人设置</a></li>
           <div class="divider my-1 h-px"></div>

@@ -772,22 +772,34 @@ function saveSettings(successFn) {
 
 $('.update-setting').click(saveSettings);
 
-// 字体设置变化：应用并保存
-$('.font-setting').on('change', function() {
-    var fontFamily = $(this).val();
+// 字体 / 字重 dropdown 选择
+function bindSettingDropdown(optionSel, inputSel, labelSel, onChange) {
+    $(document).on('click', optionSel, function(e) {
+        e.preventDefault();
+        var $opt = $(this);
+        var val = $opt.attr('data-value') || '';
+        var $dd = $opt.closest('.setting-dropdown');
+        $dd.find(inputSel).val(val);
+        $dd.find(labelSel).text($opt.text().trim());
+        $dd.find(optionSel).removeClass('active');
+        $opt.addClass('active');
+        // 关闭 dropdown：移除按钮焦点
+        $dd.find('[tabindex]').trigger('blur');
+        onChange(val);
+    });
+}
+bindSettingDropdown('.font-setting-option', '.font-setting', '.font-setting-label', function(fontFamily) {
     $('article').css('font-family', fontFamily ? fontFamily + ', sans-serif' : '');
+    saveSettings();
+});
+bindSettingDropdown('.font-weight-option', '#setting-font-weight', '.font-weight-label', function(fontWeight) {
+    $('article').css('font-weight', fontWeight || '');
     saveSettings();
 });
 
 // 字体颜色开关/取色变化
 $('#enable-font-color, #setting-font-color').on('change', function() {
     $('article').css('color', $('#enable-font-color').is(':checked') ? $('#setting-font-color').val() : '');
-    saveSettings();
-});
-
-// 字重变化
-$('#setting-font-weight').on('change', function() {
-    $('article').css('font-weight', $(this).val() || '');
     saveSettings();
 });
 

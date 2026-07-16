@@ -273,10 +273,10 @@
         <!-- 批量添加 -->
         <div class="add-panel hidden min-h-[18rem]" data-panel="batch">
           <p class="text-xs text-base-content/60 mb-2">
-            Markdown 格式：标题（#）为书名，标题下方内容为评价（可选）。
+            Markdown 格式：标题（#）为书名，可用 ` @ 作者` 指定作者（可选），标题下方内容为评价（可选）。
           </p>
           <textarea id="batch-input" class="textarea textarea-bordered w-full text-sm font-mono leading-relaxed"
-                    rows="10" placeholder="# 三体&#10;很好的科幻小说，推荐。&#10;&#10;# 基地&#10;阿西莫夫经典之作。"></textarea>
+                    rows="10" placeholder="# 三体 @ 刘慈欣&#10;很好的科幻小说，推荐。&#10;&#10;# 基地 @ 阿西莫夫&#10;经典之作。"></textarea>
           <div class="flex justify-end items-center gap-3 mt-3">
             <button type="button" class="btn btn-sm btn-ghost gap-1" id="batch-preview-btn">
               <iconify-icon icon="bi:eye"></iconify-icon> 解析预览
@@ -603,18 +603,27 @@ textarea:focus, input[type="text"]:focus, input[type="password"]:focus {
   // ---- 批量添加 ----
   function parseBatchMarkdown(text) {
     var lines = text.split('\n');
-    var books = [], curTitle = null, curReview = [];
+    var books = [], curTitle = null, curAuthor = '', curReview = [];
     for (var i = 0; i < lines.length; i++) {
       var m = lines[i].match(/^#{1,3}\s+(.+)$/);
       if (m) {
-        if (curTitle) books.push({ name: curTitle, review: curReview.join('\n').trim() });
-        curTitle = m[1].trim();
+        if (curTitle) books.push({ name: curTitle, author: curAuthor, review: curReview.join('\n').trim() });
+        var head = m[1].trim();
+        // 支持 "书名 @ 作者" 或 "书名 ＠ 作者" 显式分隔；无分隔符则整行作书名
+        var am = head.match(/^(.+?)\s*[@＠]\s*(.+)$/);
+        if (am) {
+          curTitle = am[1].trim().substring(0, 128);
+          curAuthor = am[2].trim().substring(0, 64);
+        } else {
+          curTitle = head.substring(0, 128);
+          curAuthor = '';
+        }
         curReview = [];
       } else if (curTitle) {
         curReview.push(lines[i]);
       }
     }
-    if (curTitle) books.push({ name: curTitle, review: curReview.join('\n').trim() });
+    if (curTitle) books.push({ name: curTitle, author: curAuthor, review: curReview.join('\n').trim() });
     return books;
   }
 
@@ -626,10 +635,12 @@ textarea:focus, input[type="text"]:focus, input[type="password"]:focus {
     var $list = $('#batch-preview-list').empty();
     batchBooks.forEach(function(b, i) {
       var reviewSummary = b.review ? b.review.replace(/\n/g, ' ').substring(0, 50) : '—';
+      var titleHtml = $('<span>').text(b.name).html();
+      if (b.author) titleHtml += '<span class="text-xs text-base-content/60 ml-1">' + $('<span>').text('— ' + b.author).html() + '</span>';
       $list.append(
         '<div class="flex items-start gap-2 px-3 py-2 rounded-lg bg-base-200/40">' +
         '<span class="text-xs font-bold text-base-content/40 shrink-0 mt-0.5">' + (i + 1) + '</span>' +
-        '<div class="min-w-0 flex-1"><span class="text-sm font-medium block truncate">' + $('<span>').text(b.name).html() + '</span>' +
+        '<div class="min-w-0 flex-1"><span class="text-sm font-medium block truncate">' + titleHtml + '</span>' +
         '<span class="text-xs text-base-content/60 line-clamp-1">' + $('<span>').text(reviewSummary).html() + '</span></div></div>'
       );
     });
@@ -658,7 +669,7 @@ textarea:focus, input[type="text"]:focus, input[type="password"]:focus {
       $btn.html('<span class="loading loading-spinner loading-xs"></span> 添加中 ' + (i + 1) + '/' + total);
       $.ajax({
         url: addBookUrl, type: 'post',
-        data: { manual_name: batchBooks[i].name, review: batchBooks[i].review, csrfmiddlewaretoken: csrf },
+        data: { manual_name: batchBooks[i].name, manual_author: batchBooks[i].author, review: batchBooks[i].review, csrfmiddlewaretoken: csrf },
         success: function(resp) { if (resp && resp.success) ok++; else fail++; next(i + 1); },
         error: function() { fail++; next(i + 1); }
       });
