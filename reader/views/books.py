@@ -251,10 +251,12 @@ def book_local_del(request, pk):
                 logger.exception("Error deleting progress file for user %s", uid)
 
     # 书单中引用了此书的条目转为外部书籍，保留评分和评价
+    # 仅 S3 来源的书记录 file_name 供书单页显示下载按钮（本地上传书文件不在 S3）
     BookListItem.objects.filter(book_id=pk).update(
         book_id=0,
         manual_name=_book.name,
         manual_author=_book.author or '',
+        remote_file_name=(_book.file_name or '') if not _book.local_only else '',
     )
 
     # 阅读统计保留历史数据，仅将 book_id 置 0（书名已存在 book_name 字段中）

@@ -205,6 +205,7 @@ def link_external_booklist_items(user, book):
         book_id=book.id,
         manual_name='',
         manual_author='',
+        remote_file_name='',
     )
 
 

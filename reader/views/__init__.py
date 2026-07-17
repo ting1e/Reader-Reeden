@@ -19,4 +19,5 @@ from .booklist import (
     booklist_list, booklist_admin, booklist_create, booklist_detail, booklist_edit,
     booklist_delete, booklist_share_toggle, booklist_add_book,
     booklist_update_item, booklist_remove_item, booklist_remote_books,
+    booklist_download_remote,
 )

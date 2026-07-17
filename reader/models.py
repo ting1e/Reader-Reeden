@@ -100,6 +100,7 @@ class BookListItem(models.Model):
     book_id = models.IntegerField(default=0)
     manual_name = models.CharField(max_length=128, default='')
     manual_author = models.CharField(max_length=64, default='')
+    remote_file_name = models.CharField(max_length=256, default='')
     rating = models.IntegerField(default=0)
     review = models.TextField(default='')
     sort_order = models.IntegerField(default=0)

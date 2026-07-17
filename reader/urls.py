@@ -52,5 +52,6 @@ urlpatterns = [
     path('booklist/<int:pk>/update_item/<int:item_id>/', views.booklist_update_item, name='booklist_update_item'),
     path('booklist/<int:pk>/remove_item/<int:item_id>/', views.booklist_remove_item, name='booklist_remove_item'),
     path('booklist/remote_books/', views.booklist_remote_books, name='booklist_remote_books'),
+    path('booklist/<int:pk>/download_remote/<int:item_id>/', views.booklist_download_remote, name='booklist_download_remote'),
 
 ]

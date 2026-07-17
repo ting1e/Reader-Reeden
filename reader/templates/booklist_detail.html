@@ -109,6 +109,12 @@
                         </button>
                       </form>
                       {% endif %}
+                      {% if can_edit and item.book_id == 0 and item.remote_file_name %}
+                      <button type="button" class="btn btn-xs btn-ghost gap-1 text-primary/80 hover:text-primary item-download-btn"
+                              data-url="{% url 'reader:booklist_download_remote' booklist.id item.id %}">
+                        <iconify-icon icon="bi:cloud-download"></iconify-icon> 下载
+                      </button>
+                      {% endif %}
                       <!-- 评分 -->
                       <div class="rating rating-xxs gap-1 item-rating ml-1">
                         {% for i in "12345"|make_list %}
@@ -195,6 +201,11 @@
             <div class="text-base-content/80 py-4 text-center text-sm">书库无可访问的书籍</div>
             {% endfor %}
           </div>
+          <div class="flex justify-end mt-2">
+            <button type="button" class="btn btn-xs btn-primary btn-outline gap-1" id="library-add-all-btn">
+              <iconify-icon icon="bi:plus-lg"></iconify-icon> <span>全部添加</span>
+            </button>
+          </div>
         </div>
 
         <!-- 从远程书库 -->
@@ -205,6 +216,11 @@
           </label>
           <div class="max-h-64 overflow-y-auto border border-base-200 rounded-lg" id="remote-results">
             <div class="text-base-content/80 py-4 text-center text-sm">加载中…</div>
+          </div>
+          <div class="flex justify-end mt-2">
+            <button type="button" class="btn btn-xs btn-primary btn-outline gap-1 hidden" id="remote-add-all-btn">
+              <iconify-icon icon="bi:plus-lg"></iconify-icon> <span>全部添加</span>
+            </button>
           </div>
         </div>
 
@@ -486,20 +502,68 @@ textarea:focus, input[type="text"]:focus, input[type="password"]:focus {
   });
 
   // ---- 从书库搜索 ----
+  function updateLibraryAddAllCount() {
+    var n = $('#library-results .library-item:not(:hidden)').length;
+    $('#library-add-all-btn span').text('全部添加' + (n > 0 ? '（' + n + ' 本）' : ''));
+    $('#library-add-all-btn').prop('disabled', n === 0);
+  }
   $('#library-search').on('input', function() {
     var kwd = $(this).val().trim().toLowerCase();
     $('.library-item').each(function() {
       var name = ($(this).data('book-name') || '').toString();
       $(this).toggle(kwd === '' || name.indexOf(kwd) !== -1);
     });
+    updateLibraryAddAllCount();
+  });
+  // 初始计数（页面加载后即反映书库可见条目数）
+  updateLibraryAddAllCount();
+
+  // ---- 本地书库全部添加（仅当前可见条目）----
+  $('#library-add-all-btn').click(function() {
+    var tasks = [];
+    $('#library-results .library-item:not(:hidden) .library-add-btn').each(function() {
+      tasks.push({ bookId: $(this).data('book-id') });
+    });
+    if (!tasks.length) { notify('无可添加的书籍', 'warning'); return; }
+    var $btn = $(this).prop('disabled', true);
+    var $search = $('#library-search').prop('disabled', true);
+    var ok = 0, skip = 0, fail = 0, total = tasks.length;
+    var originalHtml = $btn.html();
+    (function next(i) {
+      if (i >= total) {
+        $btn.html(originalHtml).prop('disabled', false);
+        $search.prop('disabled', false);
+        updateLibraryAddAllCount();
+        var msg = '成功 ' + ok + ' 本';
+        if (skip > 0) msg += '，跳过 ' + skip + ' 本已存在';
+        if (fail > 0) msg += '，失败 ' + fail + ' 本';
+        if (ok > 0) { notify(msg, fail > 0 ? 'warning' : 'success'); location.reload(); }
+        else { notify(msg, 'error'); }
+        return;
+      }
+      $btn.html('<span class="loading loading-spinner loading-xs"></span> 添加中 ' + (i + 1) + '/' + total);
+      $.ajax({
+        url: addBookUrl, type: 'post',
+        data: { book_id: tasks[i].bookId, csrfmiddlewaretoken: csrf },
+        success: function(resp) {
+          if (resp && resp.success) ok++;
+          else if (resp && resp.error && resp.error.indexOf('已在书单中') !== -1) skip++;
+          else fail++;
+          next(i + 1);
+        },
+        error: function() { fail++; next(i + 1); }
+      });
+    })(0);
   });
 
   // ---- 从书库添加 / 从远程添加（共用弹窗）----
   var libAddBookId = null;
   var libAddManualName = null;
+  var libAddRemoteFileName = null;
   $(document).on('click', '.library-add-btn', function() {
     libAddBookId = $(this).data('book-id');
     libAddManualName = null;
+    libAddRemoteFileName = null;
     $('#library_add_book_name').text($(this).data('book-title') || '');
     $('#library-add-rating input').prop('checked', false);
     $('#library-add-review').val('');
@@ -513,7 +577,10 @@ textarea:focus, input[type="text"]:focus, input[type="password"]:focus {
     var review = $('#library-add-review').val().trim();
     var data = { csrfmiddlewaretoken: csrf };
     if (libAddBookId) data.book_id = libAddBookId;
-    else data.manual_name = libAddManualName;
+    else {
+      data.manual_name = libAddManualName;
+      if (libAddRemoteFileName) data.remote_file_name = libAddRemoteFileName;
+    }
     if (rating) data.rating = rating;
     if (review) data.review = review;
     $.ajax({
@@ -531,6 +598,11 @@ textarea:focus, input[type="text"]:focus, input[type="password"]:focus {
 
   // ---- 从远程书库加载 ----
   var remoteBooksLoaded = false;
+  function updateRemoteAddAllCount() {
+    var n = $('#remote-results .remote-item:not(:hidden)').length;
+    $('#remote-add-all-btn span').text('全部添加' + (n > 0 ? '（' + n + ' 本）' : ''));
+    $('#remote-add-all-btn').prop('disabled', n === 0);
+  }
   function loadRemoteBooks() {
     $.ajax({
       url: '{% url "reader:booklist_remote_books" %}',
@@ -542,19 +614,26 @@ textarea:focus, input[type="text"]:focus, input[type="password"]:focus {
           var $container = $('#remote-results').empty();
           if (resp.books.length === 0) {
             $container.append('<div class="text-base-content/80 py-4 text-center text-sm">远程书库无可添加的书籍</div>');
+            $('#remote-add-all-btn').addClass('hidden');
             return;
           }
           resp.books.forEach(function(book) {
+            var btnData = book.in_db && book.book_id
+              ? 'data-book-id="' + book.book_id + '"'
+              : 'data-book-name="' + book.name + '"';
             $container.append(
               '<div class="remote-item flex items-center justify-between px-3 py-2 hover:bg-base-200/50 border-b border-base-200 last:border-0" data-book-name="' + book.name.toLowerCase() + '">' +
               '<div class="min-w-0"><span class="text-sm font-medium truncate block">' + book.name + '</span>' +
               '<span class="text-xs text-base-content/60">' + book.size_display + '</span></div>' +
-              '<button type="button" class="btn btn-xs btn-primary btn-outline remote-add-btn" data-book-name="' + book.name + '">' +
+              '<button type="button" class="btn btn-xs btn-primary btn-outline remote-add-btn" ' + btnData + '>' +
               '<iconify-icon icon="bi:plus-lg"></iconify-icon> 添加</button></div>'
             );
           });
+          $('#remote-add-all-btn').removeClass('hidden');
+          updateRemoteAddAllCount();
         } else {
           $('#remote-results').empty().append('<div class="text-base-content/80 py-4 text-center text-sm">' + ((resp && resp.error) || '加载失败') + '</div>');
+          $('#remote-add-all-btn').addClass('hidden');
           notify((resp && resp.error) || '加载失败', 'error');
         }
       },
@@ -571,15 +650,71 @@ textarea:focus, input[type="text"]:focus, input[type="password"]:focus {
       var name = ($(this).data('book-name') || '').toString();
       $(this).toggle(kwd === '' || name.indexOf(kwd) !== -1);
     });
+    updateRemoteAddAllCount();
   });
 
   $(document).on('click', '.remote-add-btn', function() {
-    libAddBookId = null;
-    libAddManualName = $(this).data('book-name');
-    $('#library_add_book_name').text(libAddManualName);
+    var bookId = $(this).data('book-id');
+    if (bookId) {
+      libAddBookId = bookId;
+      libAddManualName = null;
+      libAddRemoteFileName = null;
+    } else {
+      libAddBookId = null;
+      libAddManualName = $(this).data('book-name');
+      // 未下载的远程书籍：manual_name 即 S3 文件名，记录以供下载按钮
+      libAddRemoteFileName = $(this).data('book-name');
+    }
+    $('#library_add_book_name').text(libAddManualName || $(this).closest('.remote-item').data('book-name') || '');
     $('#library-add-rating input').prop('checked', false);
     $('#library-add-review').val('');
     document.getElementById('library_add_modal').showModal();
+  });
+
+  // ---- 全部添加（仅当前可见条目，复用单条添加逻辑）----
+  $('#remote-add-all-btn').click(function() {
+    var tasks = [];
+    $('#remote-results .remote-item:not(:hidden) .remote-add-btn').each(function() {
+      var $btn = $(this);
+      var bookId = $btn.data('book-id');
+      var manualName = $btn.data('book-name');
+      tasks.push({ bookId: bookId ? bookId : null, manualName: manualName ? manualName : null, remote: !bookId });
+    });
+    if (!tasks.length) { notify('无可添加的书籍', 'warning'); return; }
+    var $btn = $(this).prop('disabled', true);
+    var $search = $('#remote-search').prop('disabled', true);
+    var ok = 0, skip = 0, fail = 0, total = tasks.length;
+    var originalHtml = $btn.html();
+    (function next(i) {
+      if (i >= total) {
+        $btn.html(originalHtml).prop('disabled', false);
+        $search.prop('disabled', false);
+        updateRemoteAddAllCount();
+        var msg = '成功 ' + ok + ' 本';
+        if (skip > 0) msg += '，跳过 ' + skip + ' 本已存在';
+        if (fail > 0) msg += '，失败 ' + fail + ' 本';
+        if (ok > 0) { notify(msg, fail > 0 ? 'warning' : 'success'); location.reload(); }
+        else { notify(msg, 'error'); }
+        return;
+      }
+      $btn.html('<span class="loading loading-spinner loading-xs"></span> 添加中 ' + (i + 1) + '/' + total);
+      var data = { csrfmiddlewaretoken: csrf };
+      if (tasks[i].bookId) data.book_id = tasks[i].bookId;
+      else {
+        data.manual_name = tasks[i].manualName;
+        if (tasks[i].remote) data.remote_file_name = tasks[i].manualName;
+      }
+      $.ajax({
+        url: addBookUrl, type: 'post', data: data,
+        success: function(resp) {
+          if (resp && resp.success) ok++;
+          else if (resp && resp.error && resp.error.indexOf('已在书单中') !== -1) skip++;
+          else fail++;
+          next(i + 1);
+        },
+        error: function() { fail++; next(i + 1); }
+      });
+    })(0);
   });
 
   // ---- 手动添加 ----
@@ -769,6 +904,30 @@ textarea:focus, input[type="text"]:focus, input[type="password"]:focus {
         },
         error: function() { $btn.prop('disabled', false); ajaxError('移除'); }
       });
+    });
+  });
+  // ---- 下载外部条目对应的远程书籍 ----
+  $(document).on('click', '.item-download-btn', function() {
+    var $btn = $(this).prop('disabled', true);
+    var url = $btn.data('url');
+    var originalHtml = $btn.html();
+    $btn.html('<span class="loading loading-spinner loading-xs"></span> 下载中');
+    $.ajax({
+      url: url, type: 'post',
+      data: { csrfmiddlewaretoken: csrf },
+      success: function(resp) {
+        $btn.prop('disabled', false).html(originalHtml);
+        if (resp && resp.success) {
+          notify(resp.already_in_db ? '已关联到本地书库' : '下载完成，已入库', 'success');
+          location.reload();
+        } else {
+          notify((resp && resp.error) || '下载失败', 'error');
+        }
+      },
+      error: function() {
+        $btn.prop('disabled', false).html(originalHtml);
+        ajaxError('下载');
+      }
     });
   });
 })();
