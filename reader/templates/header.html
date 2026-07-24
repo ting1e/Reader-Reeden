@@ -43,10 +43,10 @@
     <div class="flex items-center gap-3">
       {% with request.resolver_match.url_name as url_name %}
       <label class="input input-bordered flex items-center gap-2 h-10 w-32 md:w-48 bg-base-200/50 focus-within:bg-base-100 transition-colors">
-        <iconify-icon icon="bi:search" class="text-base-content/50"></iconify-icon>
-        <input type="search" 
+        <input type="text" 
                placeholder="{% if url_name == 'book_list' or url_name == 'book_list_remote' %}书籍搜索{% else %}全文搜索{% endif %}" 
                class="grow content-search {% if url_name == 'book_list' or url_name == 'book_list_remote' %}book-search{% endif %}" />
+        <iconify-icon icon="bi:search" class="text-base-content/50 shrink-0 {% if url_name == 'book_view' %}search-btn cursor-pointer{% endif %}"></iconify-icon>
       </label>
       {% endwith %}
 

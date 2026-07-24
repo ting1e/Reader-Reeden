@@ -30,6 +30,19 @@
         font-weight: 500;
     }
 
+    /* 搜索关键词高亮 */
+    article .search-mark {
+        background-color: rgba(250, 204, 21, 0.5);
+        border-radius: 2px;
+    }
+    /* 搜索结果列表：匹配关键词高亮 */
+    .search-res-mark {
+        background-color: rgba(250, 204, 21, 0.4);
+        color: inherit;
+        border-radius: 2px;
+        padding: 0 1px;
+    }
+
 {% for font in local_fonts %}
 @font-face {
     font-family: '{{ font.name }}';
@@ -325,17 +338,17 @@ article{ font-weight: {{ user_setting.font_weight }}; }
 
         <!-- Search Modal -->
         <dialog class="modal myModal">
-            <div class="modal-box max-w-5xl">
+            <div class="modal-box max-w-6xl p-4 sm:p-6">
                 <form method="dialog">
-                    <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+                    <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2 z-10">✕</button>
                 </form>
-                <div class="flex items-center gap-3 mb-4">
-                    <h3 class="text-xl font-bold shrink-0 search-modal-title">全文搜索</h3>
-                    <form role="search" onsubmit="return false;" class="w-1/2">
-                        <input type="search" class="input input-bordered input-lg w-full content-search" placeholder="搜索..." aria-label="Search">
-                    </form>
-                </div>
-                <div class="search-res max-h-[60vh] overflow-y-auto">
+                <form role="search" onsubmit="return false;" class="mb-3 w-2/3">
+                    <label class="input input-bordered flex items-center gap-2 h-10 w-full bg-base-200/50 focus-within:bg-base-100 transition-colors">
+                        <input type="text" class="grow content-search" placeholder="搜索全书内容..." aria-label="Search">
+                        <iconify-icon icon="bi:search" class="text-base-content/50 shrink-0 search-btn cursor-pointer"></iconify-icon>
+                    </label>
+                </form>
+                <div class="search-res max-h-[75vh] overflow-y-auto custom-scrollbar">
                 </div>
             </div>
             <form method="dialog" class="modal-backdrop">

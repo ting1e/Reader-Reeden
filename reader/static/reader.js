@@ -253,7 +253,6 @@ $('.article-container').on('mouseup', function(e) {
         var dx = e.clientX - clickStart.x;
         var dy = e.clientY - clickStart.y;
         clickStart = null;
-        console.log(dx,dy)
         if (dx * dx + dy * dy > 25) return;  // 位移 > 5px：拖选文本，不翻页
     }
     $('.next-page').click();   // 左键点击 → 下一页
@@ -679,9 +678,92 @@ if (localStorage.getItem('prev-chapter')) {
 if (read_mode === 'slide') ensureSlideAppend();
 
 // ===== 搜索 =====
-$('.content-search').on('search', function() {
-    var kwd = $(this).val();
+var searchKwd = '';
+// ===== 搜索结果高亮（全文匹配） =====
+// 清除旧高亮：解包 <mark> 并合并文本节点，避免重复累积
+function clearSearchHighlight() {
+    var $marks = $('article .search-mark');
+    if (!$marks.length) return;
+    $marks.each(function() { $(this).contents().unwrap(); });
+    document.querySelectorAll('article').forEach(function(art) {
+        if (typeof art.normalize === 'function') art.normalize();
+    });
+}
+// 高亮文章内的搜索关键词：遍历文本节点，包裹为 <mark class="search-mark">
+function highlightSearchTerm(kwd) {
+    clearSearchHighlight();
     if (!kwd) return;
+    var escaped = kwd.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    var regex = new RegExp(escaped, 'g');
+    var firstMark = null;
+    document.querySelectorAll('article').forEach(function(article) {
+        var walker = document.createTreeWalker(article, NodeFilter.SHOW_TEXT, {
+            acceptNode: function(node) {
+                if (!node.nodeValue) return NodeFilter.FILTER_REJECT;
+                regex.lastIndex = 0;
+                if (!regex.test(node.nodeValue)) return NodeFilter.FILTER_REJECT;
+                var p = node.parentNode;
+                if (p && (p.nodeName === 'MARK' || (p.classList && p.classList.contains('search-mark')))) return NodeFilter.FILTER_REJECT;
+                return NodeFilter.FILTER_ACCEPT;
+            }
+        });
+        var targets = [];
+        while (walker.nextNode()) targets.push(walker.currentNode);
+        targets.forEach(function(node) {
+            regex.lastIndex = 0;
+            var text = node.nodeValue;
+            var frag = document.createDocumentFragment();
+            var last = 0, m;
+            while ((m = regex.exec(text)) !== null) {
+                if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+                var mark = document.createElement('mark');
+                mark.className = 'search-mark';
+                mark.textContent = m[0];
+                frag.appendChild(mark);
+                if (!firstMark) firstMark = mark;
+                last = m.index + m[0].length;
+                if (m[0].length === 0) regex.lastIndex++;  // 防止零宽死循环
+            }
+            if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+            node.parentNode.replaceChild(frag, node);
+        });
+    });
+    if (firstMark && read_mode === 'slide') {
+        try { firstMark.scrollIntoView({ block: 'center' }); } catch(e) {}
+    }
+}
+// HTML 转义：防止书籍原文中的标签在 .html() 注入时被执行
+function escapeHtml(s) {
+    var amp = String.fromCharCode(38);  // '&'
+    return s.replace(/&/g, amp + 'amp;').replace(/</g, amp + 'lt;').replace(/>/g, amp + 'gt;').replace(/"/g, amp + 'quot;').replace(/'/g, amp + '#39;');
+}
+// 高亮搜索结果列表中的关键词（仅作用于 .search-snippet 文本，用 <mark> 包裹）
+function highlightSearchResultSnippets(kwd) {
+    if (!kwd) return;
+    var escaped = kwd.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    var regex = new RegExp(escaped, 'g');
+    $('.search-res .search-snippet').each(function() {
+        var text = $(this).text();
+        if (!text) return;
+        regex.lastIndex = 0;
+        if (!regex.test(text)) return;
+        regex.lastIndex = 0;
+        var html = '', last = 0, m;
+        while ((m = regex.exec(text)) !== null) {
+            if (m.index > last) html += escapeHtml(text.slice(last, m.index));
+            html += '<mark class="search-res-mark">' + escapeHtml(m[0]) + '</mark>';
+            last = m.index + m[0].length;
+            if (m[0].length === 0) regex.lastIndex++;
+        }
+        if (last < text.length) html += escapeHtml(text.slice(last));
+        $(this).html(html);
+    });
+}
+
+function doContentSearch($input) {
+    var kwd = ($input.val() || '').trim();
+    if (!kwd) return;
+    searchKwd = kwd;
     $.ajax({
         url: url_book_reader,
         type: 'post',
@@ -689,15 +771,57 @@ $('.content-search').on('search', function() {
         success: function(data) {
             $('.search-res').html(data);
             $('.modal .content-search').val(kwd);
+            highlightSearchResultSnippets(kwd);
             var $active = $('.search-res .list-group-item.active');
             if ($active[0]) $active[0].scrollIntoView({ block: 'nearest' });
+        },
+        error: function() {
+            $('.search-res').html('<div class="text-center text-base-content/50 py-8 text-sm">搜索失败，请重试</div>');
         }
     });
     if (searchModal && typeof searchModal.showModal === 'function') searchModal.showModal();
+}
+$('.content-search').on('keydown', function(e) {
+    if (e.which !== 13) return;  // Enter 键触发搜索
+    e.preventDefault();
+    doContentSearch($(this));
 });
 
-$('.search-btn').click(function() {
-    if (searchModal && typeof searchModal.showModal === 'function') searchModal.showModal();
+// 搜索结果列表：按当前章节更新高亮（异步跳转后章节已变，但结果列表仍为旧高亮）
+function updateSearchResultHighlight() {
+    var $items = $('.search-res .list-group-item');
+    if (!$items.length) return;
+    $items.removeClass('active bg-primary/15 border-primary text-primary')
+          .addClass('bg-base-100 border-base-200 hover:border-base-300 hover:bg-base-200/60');
+    $items.find('.search-chapter-label').removeClass('text-primary/80').addClass('text-base-content/50');
+    $items.each(function() {
+        var cid = parseInt($(this).closest('form').find('input[name="chapter_id"]').val());
+        if (cid === chapter_id) {
+            $(this).removeClass('bg-base-100 border-base-200 hover:border-base-300 hover:bg-base-200/60')
+                   .addClass('active bg-primary/15 border-primary text-primary');
+            $(this).find('.search-chapter-label').removeClass('text-base-content/50').addClass('text-primary/80');
+        }
+    });
+}
+
+$('.search-btn').click(function(e) {
+    e.preventDefault();  // 阻止 label 原生聚焦输入框
+    if (!searchModal || typeof searchModal.showModal !== 'function') return;
+    var $input = $(this).closest('label').find('input.content-search');
+    var kwd = ($input.val() || '').trim();
+    if (searchModal.open) {
+        // 弹窗内搜索图标：直接搜索
+        if (kwd) doContentSearch($input);
+        return;
+    }
+    // 页头图标：重开弹窗
+    if (kwd && kwd !== searchKwd) {
+        doContentSearch($input);   // 关键词变了：重新搜索并开弹窗
+    } else {
+        searchModal.showModal();     // 关键词未变或为空：直接重开，还原上次结果
+        updateSearchResultHighlight();  // 更新章节高亮为当前章节
+        highlightSearchResultSnippets(searchKwd);  // 重新高亮结果列表关键词
+    }
 });
 
 // ===== 设置面板 =====
@@ -1242,6 +1366,23 @@ $('.bookmark_list_container').on('submit', 'form', function(e) {
     if (targetId === chapter_id) { goToPageByOffset(offset); return; }
     if (chapterCache.has(targetId)) loadChapterFromCache(targetId, offset);
     else preloadChapter(targetId).then(function() { loadChapterFromCache(targetId, offset); });
+});
+
+// 搜索结果：异步加载目标章节并跳转到匹配偏移，随后高亮关键词
+$('.search-res').on('submit', 'form', function(e) {
+    e.preventDefault();
+    var targetId = parseInt($(this).find('input[name="chapter_id"]').val());
+    var offset = parseInt($(this).find('input[name="words_read"]').val()) || 0;
+    if (searchModal && typeof searchModal.close === 'function') searchModal.close();
+    var doHighlight = function() { if (searchKwd) highlightSearchTerm(searchKwd); };
+    if (targetId === chapter_id) { goToPageByOffset(offset); doHighlight(); return; }
+    if (chapterCache.has(targetId)) {
+        if (loadChapterFromCache(targetId, offset)) doHighlight();
+    } else {
+        preloadChapter(targetId).then(function() {
+            if (loadChapterFromCache(targetId, offset)) doHighlight();
+        });
+    }
 });
 
 function closeDrawer() {
