@@ -241,12 +241,28 @@ $('.article-container').on('wheel', function(e) {
     if (dy > 0) $('.next-page').click();   // 下滑 → 下一页
     else $('.prev-page').click();          // 上滑 → 上一页
 });
-$('.article-container').on('click', function() {
-    if (read_mode !== 'page') return;
+// 左键：按下记录起点，抬起时若位移过小视为点击翻页，位移过大（拖选文本）则不翻页
+var clickStart = null;
+$('.article-container').on('mousedown', function(e) {
+    if (read_mode !== 'page' || e.which !== 1) return;  // 仅左键
+    clickStart = { x: e.clientX, y: e.clientY };
+});
+$('.article-container').on('mouseup', function(e) {
+    if (read_mode !== 'page' || e.which !== 1) return;
+    if (clickStart) {
+        var dx = e.clientX - clickStart.x;
+        var dy = e.clientY - clickStart.y;
+        clickStart = null;
+        console.log(dx,dy)
+        if (dx * dx + dy * dy > 25) return;  // 位移 > 5px：拖选文本，不翻页
+    }
     $('.next-page').click();   // 左键点击 → 下一页
 });
+// 右键：选中文本时不翻页（放行系统右键菜单便于复制），否则翻上一页
 $('.article-container').on('contextmenu', function(e) {
     if (read_mode !== 'page') return;
+    var sel = window.getSelection ? window.getSelection().toString() : '';
+    if (sel) return;          // 有选中文本：不翻页，放行右键菜单
     e.preventDefault();         // 屏蔽系统右键菜单
     $('.prev-page').click();    // 右键点击 → 上一页
 });
@@ -799,7 +815,8 @@ function bindSettingDropdown(optionSel, inputSel, labelSel, onChange) {
         $dd.find(labelSel).text($opt.text().trim());
         $dd.find(optionSel).removeClass('active');
         $opt.addClass('active');
-        // 关闭 dropdown：移除按钮焦点
+        // 关闭 dropdown：移除选项按钮与触发按钮焦点，使 :focus-within 失效
+        $opt.trigger('blur');
         $dd.find('[tabindex]').trigger('blur');
         onChange(val);
     });

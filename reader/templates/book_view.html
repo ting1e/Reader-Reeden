@@ -9,6 +9,10 @@
     #offcanvassetting .setting-dropdown .dropdown-content {
         z-index: 1100;
     }
+    /* 阅读设置：下拉关闭后立即移除占位，避免遮挡下方选项（覆盖 daisyUI 的 display 过渡延迟） */
+    #offcanvassetting .setting-dropdown:not(.dropdown-open):not(:focus-within) .dropdown-content {
+        display: none !important;
+    }
 
     /* 阅读设置：行容器轻微内边距，便于视觉分组 */
     #offcanvassetting .setting-row {
@@ -18,6 +22,12 @@
     #offcanvassetting .divider {
         margin-top: -.5rem;
         margin-bottom: -.5rem;
+    }
+
+    /* 阅读设置：字体选项选中态（去除 menu 后仿主题切换高亮） */
+    #offcanvassetting .font-setting-option.active {
+        background-color: var(--color-base-200);
+        font-weight: 500;
     }
 
 {% for font in local_fonts %}
@@ -160,10 +170,10 @@ article{ font-weight: {{ user_setting.font_weight }}; }
                                     <span class="truncate font-setting-label">{% if user_setting.font_family %}{{ user_setting.font_family }}{% else %}默认字体{% endif %}</span>
                                     <iconify-icon icon="bi:chevron-down" class="text-xs opacity-60 shrink-0"></iconify-icon>
                                 </div>
-                                <ul tabindex="-1" class="dropdown-content menu menu-sm bg-base-100 rounded-box w-full p-1 shadow-lg border border-base-300 max-h-48 overflow-y-auto">
-                                    <li><button type="button" class="font-setting-option {% if not user_setting.font_family %}active{% endif %}" data-value="">默认字体</button></li>
+                                <ul tabindex="-1" class="dropdown-content flex flex-col gap-0.5 bg-base-100 rounded-box w-full p-1 shadow-lg border border-base-300 max-h-48 overflow-y-auto overflow-x-hidden">
+                                    <li><button type="button" class="font-setting-option w-full text-left text-sm rounded-lg px-2 py-1.5 hover:bg-base-300 transition-colors truncate {% if not user_setting.font_family %}active{% endif %}" data-value="">默认字体</button></li>
                                     {% for font in local_fonts %}
-                                    <li><button type="button" class="font-setting-option {% if user_setting.font_family == font.name %}active{% endif %}" data-value="{{ font.name }}">{{ font.name }}</button></li>
+                                    <li><button type="button" class="font-setting-option w-full text-left text-sm rounded-lg px-2 py-1.5 hover:bg-base-300 transition-colors truncate {% if user_setting.font_family == font.name %}active{% endif %}" data-value="{{ font.name }}">{{ font.name }}</button></li>
                                     {% endfor %}
                                 </ul>
                                 <input type="hidden" class="font-setting" value="{{ user_setting.font_family|default:'' }}">
