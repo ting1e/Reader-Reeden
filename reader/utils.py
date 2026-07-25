@@ -2,6 +2,7 @@ import os
 import hashlib
 import logging
 import json
+import threading
 import uuid
 
 from django.conf import settings
@@ -104,6 +105,30 @@ def get_local_fonts(user_id):
 def get_file_md5(file_path):
     with open(file_path, 'rb') as f:
         return hashlib.md5(f.read()).hexdigest().upper()
+
+
+_book_text_lock = threading.Lock()
+
+
+def read_book_text(book, _cache={}):
+    """按 (book_id, mtime) 进程级缓存全书文本（仅留一本），线程安全。
+
+    热路径（同本书连续翻章）命中缓存不进锁；仅 miss 串行化读盘。
+    读成功后再 clear+写，避免读取失败清空上一本有效缓存。
+    """
+    path = book.abs_path()
+    key = (book.id, os.path.getmtime(path))
+    text = _cache.get(key)
+    if text is not None:
+        return text
+    with _book_text_lock:
+        text = _cache.get(key)
+        if text is None:
+            with open(path, 'r', encoding=book.charset) as f:
+                text = f.read()
+            _cache.clear()
+            _cache[key] = text
+    return text
 
 
 def get_element_index(text):

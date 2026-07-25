@@ -9,7 +9,7 @@ from django.db.models import F
 from django.utils import timezone
 
 from ..models import UserBookRecord, ReadStat
-from ..utils import get_progress_dir, get_file_md5, get_element_index, get_device_id
+from ..utils import get_progress_dir, get_file_md5, get_element_index, get_device_id, read_book_text
 
 logger = logging.getLogger('reader')
 
@@ -52,8 +52,7 @@ def calculate_read_progress(book, chapter, words_read):
 
     # 统计当前章节换行符数，用于 text-only → raw 比例换算
     try:
-        with open(book.abs_path(), 'r', encoding=book.charset) as f:
-            content = f.read()[chapter.start:chapter.end]
+        content = read_book_text(book)[chapter.start:chapter.end]
         newline_count = content.count('\n')
     except Exception:
         logger.exception("calculate_read_progress: error reading chapter content")
@@ -199,9 +198,8 @@ def save_progress_json(book, chapter, words_read, user_id):
         return
 
     try:
-        with open(book.abs_path(), 'r', encoding=book.charset) as f:
-            content = f.read()[chapter.start:chapter.end]
-            content_lines = content.split('\n')
+        content = read_book_text(book)[chapter.start:chapter.end]
+        content_lines = content.split('\n')
     except Exception:
         logger.exception("Error reading book file")
         return

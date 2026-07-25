@@ -224,35 +224,7 @@
           </div>
         </div>
 
-        <!-- 从书库添加弹窗 -->
-        <dialog id="library_add_modal" class="modal">
-          <div class="modal-box max-w-md">
-            <form method="dialog">
-              <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
-            </form>
-            <h3 class="text-lg font-bold mb-4">添加到书单</h3>
-            <div class="mb-3 text-sm text-base-content/80" id="library_add_book_name"></div>
-            <div class="flex flex-col gap-3">
-              <div class="flex items-center gap-3">
-                <label class="text-sm font-semibold">评分（可选）</label>
-                <div class="rating rating-xxs gap-1" id="library-add-rating">
-                  {% for i in "12345"|make_list %}
-                  <input type="radio" name="lib_rating" class="mask mask-star-2" value="{{ i }}" />
-                  {% endfor %}
-                </div>
-              </div>
-              <div>
-                <label class="text-sm font-semibold mb-1 block">短评（可选）</label>
-                <textarea class="textarea textarea-bordered w-full text-sm" rows="3" id="library-add-review" placeholder="写点评价…"></textarea>
-              </div>
-            </div>
-            <div class="modal-action">
-              <button type="button" class="btn btn-ghost btn-sm" onclick="library_add_modal.close()">取消</button>
-              <button type="button" class="btn btn-primary btn-sm" id="library-add-confirm">添加</button>
-            </div>
-          </div>
-          <form method="dialog" class="modal-backdrop"><button>close</button></form>
-        </dialog>
+        <!-- 从书库添加弹窗：library_add_modal 已移至 add_book_modal 之外，避免嵌套 dialog 的僵尸弹窗 -->
 
         <!-- 手动添加 -->
         <div class="add-panel hidden min-h-[18rem]" data-panel="manual">
@@ -304,6 +276,36 @@
           <div id="batch-preview" class="hidden mt-3 border-t border-base-200 pt-3">
             <div class="max-h-48 overflow-y-auto flex flex-col gap-2" id="batch-preview-list"></div>
           </div>
+        </div>
+      </div>
+      <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- 从书库添加弹窗：与 add_book_modal 同级（不嵌套），避免父关子不关的僵尸弹窗 -->
+    <dialog id="library_add_modal" class="modal">
+      <div class="modal-box max-w-md">
+        <form method="dialog">
+          <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+        </form>
+        <h3 class="text-lg font-bold mb-4">添加到书单</h3>
+        <div class="mb-3 text-sm text-base-content/80" id="library_add_book_name"></div>
+        <div class="flex flex-col gap-3">
+          <div class="flex items-center gap-3">
+            <label class="text-sm font-semibold">评分（可选）</label>
+            <div class="rating rating-xxs gap-1" id="library-add-rating">
+              {% for i in "12345"|make_list %}
+              <input type="radio" name="lib_rating" class="mask mask-star-2" value="{{ i }}" />
+              {% endfor %}
+            </div>
+          </div>
+          <div>
+            <label class="text-sm font-semibold mb-1 block">短评（可选）</label>
+            <textarea class="textarea textarea-bordered w-full text-sm" rows="3" id="library-add-review" placeholder="写点评价…"></textarea>
+          </div>
+        </div>
+        <div class="modal-action">
+          <button type="button" class="btn btn-ghost btn-sm" onclick="library_add_modal.close()">取消</button>
+          <button type="button" class="btn btn-primary btn-sm" id="library-add-confirm">添加</button>
         </div>
       </div>
       <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -618,16 +620,20 @@ textarea:focus, input[type="text"]:focus, input[type="password"]:focus {
             return;
           }
           resp.books.forEach(function(book) {
-            var btnData = book.in_db && book.book_id
-              ? 'data-book-id="' + book.book_id + '"'
-              : 'data-book-name="' + book.name + '"';
-            $container.append(
-              '<div class="remote-item flex items-center justify-between px-3 py-2 hover:bg-base-200/50 border-b border-base-200 last:border-0" data-book-name="' + book.name.toLowerCase() + '">' +
-              '<div class="min-w-0"><span class="text-sm font-medium truncate block">' + book.name + '</span>' +
-              '<span class="text-xs text-base-content/60">' + book.size_display + '</span></div>' +
-              '<button type="button" class="btn btn-xs btn-primary btn-outline remote-add-btn" ' + btnData + '>' +
-              '<iconify-icon icon="bi:plus-lg"></iconify-icon> 添加</button></div>'
-            );
+            // 用 DOM API 构造节点，文本/属性均经 jQuery 转义，避免远程文件名注入 XSS
+            var $item = $('<div class="remote-item flex items-center justify-between px-3 py-2 hover:bg-base-200/50 border-b border-base-200 last:border-0"></div>')
+              .attr('data-book-name', String(book.name).toLowerCase());
+            var $info = $('<div class="min-w-0"></div>');
+            $('<span class="text-sm font-medium truncate block"></span>').text(book.name).appendTo($info);
+            $('<span class="text-xs text-base-content/60"></span>').text(book.size_display).appendTo($info);
+            var $btn = $('<button type="button" class="btn btn-xs btn-primary btn-outline remote-add-btn"><iconify-icon icon="bi:plus-lg"></iconify-icon> 添加</button>');
+            if (book.in_db && book.book_id) {
+              $btn.attr('data-book-id', book.book_id);
+            } else {
+              $btn.attr('data-book-name', book.name);
+            }
+            $item.append($info).append($btn);
+            $container.append($item);
           });
           $('#remote-add-all-btn').removeClass('hidden');
           updateRemoteAddAllCount();
@@ -873,7 +879,9 @@ textarea:focus, input[type="text"]:focus, input[type="password"]:focus {
       if (e.which === 27) {
         e.preventDefault();
         var $wrapper = $(this).closest('.item-review-wrapper');
-        exitReviewEdit($wrapper, $wrapper.find('.item-review-display').text().trim());
+        // Esc 是"取消编辑"：必须用原 raw markdown 恢复，而非取渲染后 HTML 的 .text()
+        // （否则 **加粗** 会被 .text() 取成 "加粗"，污染源码）
+        exitReviewEdit($wrapper, $wrapper.find('.item-review-display').data('raw') || '');
         $(this).addClass('hidden');
       }
     });

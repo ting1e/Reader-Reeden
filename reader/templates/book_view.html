@@ -418,7 +418,7 @@ article{ font-weight: {{ user_setting.font_weight }}; }
     var chapter_ids = [{% for cid in chapter_ids %}{{cid}}{% if not forloop.last %},{% endif %}{% endfor %}];
 
     {% if user.is_authenticated %}
-    var url_bookmark_list = "{% url 'reader:bookmark_list' user.id book_id %}";
+    var url_bookmark_list = "{% url 'reader:bookmark_list' book_id %}";
     {% else %}
     var url_bookmark_list = "";
     {% endif %}

@@ -188,12 +188,12 @@
       $btn.prop('disabled', true);
       postDel({ book_id: $btn.data('book-id'), book_name: name }, function(resp) {
         notify('《' + name + '》统计已删除', 'success');
-        $row.add($row.next('.stat-detail')).fadeOut(200, function() {
-          $(this).remove();
+        $row.add($row.next('.stat-detail')).fadeOut(200).promise().done(function() {
+          $row.add($row.next('.stat-detail')).remove();
           var $cnt = $('#stats-count');
           var n = (parseInt($cnt.text(), 10) || 0) - 1;
           $cnt.text(n);
-          if (n === 0) $cnt.closest('.card').find('table').parent().replace(EMPTY_STATE_HTML);
+          if (n === 0) $cnt.closest('.card').find('table').parent().replaceWith(EMPTY_STATE_HTML);
         });
       });
     });
@@ -297,8 +297,8 @@
         });
         // 该书已无任何统计：移除整行
         if (!resp.remaining_days && !resp.remaining_secs && !resp.remaining_words) {
-          $bookRow.add($detailRow).fadeOut(200, function() {
-            $(this).remove();
+          $bookRow.add($detailRow).fadeOut(200).promise().done(function() {
+            $bookRow.add($detailRow).remove();
             var $cnt = $('#stats-count');
             var n = (parseInt($cnt.text(), 10) || 0) - 1;
             $cnt.text(n);

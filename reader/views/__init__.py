@@ -2,7 +2,10 @@
 
 from .auth import login_auth, logout_view
 from .setup import setup_admin
-from .bookmark import BookmarkListView, bookmark_admin, bookmark_del, bookmark_save
+from .bookmark import (
+    BookmarkListView, bookmark_admin, bookmark_del, bookmark_save,
+    bookmark_list_legacy_redirect,
+)
 from .settings import (
     user_settings, user_settings_s3, user_settings_rule,
     user_settings_password, update_setting, set_theme,

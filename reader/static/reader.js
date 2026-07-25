@@ -86,16 +86,17 @@ function updateModeButtons() {
 }
 
 // ===== 键盘快捷键 =====
-document.onkeydown = function(e) {
+document.addEventListener('keydown', function(e) {
     if (read_mode === 'slide') return;
-    var key = window.event ? e.keyCode : e.which;
-    var map = { 37: '.prev-page', 38: '.prev-chapter', 39: '.next-page', 40: '.next-chapter' };
-    if (key === 32) key = 39; // 空格 → 下一页
-    var sel = map[key];
+    var el = document.activeElement;
+    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return;
+    if (document.querySelector('dialog[open]')) return;
+    var map = { 'ArrowLeft': '.prev-page', 'ArrowUp': '.prev-chapter', 'ArrowRight': '.next-page', 'ArrowDown': '.next-chapter', ' ': '.next-page' };
+    var sel = map[e.key];
     if (!sel) return;
-    if (key === 38 || key === 40) $(sel)[0].click();
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') $(sel)[0].click();
     else $(sel).click();
-};
+});
 
 // ===== 自动阅读 =====
 // 速度档位表：0~3 步进 0.1，3~5 步进 0.2，5~10 步进 0.5
@@ -614,6 +615,17 @@ measurePageNavHeight();
 applyPageSize();
 reinitPages();
 
+// @font-face 异步加载完成后文本尺寸变化，翻页模式需重算分页以避免错位
+if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(function() {
+        if (read_mode !== 'slide') {
+            var off = currentWordsRead();
+            reinitPages();
+            goToPageByOffset(off);
+        }
+    });
+}
+
 // ===== 上下章按钮 =====
 $('.prev-chapter, .next-chapter').click(function(e) {
     e.preventDefault();
@@ -771,6 +783,7 @@ function doContentSearch($input) {
         success: function(data) {
             $('.search-res').html(data);
             $('.modal .content-search').val(kwd);
+            $('header .content-search').val(kwd);
             highlightSearchResultSnippets(kwd);
             var $active = $('.search-res .list-group-item.active');
             if ($active[0]) $active[0].scrollIntoView({ block: 'nearest' });
@@ -785,6 +798,9 @@ $('.content-search').on('keydown', function(e) {
     if (e.which !== 13) return;  // Enter 键触发搜索
     e.preventDefault();
     doContentSearch($(this));
+});
+$('.modal .content-search').on('input', function() {
+    $('header .content-search').val($(this).val());
 });
 
 // 搜索结果列表：按当前章节更新高亮（异步跳转后章节已变，但结果列表仍为旧高亮）
@@ -926,7 +942,13 @@ function saveSettings(successFn) {
     });
 }
 
-$('.update-setting').click(saveSettings);
+// 包装一层：jQuery 会把 Event 对象作为首参传入 saveSettings(successFn)，
+// 导致 successFn 被误当 Event（truthy 但非函数，成功回调静默失效）。
+// 阻止默认行为 + 不传参调用，让 successFn 保持 undefined 走默认回调
+$('.update-setting').click(function(e) {
+    e.preventDefault();
+    saveSettings();
+});
 
 // 字体 / 字重 dropdown 选择
 function bindSettingDropdown(optionSel, inputSel, labelSel, onChange) {
@@ -999,8 +1021,11 @@ $(window).on('resize', function() {
     if (pageSizeResizeTimer) clearTimeout(pageSizeResizeTimer);
     pageSizeResizeTimer = setTimeout(function() {
         var prevBuf = pageNavBuffer;
+        var prevArticleW = $('article').width();
         measurePageNavHeight();
-        if (pageNavBuffer === prevBuf) return;
+        // 仅当阅读区宽度或 page-nav 高度都没变时才跳过；
+        // 列宽依赖容器宽度，横向缩放时高度常不变但宽度变了，必须重排
+        if (pageNavBuffer === prevBuf && $('article').width() === prevArticleW) return;
         var off = currentWordsRead();
         applyPageSize();
         if (read_mode !== 'slide') { reinitPages(); goToPageByOffset(off); }

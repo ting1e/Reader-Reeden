@@ -8,7 +8,7 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 
 from ..models import Book, Chapter, UserBookRecord
-from ..utils import get_file_md5, get_progress_dir, get_local_fonts, can_access_book, get_or_create_user_setting, get_element_index
+from ..utils import get_file_md5, get_progress_dir, get_local_fonts, can_access_book, get_or_create_user_setting, get_element_index, read_book_text
 from ..services.progress import (
     calculate_read_progress, save_progress_json,
     _parse_progress_time, make_naive_utc,
@@ -211,9 +211,8 @@ def BookView(request):
                         paragraph_index = rec.get("paragraphIndex", 0)
                         element_index = rec.get("elementIndex", 0)
 
-                        with open(_book.abs_path(), 'r', encoding=_book.charset) as f:
-                            content = f.read()[cur_chapter.start:cur_chapter.end]
-                            content_lines = content.split('\n')
+                        content = read_book_text(_book)[cur_chapter.start:cur_chapter.end]
+                        content_lines = content.split('\n')
 
                         accumulated = 0
                         for idx in range(min(paragraph_index, len(content_lines))):
@@ -271,9 +270,8 @@ def BookView(request):
     chapter_ids = list(Chapter.objects.filter(book_id=book_id).values_list('id', flat=True))
     cur_chpt = get_object_or_404(Chapter, pk=chapter_id)
 
-    with open(_book.abs_path(), 'r', encoding=_book.charset) as f:
-        content = f.read()[cur_chpt.start:cur_chpt.end]
-        content = content.split('\n')
+    content = read_book_text(_book)[cur_chpt.start:cur_chpt.end]
+    content = content.split('\n')
 
     # 跳过内容中与章节标题重复的第一行（标题已由 <h3> 显示）
     display_lines = content
@@ -312,9 +310,8 @@ def chapter_content(request, chapter_id):
     _book = get_object_or_404(Book, id=chapter.book_id)
     if not can_access_book(_book, request.user):
         return JsonResponse({'success': False, 'error': 'no permission'})
-    with open(_book.abs_path(), 'r', encoding=_book.charset) as f:
-        content = f.read()[chapter.start:chapter.end]
-        content = content.split('\n')
+    content = read_book_text(_book)[chapter.start:chapter.end]
+    content = content.split('\n')
     display_lines = content
     if display_lines and display_lines[0].strip() == chapter.title.strip():
         display_lines = display_lines[1:]
@@ -345,8 +342,7 @@ def keyword_search(request, book_pk, chapter_pk, kwd):
     _book = get_object_or_404(Book, id=book_pk)
     chapter_list = Chapter.objects.filter(book_id=book_pk).order_by('index')
     search_list = []
-    with open(_book.abs_path(), 'r', encoding=_book.charset) as f:
-        raw = f.read()
+    raw = read_book_text(_book)
     for chapter in chapter_list:
         content_lines = raw[chapter.start:chapter.end].split('\n')
         cnt = 0

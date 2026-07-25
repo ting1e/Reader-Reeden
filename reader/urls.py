@@ -21,7 +21,9 @@ urlpatterns = [
     path('update_setting/', views.update_setting, name='update_setting'),
     path('set_theme/', views.set_theme, name='set_theme'),
     path('bookmark/', views.bookmark_save, name='bookmark_save'),
-    path('bookmark_list/<int:user_id>/<int:book_id>/', views.BookmarkListView.as_view(), name='bookmark_list'),
+    path('bookmark_list/<int:book_id>/', views.BookmarkListView.as_view(), name='bookmark_list'),
+    # 旧 URL（含 user_id）保留做 301 重定向，去除 URL 中的冗余 user_id（IDOR 隐患设计）
+    path('bookmark_list/<int:user_id>/<int:book_id>/', views.bookmark_list_legacy_redirect, name='bookmark_list_legacy'),
     path('bookmark_admin/', views.bookmark_admin, name='bookmark_admin'),
     path('bookmark_del/<int:pk>/', views.bookmark_del, name='bookmark_del'),
     path('user_settings/', views.user_settings, name='user_settings'),

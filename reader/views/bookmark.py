@@ -12,10 +12,17 @@ class BookmarkListView(generic.ListView):
     context_object_name = 'bookmark_list'
 
     def get_queryset(self):
-        if self.request.user.is_authenticated and self.request.user.id == self.kwargs['user_id']:
-            return UserBookMark.objects.filter(book_id=self.kwargs['book_id'], user_id=self.kwargs['user_id']).order_by('-add_time')
-        else:
-            return UserBookMark.objects.none()
+        # 只返回当前登录用户本人的书签，user_id 不再取自 URL
+        if self.request.user.is_authenticated:
+            return UserBookMark.objects.filter(
+                book_id=self.kwargs['book_id'], user_id=self.request.user.id
+            ).order_by('-add_time')
+        return UserBookMark.objects.none()
+
+
+def bookmark_list_legacy_redirect(request, user_id, book_id):
+    """旧版 bookmark_list URL（含 user_id）301 重定向到新 URL。"""
+    return redirect('reader:bookmark_list', book_id=book_id, permanent=True)
 
 
 @login_required(login_url='reader:index')

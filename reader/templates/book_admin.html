@@ -227,7 +227,7 @@
             var $cnt = $('#book-count');
             var n = ($cnt.data('count') || {{ book_list|length }}) - 1;
             $cnt.data('count', n).text(n);
-            if (n === 0) $cnt.closest('.card').find('table').parent().replace(EMPTY_STATE_HTML);
+            if (n === 0) $cnt.closest('.card').find('table').parent().replaceWith(EMPTY_STATE_HTML);
           } else {
             notify((resp && resp.error) || '删除失败', 'error');
           }

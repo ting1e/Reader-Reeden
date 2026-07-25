@@ -89,10 +89,22 @@
             var el = document.createElement('div');
             el.className = 'alert ' + cls + ' py-2.5 px-3 text-sm shadow-lg';
             el.style.minWidth = '220px';
+            // <dialog>.showModal() 进入 top-layer，永远压过任何 z-index 的普通元素。
+            // 若有打开的 modal dialog，把 toast 附加到其内部，使其在 top-layer 中可见；
+            // 并用 fixed 定位保证无论宿主是谁，toast 都出现在视口右上角。
+            var openDialog = document.querySelector('dialog.modal[open]');
+            if (openDialog) {
+                el.style.position = 'fixed';
+                el.style.top = '64px';
+                el.style.right = '16px';
+                el.style.zIndex = '9999';
+                openDialog.appendChild(el);
+            } else {
+                container.appendChild(el);
+            }
             var span = document.createElement('span');
             span.textContent = message;
             el.appendChild(span);
-            container.appendChild(el);
             setTimeout(function() { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; }, timeout - 300);
             setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, timeout);
         };
