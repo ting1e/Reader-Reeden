@@ -21,7 +21,7 @@
             </h2>
             <p class="text-sm text-base-content/55">管理本地书籍，重新分章、共享、删除等。</p>
           </div>
-          <a href="{% url 'reader:upload_file' %}" class="btn btn-sm btn-neutral btn-outline">
+          <a href="{% url 'reader:upload_file' %}" class="btn btn-sm btn-outline btn-primary gap-1">
             <iconify-icon icon="bi:upload"></iconify-icon>上传书籍
           </a>
         </div>
@@ -42,7 +42,7 @@
             </thead>
             <tbody>
               {% for book in book_list %}
-              <tr class="group" data-book-id="{{ book.id }}">
+              <tr class="group hover:bg-base-200/40 transition-colors" data-book-id="{{ book.id }}">
                 <td class="break-words max-w-xs align-middle">
                   <div class="rename-container flex items-center gap-1.5" data-book-id="{{ book.id }}">
                     <iconify-icon icon="{% if book.local_only %}bi:hdd{% else %}bi:cloud-check{% endif %}"
@@ -76,7 +76,7 @@
                 <td class="align-middle">
                   <form method="POST" action="{% url 'reader:book_share_toggle' book.id %}" class="inline">
                     {% csrf_token %}
-                    <button type="submit" class="btn btn-sm {% if book.share %}btn-warning{% else %}btn-outline btn-ghost{% endif %} gap-1 h-8 min-h-8">
+                    <button type="submit" class="btn btn-sm {% if book.share %}btn-outline btn-success{% else %}btn-outline btn-ghost{% endif %} gap-1 h-8 min-h-8">
                       <iconify-icon icon="bi:{% if book.share %}globe{% else %}lock{% endif %}"></iconify-icon>
                       {% if book.share %}共享{% else %}私有{% endif %}
                     </button>
@@ -94,7 +94,7 @@
                         <option value="rule_2">规则1</option>
                         <option value="rule_3">规则2</option>
                       </select>
-                      <button type="submit" class="btn btn-sm btn-outline h-8 min-h-8">
+                      <button type="submit" class="btn btn-sm btn-outline gap-1 h-8 min-h-8">
                         <iconify-icon icon="bi:arrow-repeat"></iconify-icon> 分章
                       </button>
                     </form>
@@ -134,11 +134,11 @@
 
 <style>
 .rename-input, .select {
-  --input-color: oklch(var(--bc)/0.3);
+  border-color: color-mix(in oklab, var(--color-base-content) 30%, transparent);
 }
 .rename-input:focus {
   outline: none;
-  border-color: oklch(var(--bc)/0.3);
+  border-color: color-mix(in oklab, var(--color-base-content) 30%, transparent);
   box-shadow: none;
 }
 </style>

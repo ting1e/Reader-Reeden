@@ -197,6 +197,10 @@ def reading_stats(request):
             current_col.append(None)
         columns.append(current_col)
 
+    # 转置为行（每周一行 → 每行 7 天），模板单层循环渲染，附带周几标签
+    weekday_labels = ['一', '', '三', '', '五', '', '日']
+    year_rows = [(weekday_labels[i], [col[i] for col in columns]) for i in range(7)]
+
     # 月份标签：找到每月第一天所在的列索引
     months_cn = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月']
     month_label_list = []
@@ -261,7 +265,7 @@ def reading_stats(request):
         'top_books': top,
         'year_total_fmt': _fmt_duration(year_total_seconds),
         'year_total_words': year_total_words,
-        'year_columns': columns,
+        'year_rows': year_rows,
         'month_labels': month_label_list,
     })
 

@@ -27,6 +27,7 @@
               </div>
               <div class="bl-name-wrap flex items-center gap-2 flex-wrap">
                 <h2 class="text-2xl font-bold bl-name-display tracking-tight">{{ booklist.name }}</h2>
+                <span class="badge badge-ghost badge-sm" id="item-count-badge">{{ items|length }} 本书</span>
                 {% if can_edit %}
                 <button type="button" class="btn btn-ghost btn-xs btn-circle bl-name-start h-7 w-7 min-h-7 opacity-70 hover:opacity-100" aria-label="编辑名称">
                   <iconify-icon icon="bi:pencil" class="text-xs"></iconify-icon>
@@ -40,10 +41,10 @@
               <button type="button" class="btn btn-sm btn-neutral btn-outline" onclick="add_book_modal.showModal()">
                 <iconify-icon icon="bi:plus-lg"></iconify-icon> 添加书籍
               </button>
-              <button type="button" class="share-toggle btn btn-sm {% if booklist.is_public %}btn-success{% else %}btn-ghost border border-base-300{% endif %} h-8 min-h-8"
+              <button type="button" class="share-toggle btn btn-sm {% if booklist.is_public %}btn-outline btn-success{% else %}btn-outline btn-ghost{% endif %} gap-1 h-8 min-h-8"
                       data-url="{% url 'reader:booklist_share_toggle' booklist.id %}">
                 <iconify-icon icon="bi:{% if booklist.is_public %}globe{% else %}lock{% endif %}"></iconify-icon>
-                {% if booklist.is_public %}公开{% else %}私有{% endif %}
+                {% if booklist.is_public %}共享{% else %}私有{% endif %}
               </button>
               <a href="{% url 'reader:booklist_list' %}" class="btn btn-sm btn-ghost">
                 <iconify-icon icon="bi:arrow-left"></iconify-icon> 返回
@@ -61,19 +62,15 @@
             {% if can_edit %}
             <div class="bl-desc-display text-sm text-base-content whitespace-pre-line cursor-pointer hover:bg-base-200/50 rounded-lg px-3 py-2 transition-colors"
                  {% if not booklist.description %}style="display:none"{% endif %}>{{ booklist.description|default:'' }}</div>
-            <div class="bl-desc-placeholder text-sm text-base-content/80 cursor-pointer hover:bg-base-200/50 rounded-lg px-3 py-2 transition-colors inline-flex items-center gap-1.5"
+            <div class="bl-desc-placeholder text-sm text-base-content/50 cursor-pointer hover:bg-base-200/50 rounded-lg px-3 py-2 transition-colors inline-flex items-center gap-1.5"
                  {% if booklist.description %}style="display:none"{% endif %}>
               <iconify-icon icon="bi:plus-circle" class="opacity-70"></iconify-icon>添加简介
             </div>
             <textarea class="textarea textarea-bordered w-full text-sm bl-desc-input hidden" rows="2" placeholder="简单描述这个书单">{{ booklist.description|default:'' }}</textarea>
             {% else %}
-            <div class="text-sm text-base-content whitespace-pre-line">{{ booklist.description|default:'暂无简介'|default_if_none:"暂无简介" }}</div>
+            {% if booklist.description %}<div class="text-sm whitespace-pre-line">{{ booklist.description }}</div>{% endif %}
             {% endif %}
           </div>
-        </div>
-        <div class="px-5 sm:px-6 py-2.5 bg-base-200/40 border-t border-base-200/60 flex items-center gap-2 text-sm text-base-content/80">
-          <iconify-icon icon="bi:book-half" class="opacity-50"></iconify-icon>
-          <span class="font-medium" id="item-count-badge">{{ items|length }} 本书</span>
         </div>
 
         <!-- 书籍列表 -->
@@ -85,34 +82,34 @@
                data-remove-url="{% url 'reader:booklist_remove_item' booklist.id item.id %}">
             <div class="flex items-start gap-0">
               <div class="w-12 sm:w-14 shrink-0 pt-4 pl-4 sm:pl-5 flex flex-col items-start">
-                <div class="font-bold text-sm text-base-content/80 select-none w-7 h-7 flex items-center justify-center rounded-full bg-base-200/60 group-hover:bg-primary/10 group-hover:text-primary/70 transition-colors">{{ forloop.counter }}</div>
+                <div class="font-bold text-sm text-base-content/60 select-none w-7 h-7 flex items-center justify-center rounded-full bg-base-200/60 group-hover:bg-primary/10 group-hover:text-primary/70 transition-colors">{{ forloop.counter }}</div>
               </div>
               <div class="flex-1 min-w-0 py-4 pr-4 sm:pr-5">
                 <div class="flex items-start gap-4">
                   <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-3 flex-wrap mb-1">
-                      <span class="font-semibold text-base px-2.5 py-1 rounded-md bg-base-200/60">
+                      <span class="font-semibold text-base">
                         {% if item.book_id > 0 and item.book_obj %}{{ item.book_obj.name|default:item.book_obj.file_name }}{% else %}{{ item.manual_name }}{% endif %}
                       </span>
                       {% if item.book_id > 0 and item.book_obj %}
-                        {% if item.book_obj.author %}<span class="text-xs text-base-content/70">{{ item.book_obj.author }}</span>{% endif %}
+                        {% if item.book_obj.author %}<span class="text-xs text-base-content/60">{{ item.book_obj.author }}</span>{% endif %}
                       {% else %}
-                        {% if item.manual_author %}<span class="text-xs text-base-content/70">{{ item.manual_author }}</span>{% endif %}
+                        {% if item.manual_author %}<span class="text-xs text-base-content/60">{{ item.manual_author }}</span>{% endif %}
                         {% if can_edit %}<span class="badge badge-ghost badge-xs">外部</span>{% endif %}
                       {% endif %}
                       {% if can_edit and item.book_id > 0 and item.book_obj %}
                       <form method="POST" action="{% url 'reader:book_view' %}" class="inline">
                         {% csrf_token %}
                         <input type="hidden" name="book_id" value="{{ item.book_obj.id }}">
-                        <button type="submit" class="btn btn-xs btn-ghost gap-1 text-primary/80 hover:text-primary">
-                          <iconify-icon icon="bi:book-half"></iconify-icon> 阅读
+                        <button type="submit" class="btn btn-xs btn-ghost btn-circle text-primary/70 hover:text-primary" title="阅读" aria-label="阅读">
+                          <iconify-icon icon="bi:book-half"></iconify-icon>
                         </button>
                       </form>
                       {% endif %}
                       {% if can_edit and item.book_id == 0 and item.remote_file_name %}
-                      <button type="button" class="btn btn-xs btn-ghost gap-1 text-primary/80 hover:text-primary item-download-btn"
+                      <button type="button" class="btn btn-xs btn-ghost btn-circle text-primary/70 hover:text-primary item-download-btn" title="下载" aria-label="下载"
                               data-url="{% url 'reader:booklist_download_remote' booklist.id item.id %}">
-                        <iconify-icon icon="bi:cloud-download"></iconify-icon> 下载
+                        <iconify-icon icon="bi:cloud-download"></iconify-icon>
                       </button>
                       {% endif %}
                       <!-- 评分 -->
@@ -125,7 +122,7 @@
                     <!-- 短评 -->
                     <div class="item-review-wrapper mt-2.5" data-update-url="{% url 'reader:booklist_update_item' booklist.id item.id %}">
                       {% if can_edit %}
-                      <div class="item-review-display review-md text-sm text-base-content/90 cursor-pointer pl-1 pr-1 py-1.5 transition-colors min-h-[2rem] hover:text-base-content hover:bg-base-200/30 rounded"
+                      <div class="item-review-display review-md text-sm cursor-pointer pl-1 pr-1 py-1.5 transition-colors min-h-[2rem] hover:text-base-content hover:bg-base-200/30 rounded"
                            data-raw="{{ item.review|default:'' }}"
                            {% if not item.review %}style="display:none"{% endif %}></div>
                       <div class="item-review-placeholder text-sm text-base-content/50 cursor-pointer pl-1 pr-1 py-1.5 transition-colors min-h-[2rem] flex items-center gap-1.5 hover:text-base-content/80 hover:bg-base-200/30 rounded"
@@ -136,8 +133,10 @@
                                 rows="7"
                                 placeholder="写点评价…（支持 Markdown，Ctrl+Enter 保存）">{{ item.review|default:'' }}</textarea>
                       {% else %}
-                      <div class="review-md-readonly review-md text-sm text-base-content/80 min-h-[2rem] pl-1 pr-1 py-1.5"
-                           data-raw="{{ item.review|default:'' }}">{{ item.review|default:'暂无评价'|default_if_none:"暂无评价" }}</div>
+                      {% if item.review %}
+                      <div class="review-md-readonly review-md text-sm pl-1 pr-1 py-1.5"
+                           data-raw="{{ item.review }}">{{ item.review }}</div>
+                      {% endif %}
                       {% endif %}
                     </div>
                   </div>
@@ -151,13 +150,7 @@
             </div>
           </div>
           {% empty %}
-          <div class="text-base-content/80 py-16 text-center border-t border-base-200/60">
-            <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-base-200/70 flex items-center justify-center">
-              <iconify-icon icon="bi:inbox" class="text-3xl opacity-50"></iconify-icon>
-            </div>
-            <p class="text-base font-medium">书单暂无书籍</p>
-            {% if can_edit %}<p class="text-sm mt-1">点击右上角"添加书籍"按钮开始创建</p>{% endif %}
-          </div>
+          {% include '_booklist_empty.html' with icon='bi:inbox' icon_cls='text-3xl' title='书单暂无书籍' can_act=can_edit act_hint='点击右上角"添加书籍"按钮开始创建' %}
           {% endfor %}
         </div>
       </div>
@@ -171,7 +164,7 @@
           <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
         </form>
         <h3 class="text-lg font-bold mb-4 flex items-center gap-1.5"><iconify-icon icon="bi:plus-circle"></iconify-icon>添加书籍</h3>
-        <div role="tablist" class="tabs tabs-boxed tabs-sm mb-3">
+        <div role="tablist" class="tabs tabs-box tabs-sm mb-3">
           <button role="tab" class="tab tab-active add-tab" data-tab="library">从书库选择</button>
           <button role="tab" class="tab add-tab" data-tab="remote">从远程书库</button>
           <button role="tab" class="tab add-tab" data-tab="manual">手动添加</button>
@@ -180,8 +173,8 @@
 
         <!-- 从书库选择 -->
         <div class="add-panel min-h-[18rem]" data-panel="library">
-          <label class="input input-bordered input-sm flex items-center gap-2 w-full mb-2 bg-base-200/50">
-            <iconify-icon icon="bi:search" class="text-base-content/80"></iconify-icon>
+          <label class="input input-bordered input-sm flex items-center gap-2 w-full mb-2">
+            <iconify-icon icon="bi:search" class="text-base-content/50"></iconify-icon>
             <input type="search" id="library-search" class="grow" placeholder="搜索书库名称…" />
           </label>
           <div class="max-h-64 overflow-y-auto border border-base-200 rounded-lg" id="library-results">
@@ -191,14 +184,14 @@
                  data-book-id="{{ book.id }}">
               <div class="min-w-0">
                 <span class="text-sm font-medium truncate block">{{ book.name|default:book.file_name }}</span>
-                {% if book.author %}<span class="text-xs text-base-content/80">{{ book.author }}</span>{% endif %}
+                {% if book.author %}<span class="text-xs text-base-content/60">{{ book.author }}</span>{% endif %}
               </div>
               <button type="button" class="btn btn-xs btn-primary btn-outline library-add-btn" data-book-id="{{ book.id }}" data-book-title="{{ book.name|default:book.file_name }}">
                 <iconify-icon icon="bi:plus-lg"></iconify-icon> 添加
               </button>
             </div>
             {% empty %}
-            <div class="text-base-content/80 py-4 text-center text-sm">书库无可访问的书籍</div>
+            <div class="text-base-content/50 py-4 text-center text-sm">书库无可访问的书籍</div>
             {% endfor %}
           </div>
           <div class="flex justify-end mt-2">
@@ -210,12 +203,12 @@
 
         <!-- 从远程书库 -->
         <div class="add-panel hidden min-h-[18rem]" data-panel="remote">
-          <label class="input input-bordered input-sm flex items-center gap-2 w-full mb-2 bg-base-200/50">
-            <iconify-icon icon="bi:search" class="text-base-content/80"></iconify-icon>
+          <label class="input input-bordered input-sm flex items-center gap-2 w-full mb-2">
+            <iconify-icon icon="bi:search" class="text-base-content/50"></iconify-icon>
             <input type="search" id="remote-search" class="grow" placeholder="搜索远程书库名称…" disabled />
           </label>
           <div class="max-h-64 overflow-y-auto border border-base-200 rounded-lg" id="remote-results">
-            <div class="text-base-content/80 py-4 text-center text-sm">加载中…</div>
+            <div class="text-base-content/50 py-4 text-center text-sm">加载中…</div>
           </div>
           <div class="flex justify-end mt-2">
             <button type="button" class="btn btn-xs btn-primary btn-outline gap-1 hidden" id="remote-add-all-btn">
@@ -288,7 +281,7 @@
           <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
         </form>
         <h3 class="text-lg font-bold mb-4">添加到书单</h3>
-        <div class="mb-3 text-sm text-base-content/80" id="library_add_book_name"></div>
+        <div class="mb-3 text-sm text-base-content/60" id="library_add_book_name"></div>
         <div class="flex flex-col gap-3">
           <div class="flex items-center gap-3">
             <label class="text-sm font-semibold">评分（可选）</label>
@@ -312,6 +305,9 @@
     </dialog>
     {% endif %}
 
+    <!-- 空状态模板：页面初始渲染与 JS 动态替换共用（移除最后一本书后显示） -->
+    <template id="booklist-empty-tpl">{% include '_booklist_empty.html' with icon='bi:inbox' icon_cls='text-3xl' title='书单暂无书籍' can_act=can_edit act_hint='点击右上角"添加书籍"按钮开始创建' %}</template>
+
   </div>
 
 </main>
@@ -329,7 +325,7 @@
 
 textarea:focus, input[type="text"]:focus, input[type="password"]:focus {
   outline: none;
-  border-color: oklch(var(--bc)/0.5);
+  border-color: color-mix(in oklab, var(--color-base-content) 50%, transparent);
   box-shadow: none;
 }
 
@@ -346,15 +342,15 @@ textarea:focus, input[type="text"]:focus, input[type="password"]:focus {
 .review-md h2 { font-size: 1.15em; }
 .review-md h3 { font-size: 1.05em; }
 .review-md h4 { font-size: 1em; }
-.review-md a { color: oklch(var(--p)); text-decoration: underline; text-underline-offset: 2px; }
+.review-md a { color: var(--color-primary); text-decoration: underline; text-underline-offset: 2px; }
 .review-md a:hover { opacity: 0.8; }
-.review-md blockquote { border-left: 3px solid oklch(var(--p)/0.4); padding-left: 0.75em; margin: 0.5em 0; color: oklch(var(--bc)/0.7); }
-.review-md code { font-size: 0.875em; background: oklch(var(--bc)/0.08); padding: 0.15em 0.35em; border-radius: 0.25rem; }
-.review-md pre { background: oklch(var(--bc)/0.08); padding: 0.75em; border-radius: 0.5rem; overflow-x: auto; margin: 0.5em 0; }
+.review-md blockquote { border-left: 3px solid color-mix(in oklab, var(--color-primary) 40%, transparent); padding-left: 0.75em; margin: 0.5em 0; color: color-mix(in oklab, var(--color-base-content) 70%, transparent); }
+.review-md code { font-size: 0.875em; background: color-mix(in oklab, var(--color-base-content) 8%, transparent); padding: 0.15em 0.35em; border-radius: 0.25rem; }
+.review-md pre { background: color-mix(in oklab, var(--color-base-content) 8%, transparent); padding: 0.75em; border-radius: 0.5rem; overflow-x: auto; margin: 0.5em 0; }
 .review-md pre code { background: none; padding: 0; font-size: 0.85em; }
 .review-md strong { font-weight: 600; }
 .review-md em { font-style: italic; }
-.review-md hr { border: none; border-top: 1px solid oklch(var(--bc)/0.15); margin: 0.75em 0; }
+.review-md hr { border: none; border-top: 1px solid color-mix(in oklab, var(--color-base-content) 15%, transparent); margin: 0.75em 0; }
 .review-md img { max-width: 100%; border-radius: 0.5rem; }
 </style>
 
@@ -364,13 +360,8 @@ textarea:focus, input[type="text"]:focus, input[type="password"]:focus {
   var editUrl = '{% url "reader:booklist_edit" booklist.id %}';
   var addBookUrl = '{% url "reader:booklist_add_book" booklist.id %}';
 
-  var EMPTY_STATE_HTML =
-    '<div class="text-base-content/80 py-16 text-center border-t border-base-200/60">' +
-    '<div class="w-16 h-16 mx-auto mb-4 rounded-full bg-base-200/70 flex items-center justify-center">' +
-    '<iconify-icon icon="bi:inbox" class="text-3xl opacity-50"></iconify-icon></div>' +
-    '<p class="text-base font-medium">书单暂无书籍</p>' +
-    '{% if can_edit %}<p class="text-sm mt-1">点击右上角"添加书籍"按钮开始创建</p>{% endif %}' +
-    '</div>';
+  var emptyTpl = document.getElementById('booklist-empty-tpl');
+  var EMPTY_STATE_HTML = emptyTpl ? emptyTpl.innerHTML : '';
 
   function ajaxError(msg) {
     notify('网络错误，' + msg + '失败', 'error');
@@ -469,7 +460,7 @@ textarea:focus, input[type="text"]:focus, input[type="password"]:focus {
     }
   });
 
-  // ---- 公开/私有切换 ----
+  // ---- 共享/私有切换 ----
   $('.share-toggle').click(function() {
     var $btn = $(this).prop('disabled', true);
     $.ajax({
@@ -480,11 +471,11 @@ textarea:focus, input[type="text"]:focus, input[type="password"]:focus {
         $btn.prop('disabled', false);
         if (resp && resp.success) {
           if (resp.is_public) {
-            $btn.removeClass('btn-ghost border border-base-300').addClass('btn-success').html('<iconify-icon icon="bi:globe"></iconify-icon> 公开');
+            $btn.removeClass('btn-outline btn-ghost').addClass('btn-outline btn-success').html('<iconify-icon icon="bi:globe"></iconify-icon> 共享');
           } else {
-            $btn.removeClass('btn-success').addClass('btn-ghost border border-base-300').html('<iconify-icon icon="bi:lock"></iconify-icon> 私有');
+            $btn.removeClass('btn-outline btn-success').addClass('btn-outline btn-ghost').html('<iconify-icon icon="bi:lock"></iconify-icon> 私有');
           }
-          notify('已切换为' + (resp.is_public ? '公开' : '私有'), 'success');
+          notify('已切换为' + (resp.is_public ? '共享' : '私有'), 'success');
         } else {
           notify((resp && resp.error) || '操作失败', 'error');
         }
@@ -492,6 +483,16 @@ textarea:focus, input[type="text"]:focus, input[type="password"]:focus {
       error: function() { $btn.prop('disabled', false); ajaxError('操作'); }
     });
   });
+
+  // 150ms 防抖：避免输入时每个按键都全量遍历 DOM
+  function debounce(fn, ms) {
+    var t = null;
+    return function() {
+      var args = arguments, ctx = this;
+      clearTimeout(t);
+      t = setTimeout(function() { fn.apply(ctx, args); }, ms);
+    };
+  }
 
   // ---- 添加书籍 Tab 切换 ----
   $('.add-tab').click(function() {
@@ -509,14 +510,14 @@ textarea:focus, input[type="text"]:focus, input[type="password"]:focus {
     $('#library-add-all-btn span').text('全部添加' + (n > 0 ? '（' + n + ' 本）' : ''));
     $('#library-add-all-btn').prop('disabled', n === 0);
   }
-  $('#library-search').on('input', function() {
+  $('#library-search').on('input', debounce(function() {
     var kwd = $(this).val().trim().toLowerCase();
     $('.library-item').each(function() {
       var name = ($(this).data('book-name') || '').toString();
       $(this).toggle(kwd === '' || name.indexOf(kwd) !== -1);
     });
     updateLibraryAddAllCount();
-  });
+  }, 150));
   // 初始计数（页面加载后即反映书库可见条目数）
   updateLibraryAddAllCount();
 
@@ -615,7 +616,7 @@ textarea:focus, input[type="text"]:focus, input[type="password"]:focus {
           $('#remote-search').prop('disabled', false);
           var $container = $('#remote-results').empty();
           if (resp.books.length === 0) {
-            $container.append('<div class="text-base-content/80 py-4 text-center text-sm">远程书库无可添加的书籍</div>');
+            $container.append('<div class="text-base-content/50 py-4 text-center text-sm">远程书库无可添加的书籍</div>');
             $('#remote-add-all-btn').addClass('hidden');
             return;
           }
@@ -638,26 +639,26 @@ textarea:focus, input[type="text"]:focus, input[type="password"]:focus {
           $('#remote-add-all-btn').removeClass('hidden');
           updateRemoteAddAllCount();
         } else {
-          $('#remote-results').empty().append('<div class="text-base-content/80 py-4 text-center text-sm">' + ((resp && resp.error) || '加载失败') + '</div>');
+          $('#remote-results').empty().append('<div class="text-base-content/50 py-4 text-center text-sm">' + ((resp && resp.error) || '加载失败') + '</div>');
           $('#remote-add-all-btn').addClass('hidden');
           notify((resp && resp.error) || '加载失败', 'error');
         }
       },
       error: function() {
-        $('#remote-results').empty().append('<div class="text-base-content/80 py-4 text-center text-sm">网络错误，加载失败</div>');
+        $('#remote-results').empty().append('<div class="text-base-content/50 py-4 text-center text-sm">网络错误，加载失败</div>');
         ajaxError('加载');
       }
     });
   }
 
-  $('#remote-search').on('input', function() {
+  $('#remote-search').on('input', debounce(function() {
     var kwd = $(this).val().trim().toLowerCase();
     $('.remote-item').each(function() {
       var name = ($(this).data('book-name') || '').toString();
       $(this).toggle(kwd === '' || name.indexOf(kwd) !== -1);
     });
     updateRemoteAddAllCount();
-  });
+  }, 150));
 
   $(document).on('click', '.remote-add-btn', function() {
     var bookId = $(this).data('book-id');
@@ -919,7 +920,7 @@ textarea:focus, input[type="text"]:focus, input[type="password"]:focus {
     var $btn = $(this).prop('disabled', true);
     var url = $btn.data('url');
     var originalHtml = $btn.html();
-    $btn.html('<span class="loading loading-spinner loading-xs"></span> 下载中');
+    $btn.html('<span class="loading loading-spinner loading-xs"></span>');
     $.ajax({
       url: url, type: 'post',
       data: { csrfmiddlewaretoken: csrf },

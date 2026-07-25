@@ -1,0 +1,11 @@
+{# 书单空状态（列表页/详情页共用，页面初始渲染与 JS 动态替换共用同一份 markup）。
+   参数: icon 图标; title 主文案; muted 容器文字色(默认 /45); icon_cls 图标大小(默认 text-2xl);
+   can_act 是否有行动入口; act_hint 行动提示文案; none_hint 无行动时文案(可空) #}
+<div class="{{ muted|default:'text-base-content/45' }} py-16 text-center border-t border-base-200/60">
+  <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-base-200/70 flex items-center justify-center">
+    <iconify-icon icon="{{ icon }}" class="{{ icon_cls|default:'text-2xl' }} opacity-50"></iconify-icon>
+  </div>
+  <p class="text-base font-medium">{{ title }}</p>
+  {% if can_act and act_hint %}<p class="text-sm mt-1">{{ act_hint }}</p>
+  {% elif none_hint %}<p class="text-sm mt-1">{{ none_hint }}</p>{% endif %}
+</div>

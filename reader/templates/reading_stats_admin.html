@@ -43,7 +43,7 @@
             </thead>
             <tbody>
               {% for s in stats_list %}
-              <tr class="group align-top" data-book-row
+              <tr class="group align-top hover:bg-base-200/40 transition-colors" data-book-row
                   data-book-id="{{ s.book_id }}" data-book-name="{{ s.book_name }}">
                 <td class="break-words align-top">
                   <button type="button" class="stat-toggle btn btn-ghost btn-xs btn-square mr-1 align-middle"
@@ -57,7 +57,7 @@
                 <td class="align-top" data-cell="words">{{ s.words }}</td>
                 <td class="align-top" data-cell="speed">{{ s.speed }} 字/分钟</td>
                 <td class="align-top" data-cell="days">{{ s.days }}</td>
-                <td class="hidden sm:table-cell align-top text-sm text-base-content/60" data-cell="lastdate">{{ s.last_date|default:"—" }}</td>
+                <td class="hidden sm:table-cell align-top text-sm text-base-content/55" data-cell="lastdate">{{ s.last_date|default:"—" }}</td>
                 <td class="align-top">
                   <button type="button"
                           class="btn btn-sm btn-outline btn-error gap-1 h-8 min-h-8 stat-del-book"

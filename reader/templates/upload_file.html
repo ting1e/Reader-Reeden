@@ -58,8 +58,8 @@
 
 <style>
 .dropzone {
-  border: 2px dashed oklch(var(--bc)/0.15);
-  background: oklch(var(--bc)/0.02);
+  border: 2px dashed color-mix(in oklab, var(--color-base-content) 15%, transparent);
+  background: color-mix(in oklab, var(--color-base-content) 2%, transparent);
   border-radius: 0.75rem;
   min-height: 180px;
   display: flex;
@@ -69,8 +69,8 @@
   cursor: pointer;
 }
 .dropzone:hover, .dropzone.dz-drag-hover {
-  border-color: oklch(var(--p)/0.5);
-  background-color: oklch(var(--p)/0.05);
+  border-color: color-mix(in oklab, var(--color-primary) 50%, transparent);
+  background-color: color-mix(in oklab, var(--color-primary) 5%, transparent);
 }
 .dropzone * {
   pointer-events: none;

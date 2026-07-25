@@ -25,7 +25,7 @@
 
         <!-- 本地字体 -->
         <div class="px-5 sm:px-6 py-3 border-t border-base-200/60">
-          <h3 class="text-sm font-bold text-base-content/70 mb-2 flex items-center gap-1.5">
+          <h3 class="text-base font-bold mb-2 flex items-center gap-2">
             <iconify-icon icon="bi:hdd"></iconify-icon>本地字体
           </h3>
           <div class="overflow-x-auto">
@@ -41,7 +41,7 @@
               </thead>
               <tbody id="local-fonts-body">
                 {% for font in local_fonts %}
-                <tr class="group">
+                <tr class="group hover:bg-base-200/40 transition-colors">
                   <td class="break-words max-w-xs align-middle font-semibold">{{ font.name }}</td>
                   <td class="align-middle text-sm text-base-content/60">{{ font.ext }}</td>
                   <td class="hidden sm:table-cell align-middle text-sm text-base-content/60">{{ font.size_display }}</td>
@@ -67,7 +67,7 @@
 
         <!-- 云端字体库 -->
         <div class="px-5 sm:px-6 py-3 border-t border-base-200/60">
-          <h3 class="text-sm font-bold text-base-content/70 mb-2 flex items-center gap-1.5">
+          <h3 class="text-base font-bold mb-2 flex items-center gap-2">
             <iconify-icon icon="bi:cloud"></iconify-icon>云端字体库
           </h3>
           {% if s3_error %}
@@ -91,16 +91,18 @@
               </thead>
               <tbody id="s3-fonts-body">
                 {% for font in s3_fonts %}
-                <tr class="group">
+                <tr class="group hover:bg-base-200/40 transition-colors">
                   <td class="break-words max-w-xs align-middle font-semibold">{{ font.name }}</td>
                   <td class="hidden sm:table-cell cell-size align-middle text-sm text-base-content/60">{{ font.size_display }}</td>
                   <td class="cell-status align-middle">
                     {% if font.in_local %}
-                    <span class="badge badge-warning badge-sm gap-1">
-                      <iconify-icon icon="bi:check-lg" class="text-[0.6rem]"></iconify-icon>已下载
+                    <span class="btn btn-sm btn-outline btn-success gap-1 h-8 min-h-8 pointer-events-none">
+                      <iconify-icon icon="bi:check-lg"></iconify-icon>已下载
                     </span>
                     {% else %}
-                    <span class="badge badge-ghost badge-sm">未下载</span>
+                    <span class="btn btn-sm btn-outline btn-ghost gap-1 h-8 min-h-8 pointer-events-none">
+                      <iconify-icon icon="bi:cloud"></iconify-icon>未下载
+                    </span>
                     {% endif %}
                   </td>
                   <td class="align-middle">
@@ -218,7 +220,7 @@
               $('#s3-fonts-body tr').each(function() {
                 var $row = $(this);
                 if ($row.find('td').first().text().trim() === fileName) {
-                  $row.find('.cell-status').html('<span class="badge badge-ghost badge-sm">未下载</span>');
+                  $row.find('.cell-status').html('<span class="btn btn-sm btn-outline btn-ghost gap-1 h-8 min-h-8 pointer-events-none"><iconify-icon icon="bi:cloud"></iconify-icon>未下载</span>');
                   var $opCell = $row.find('td').last();
                   if (!$opCell.find('.font-download-form').length) $opCell.append(buildDownloadForm(fileName));
                 }
@@ -249,7 +251,7 @@
         if (resp && resp.success) {
           notify((resp.name || name) + ' 已下载', 'success');
           var $row = $form.closest('tr');
-          $row.find('.cell-status').html('<span class="badge badge-warning badge-sm gap-1"><iconify-icon icon="bi:check-lg" class="text-[0.6rem]"></iconify-icon>已下载</span>');
+          $row.find('.cell-status').html('<span class="btn btn-sm btn-outline btn-success gap-1 h-8 min-h-8 pointer-events-none"><iconify-icon icon="bi:check-lg"></iconify-icon>已下载</span>');
           $row.find('.cell-size').text(resp.size_display);
           $form.remove();
           $('#local-fonts-empty-row').remove();

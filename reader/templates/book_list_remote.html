@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Reader{% endblock %}
 
@@ -17,29 +18,30 @@
     </div>
     {% endif %}
 
-    <div class="flex items-center gap-2 mb-8 sort-bar">
+    {% if book_list_remote %}
+    <div class="flex items-center gap-2 mb-6 sort-bar">
       <span class="text-sm text-base-content/60">排序：</span>
       <div class="join">
         <button class="btn btn-sm join-item sort-btn" data-sort="name">名称</button>
         <button class="btn btn-sm join-item sort-btn" data-sort="size">大小</button>
         <button class="btn btn-sm join-item sort-btn" data-sort="date">日期</button>
       </div>
+      <span class="ms-auto text-sm text-base-content/50">共 {{ book_list_remote|length }} 本</span>
     </div>
 
-    <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-5 book-grid">
+    <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-7 gap-5 book-grid">
       {% for book in book_list_remote %}
       <div class="book-item"
            data-book-name="{{ book.name }}"
-           data-sort-name="{{ book.name }}"
            data-sort-size="{{ book.size }}"
            data-sort-date="{{ book.last_modified }}">
         <form method="POST" action="{% url 'reader:open_remote_book' %}" class="block">
           {% csrf_token %}
           <input type="hidden" name="name" value="{{ book.name }}">
-          <button type="submit" class="block w-full text-left cursor-pointer p-0 border-0 bg-transparent card card-compact bg-base-100 shadow-sm hover:shadow-md transition-shadow duration-150">
-            <figure class="relative aspect-[3/4] bg-base-200 border border-base-300 rounded-r-md rounded-l-sm flex items-center justify-center p-3 overflow-hidden">
+          <button type="submit" class="block w-full text-left cursor-pointer p-0 border-0 bg-transparent card card-compact bg-base-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-base-100">
+            <figure class="relative aspect-[3/4] bg-base-200 border border-base-300 rounded-r-md rounded-l-sm flex items-center justify-center p-3 overflow-hidden" {% if book.progress > 0 %}title="已读 {{ book.progress }}%"{% endif %}>
               <div class="absolute left-2.5 top-0 bottom-0 w-px bg-base-300 shadow-[1px_0_1px_rgba(0,0,0,0.05)]"></div>
-              
+
               {% if not book.in_db %}
               <div class="absolute top-1 right-1 z-10">
                 <iconify-icon icon="bi:cloud" class="text-base-content/40 text-lg leading-none"></iconify-icon>
@@ -51,7 +53,7 @@
               </span>
 
               {% if book.size_display %}
-              <span class="absolute bottom-1.5 right-1 z-10 text-xs px-1.5 py-0.5 rounded  text-base-content/50">{{ book.size_display }}</span>
+              <span class="absolute bottom-1.5 right-1 z-10 text-xs px-1.5 py-0.5 rounded text-base-content/50">{{ book.size_display }}</span>
               {% endif %}
 
               {% if book.progress > 0 %}
@@ -63,6 +65,12 @@
       </div>
       {% endfor %}
     </div>
+    {% elif not s3_error %}
+    <div class="flex flex-col items-center justify-center py-24 text-center">
+      <iconify-icon icon="bi:cloud" class="text-6xl text-base-content/20"></iconify-icon>
+      <p class="mt-4 text-base-content/60">远程书库为空</p>
+    </div>
+    {% endif %}
   </div>
 
 </main>
@@ -70,79 +78,8 @@
 
 {% block body-bottom %}
 <script>
-(function() {
-    var defaultDir = {name: 'asc', size: 'desc', date: 'desc'};
-    var STORAGE_KEY = 'book_list_remote_sort';
-    var currentSort = null;
-    var currentDir = null;
-
-    function saveSortState() {
-        if (currentSort) {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify({sort: currentSort, dir: currentDir}));
-        }
-    }
-
-    function loadSortState() {
-        try {
-            var s = JSON.parse(localStorage.getItem(STORAGE_KEY));
-            if (s && s.sort && defaultDir[s.sort] !== undefined) {
-                return s;
-            }
-        } catch (e) {}
-        return null;
-    }
-
-    function applySort(sortKey, dir) {
-        if (arguments.length >= 2) {
-            currentSort = sortKey;
-            currentDir = dir;
-        } else if (currentSort === sortKey) {
-            currentDir = currentDir === 'asc' ? 'desc' : 'asc';
-        } else {
-            currentSort = sortKey;
-            currentDir = defaultDir[sortKey] || 'asc';
-        }
-        var $grid = $('.book-grid');
-        var $items = $grid.children('.book-item').get();
-        $items.sort(function(a, b) {
-            var av = $(a).data('sort-' + currentSort);
-            var bv = $(b).data('sort-' + currentSort);
-            if (currentSort === 'name') {
-                return currentDir === 'asc'
-                    ? String(av).localeCompare(String(bv))
-                    : String(bv).localeCompare(String(av));
-            }
-            if (currentSort === 'date') {
-                av = String(av) || '';
-                bv = String(bv) || '';
-                return currentDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
-            }
-            av = parseFloat(av) || 0;
-            bv = parseFloat(bv) || 0;
-            return currentDir === 'asc' ? av - bv : bv - av;
-        });
-        $.each($items, function(i, el) { $grid.append(el); });
-
-        $('.sort-btn').each(function() {
-            var active = $(this).data('sort') === currentSort;
-            $(this).toggleClass('btn-active', active);
-            var label = $(this).text().replace(/[▲▼]\s*$/, '').trim();
-            $(this).text(label);
-            if (active) {
-                $(this).text(label + (currentDir === 'asc' ? ' ▲' : ' ▼'));
-            }
-        });
-        saveSortState();
-    }
-
-    $('.sort-btn').click(function() {
-        applySort($(this).data('sort'));
-    });
-
-    var saved = loadSortState();
-    if (saved) {
-        applySort(saved.sort, saved.dir);
-    }
-})();
+window.BOOK_SORT_DEFAULT_DIR = {name: 'asc', size: 'desc', date: 'desc'};
+window.BOOK_SORT_STORAGE_KEY = 'book_list_remote_sort';
 </script>
+<script src="{% static 'book_sort.js' %}"></script>
 {% endblock %}

@@ -37,7 +37,7 @@
             </thead>
             <tbody>
               {% for m in bookmark_list %}
-              <tr class="group">
+              <tr class="group hover:bg-base-200/40 transition-colors">
                 <td class="break-words max-w-xs align-middle">
                   <span class="font-semibold">{{ m.book_obj.name|default:"(已删除)" }}</span>
                 </td>

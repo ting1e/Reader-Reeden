@@ -15,11 +15,10 @@
             <h2 class="text-2xl font-bold tracking-tight flex items-center gap-2.5 mb-1">
               {% if can_delete %}书单管理{% else %}书单{% endif %}
               <span class="badge badge-ghost gap-1 text-sm py-2.5 px-3">
-                <iconify-icon icon="bi:collection" class="text-[0.6rem]"></iconify-icon>
                 <span id="booklist-count">{{ booklist_list|length }}</span>
               </span>
             </h2>
-            <p class="text-sm text-base-content/55">
+            <p class="text-sm text-base-content/50">
               {% if can_delete %}管理你的书单，查看每本书的评价和共享状态。{% else %}浏览所有公开书单和你自己的书单。{% endif %}
             </p>
           </div>
@@ -33,19 +32,19 @@
         {% if booklist_list %}
         <div class="overflow-x-auto">
           <table class="table text-base">
-            <thead class="bg-base-200/40 text-base-content/70">
+            <thead class="bg-base-200/40 text-base-content/60">
               <tr>
                 <th class="font-medium">名称</th>
                 <th class="hidden sm:table-cell font-medium">简介</th>
                 <th class="font-medium">书籍数</th>
                 <th class="font-medium">共享</th>
-                <th class="hidden md:table-cell font-medium">创建时间</th>
+                <th class="hidden md:table-cell font-medium">更新时间</th>
                 <th class="font-medium">操作</th>
               </tr>
             </thead>
             <tbody>
               {% for bl in booklist_list %}
-              <tr class="booklist-row group" data-booklist-id="{{ bl.id }}" data-booklist-name="{{ bl.name|escapejs }}">
+              <tr class="booklist-row group hover:bg-base-200/40 transition-colors" data-booklist-id="{{ bl.id }}">
                 <td class="break-words max-w-xs align-middle">
                   <a href="{% url 'reader:booklist_detail' bl.id %}" class="font-semibold text-base-content hover:text-primary transition-colors">
                     {{ bl.name }}
@@ -57,7 +56,7 @@
                   </a>
                 </td>
                 <td class="align-middle">
-                  <div class="flex items-center gap-1 text-sm text-base-content/70">
+                  <div class="flex items-center gap-1 text-sm text-base-content/60">
                     <iconify-icon icon="bi:book" class="text-xs opacity-50"></iconify-icon>
                     <span class="font-medium">{{ bl.item_count }}</span>
                   </div>
@@ -66,21 +65,21 @@
                   {% if can_delete %}
                   <form method="POST" action="{% url 'reader:booklist_share_toggle' bl.id %}" class="inline">
                     {% csrf_token %}
-                    <button type="submit" class="btn btn-sm {% if bl.is_public %}btn-warning{% else %}btn-outline btn-ghost{% endif %} gap-1 h-8 min-h-8">
+                    <button type="submit" class="btn btn-sm {% if bl.is_public %}btn-outline btn-success{% else %}btn-outline btn-ghost{% endif %} gap-1 h-8 min-h-8">
                       <iconify-icon icon="bi:{% if bl.is_public %}globe{% else %}lock{% endif %}"></iconify-icon>
                       {% if bl.is_public %}共享{% else %}私有{% endif %}
                     </button>
                   </form>
                   {% else %}
-                  <span class="badge badge-sm {% if bl.is_public %}badge-warning{% else %}badge-ghost{% endif %} gap-1">
-                    <iconify-icon icon="bi:{% if bl.is_public %}globe{% else %}lock{% endif %}" class="text-[0.6rem]"></iconify-icon>
+                  <span class="btn btn-sm {% if bl.is_public %}btn-outline btn-success{% else %}btn-outline btn-ghost{% endif %} gap-1 h-8 min-h-8 pointer-events-none">
+                    <iconify-icon icon="bi:{% if bl.is_public %}globe{% else %}lock{% endif %}"></iconify-icon>
                     {% if bl.is_public %}共享{% else %}私有{% endif %}
                   </span>
                   {% endif %}
                 </td>
-                <td class="hidden md:table-cell text-sm text-base-content/55 align-middle">{{ bl.created_time|date:"Y-m-d H:i" }}</td>
+                <td class="hidden md:table-cell text-sm text-base-content/55 align-middle">{{ bl.updated_time|date:"Y-m-d H:i" }}</td>
                 <td class="align-middle">
-                  <div class="flex items-center gap-2.5 whitespace-nowrap">
+                  <div class="flex items-center gap-2 whitespace-nowrap">
                     <a href="{% url 'reader:booklist_detail' bl.id %}" class="btn btn-sm btn-outline btn-primary gap-1 h-8 min-h-8">
                       <iconify-icon icon="bi:eye"></iconify-icon> 查看
                     </a>
@@ -102,19 +101,14 @@
           </table>
         </div>
         {% else %}
-        <div class="text-base-content/45 py-16 text-center border-t border-base-200/60">
-          <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-base-200/70 flex items-center justify-center">
-            <iconify-icon icon="bi:collection" class="text-2xl opacity-50"></iconify-icon>
-          </div>
-          <p class="text-base font-medium">暂无书单</p>
-          <p class="text-sm text-base-content/45 mt-1">
-            {% if can_create %}点击右上角"新建书单"按钮开始创建{% else %}还没有任何书单{% endif %}
-          </p>
-        </div>
+        {% include '_booklist_empty.html' with icon='bi:collection' title='暂无书单' can_act=can_create act_hint='点击右上角"新建书单"按钮开始创建' none_hint='还没有任何书单' %}
         {% endif %}
       </div>
     </div>
   </div>
+
+  <!-- 空状态模板：页面初始渲染与 JS 动态替换共用（删除最后一个书单后替换表格） -->
+  <template id="booklist-empty-tpl">{% include '_booklist_empty.html' with icon='bi:collection' title='暂无书单' can_act=can_create act_hint='点击右上角"新建书单"按钮开始创建' none_hint='还没有任何书单' %}</template>
 
   <!-- 新建书单弹窗 -->
   {% if can_create %}
@@ -127,11 +121,11 @@
       <form id="create-form" class="flex flex-col gap-3">
         {% csrf_token %}
         <div>
-          <label class="text-sm font-semibold text-base-content/70 mb-1 block">书单名称</label>
+          <label class="text-sm font-semibold mb-1 block">书单名称</label>
           <input type="text" name="name" class="input input-bordered w-full" placeholder="输入书单名称" maxlength="128" required />
         </div>
         <div>
-          <label class="text-sm font-semibold text-base-content/70 mb-1 block">简介（可选）</label>
+          <label class="text-sm font-semibold mb-1 block">简介（可选）</label>
           <textarea name="description" class="textarea textarea-bordered w-full" rows="3" placeholder="简单描述这个书单"></textarea>
         </div>
         <div class="modal-action">
@@ -154,12 +148,7 @@
 (function() {
   var csrf = '{{ csrf_token }}';
 
-  var EMPTY_STATE_HTML =
-    '<div class="text-base-content/45 py-16 text-center border-t border-base-200/60">' +
-    '<div class="w-16 h-16 mx-auto mb-4 rounded-full bg-base-200/70 flex items-center justify-center">' +
-    '<iconify-icon icon="bi:collection" class="text-2xl opacity-50"></iconify-icon></div>' +
-    '<p class="text-base font-medium">暂无书单</p>' +
-    '<p class="text-sm text-base-content/45 mt-1">{% if can_create %}点击右上角"新建书单"按钮开始创建{% else %}还没有任何书单{% endif %}</p></div>';
+  var EMPTY_STATE_HTML = document.getElementById('booklist-empty-tpl').innerHTML;
 
   function ajaxError(msg) {
     notify('网络错误，' + msg + '失败', 'error');

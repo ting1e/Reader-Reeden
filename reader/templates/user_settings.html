@@ -15,17 +15,17 @@
             <iconify-icon icon="bi:person-gear"></iconify-icon>
             个人设置
           </h2>
-          <p class="text-base text-base-content">管理云端存储配置、分章规则和账户密码。</p>
+          <p class="text-sm text-base-content/55">管理云端存储配置、分章规则和账户密码。</p>
         </div>
 
         <!-- 云端存储配置 -->
         <div class="px-5 sm:px-6 py-4 border-t border-base-200/60">
-          <h3 class="text-base font-bold mb-1.5 flex items-center gap-1.5">
+          <h3 class="text-base font-bold mb-1.5 flex items-center gap-2">
             <iconify-icon icon="bi:cloud-arrow-up"></iconify-icon>云端存储配置
           </h3>
-          <p class="text-sm text-base-content mb-3">用于远程书库和进度同步，JSON 格式。</p>
+          <p class="text-sm text-base-content/55 mb-3">用于远程书库和进度同步，JSON 格式。</p>
           <details class="mb-3 group">
-            <summary class="text-sm text-base-content cursor-pointer hover:text-primary transition-colors select-none flex items-center gap-1 w-fit">
+            <summary class="text-sm text-base-content/60 cursor-pointer hover:text-primary transition-colors select-none flex items-center gap-1 w-fit">
               <iconify-icon icon="bi:chevron-right" class="transition-transform group-open:rotate-90"></iconify-icon>
               查看 JSON 示例与字段说明
             </summary>
@@ -58,12 +58,12 @@
 
         <!-- 分章规则 -->
         <div class="px-5 sm:px-6 py-4 border-t border-base-200/60">
-          <h3 class="text-base font-bold mb-1.5 flex items-center gap-1.5">
+          <h3 class="text-base font-bold mb-1.5 flex items-center gap-2">
             <iconify-icon icon="bi:list-task"></iconify-icon>分章规则
           </h3>
-          <p class="text-sm text-base-content mb-3">正则表达式，用于匹配章节标题行。主规则不能为空，备用规则留空表示不使用。</p>
+          <p class="text-sm text-base-content/55 mb-3">正则表达式，用于匹配章节标题行。主规则不能为空，备用规则留空表示不使用。</p>
           <details class="mb-3 group">
-            <summary class="text-sm text-base-content cursor-pointer hover:text-primary transition-colors select-none flex items-center gap-1 w-fit">
+            <summary class="text-sm text-base-content/60 cursor-pointer hover:text-primary transition-colors select-none flex items-center gap-1 w-fit">
               <iconify-icon icon="bi:chevron-right" class="transition-transform group-open:rotate-90"></iconify-icon>
               查看当前主规则
             </summary>
@@ -98,10 +98,10 @@
 
         <!-- 修改密码 -->
         <div class="px-5 sm:px-6 py-4 border-t border-base-200/60">
-          <h3 class="text-base font-bold mb-1.5 flex items-center gap-1.5">
+          <h3 class="text-base font-bold mb-1.5 flex items-center gap-2">
             <iconify-icon icon="bi:shield-lock"></iconify-icon>修改密码
           </h3>
-          <p class="text-sm text-base-content mb-3">修改后无需重新登录，当前会话保持有效。</p>
+          <p class="text-sm text-base-content/55 mb-3">修改后无需重新登录，当前会话保持有效。</p>
           <form method="POST" action="{% url 'reader:user_settings_password' %}" class="settings-form">
             {% csrf_token %}
             <div class="flex flex-col gap-3 max-w-sm">
