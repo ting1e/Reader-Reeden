@@ -18,10 +18,9 @@
     <link rel="stylesheet" type="text/css" href="{% static 'style.css' %}">
     <script src="{% static 'jquery-3.6.0.min.js' %}"></script>
 
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" />
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <script type="module" src="https://cdn.jsdelivr.net/npm/iconify-icon@2/dist/iconify-icon.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="{% static 'tailwind.css' %}">
+    <script type="module" src="{% static 'iconify-icon.min.js' %}"></script>
+    <script type="module" src="{% static 'icons-bundle.js' %}"></script>
 
     {% block header %}{% endblock %}
 </head>

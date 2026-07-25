@@ -10,3 +10,4 @@ storage_upload/
 local/
 /static/
 docker_test/
+node_modules/

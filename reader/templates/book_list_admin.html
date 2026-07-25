@@ -101,14 +101,30 @@
           </table>
         </div>
         {% else %}
-        {% include '_book_list_empty.html' with icon='bi:collection' title='暂无书单' can_act=can_create act_hint='点击右上角"新建书单"按钮开始创建' none_hint='还没有任何书单' %}
+        <div class="text-base-content/45 py-16 text-center border-t border-base-200/60">
+          <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-base-200/70 flex items-center justify-center">
+            <iconify-icon icon="bi:collection" class="text-2xl opacity-50"></iconify-icon>
+          </div>
+          <p class="text-base font-medium">暂无书单</p>
+          {% if can_create %}<p class="text-sm mt-1">点击右上角"新建书单"按钮开始创建</p>
+          {% else %}<p class="text-sm mt-1">还没有任何书单</p>{% endif %}
+        </div>
         {% endif %}
       </div>
     </div>
   </div>
 
   <!-- 空状态模板：页面初始渲染与 JS 动态替换共用（删除最后一个书单后替换表格） -->
-  <template id="booklist-empty-tpl">{% include '_book_list_empty.html' with icon='bi:collection' title='暂无书单' can_act=can_create act_hint='点击右上角"新建书单"按钮开始创建' none_hint='还没有任何书单' %}</template>
+  <template id="booklist-empty-tpl">
+    <div class="text-base-content/45 py-16 text-center border-t border-base-200/60">
+      <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-base-200/70 flex items-center justify-center">
+        <iconify-icon icon="bi:collection" class="text-2xl opacity-50"></iconify-icon>
+      </div>
+      <p class="text-base font-medium">暂无书单</p>
+      {% if can_create %}<p class="text-sm mt-1">点击右上角"新建书单"按钮开始创建</p>
+      {% else %}<p class="text-sm mt-1">还没有任何书单</p>{% endif %}
+    </div>
+  </template>
 
   <!-- 新建书单弹窗 -->
   {% if can_create %}

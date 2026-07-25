@@ -150,7 +150,13 @@
             </div>
           </div>
           {% empty %}
-          {% include '_book_list_empty.html' with icon='bi:inbox' icon_cls='text-3xl' title='书单暂无书籍' can_act=can_edit act_hint='点击右上角"添加书籍"按钮开始创建' %}
+          <div class="text-base-content/45 py-16 text-center border-t border-base-200/60">
+            <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-base-200/70 flex items-center justify-center">
+              <iconify-icon icon="bi:inbox" class="text-3xl opacity-50"></iconify-icon>
+            </div>
+            <p class="text-base font-medium">书单暂无书籍</p>
+            {% if can_edit %}<p class="text-sm mt-1">点击右上角"添加书籍"按钮开始创建</p>{% endif %}
+          </div>
           {% endfor %}
         </div>
       </div>
@@ -306,7 +312,15 @@
     {% endif %}
 
     <!-- 空状态模板：页面初始渲染与 JS 动态替换共用（移除最后一本书后显示） -->
-    <template id="booklist-empty-tpl">{% include '_book_list_empty.html' with icon='bi:inbox' icon_cls='text-3xl' title='书单暂无书籍' can_act=can_edit act_hint='点击右上角"添加书籍"按钮开始创建' %}</template>
+    <template id="booklist-empty-tpl">
+      <div class="text-base-content/45 py-16 text-center border-t border-base-200/60">
+        <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-base-200/70 flex items-center justify-center">
+          <iconify-icon icon="bi:inbox" class="text-3xl opacity-50"></iconify-icon>
+        </div>
+        <p class="text-base font-medium">书单暂无书籍</p>
+        {% if can_edit %}<p class="text-sm mt-1">点击右上角"添加书籍"按钮开始创建</p>{% endif %}
+      </div>
+    </template>
 
   </div>
 

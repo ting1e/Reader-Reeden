@@ -15,3 +15,8 @@ venv/
 .env
 .DS_Store
 docker_test/
+node_modules/
+package.json
+package-lock.json
+reader/static/src/
+scripts/

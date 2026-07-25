@@ -1,0 +1,22 @@
+{
+  "name": "reader-reeden",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tailwind v4 + DaisyUI v5 + Iconify 本地构建工具链",
+  "scripts": {
+    "build:css": "tailwindcss -i reader/static/src/input.css -o reader/static/tailwind.css --minify",
+    "watch:css": "tailwindcss -i reader/static/src/input.css -o reader/static/tailwind.css --watch",
+    "copy:iconify": "node scripts/copy-iconify.mjs",
+    "build:icons": "node scripts/build-icons.mjs",
+    "build": "npm run build:css && npm run copy:iconify && npm run build:icons"
+  },
+  "devDependencies": {
+    "@iconify-json/bi": "^1.2.0",
+    "@tailwindcss/cli": "^4.1.0",
+    "daisyui": "^5.0.0",
+    "tailwindcss": "^4.1.0"
+  },
+  "dependencies": {
+    "iconify-icon": "^2.1.0"
+  }
+}
