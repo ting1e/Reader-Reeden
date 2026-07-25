@@ -14,14 +14,10 @@
         display: none !important;
     }
 
-    /* 阅读设置：行容器轻微内边距，便于视觉分组 */
-    #offcanvassetting .setting-row {
-        padding: .25rem 0;
-    }
-    /* 阅读设置：分隔线抵消父级 gap，收紧间距 */
-    #offcanvassetting .divider {
-        margin-top: -.5rem;
-        margin-bottom: -.5rem;
+    /* 阅读设置：分隔线调浅，间距由父级 gap 控制 */
+    #offcanvassetting .divider::before,
+    #offcanvassetting .divider::after {
+        background-color: var(--color-base-200);
     }
 
     /* 阅读设置：字体选项选中态（去除 menu 后仿主题切换高亮） */
@@ -29,6 +25,18 @@
         background-color: var(--color-base-200);
         font-weight: 500;
     }
+
+    /* 阅读设置：取色器圆形化，与背景色块风格统一 */
+    #offcanvassetting input[type="color"] {
+        -webkit-appearance: none;
+        appearance: none;
+        padding: 0;
+        border: none;
+        background: transparent;
+    }
+    #offcanvassetting input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+    #offcanvassetting input[type="color"]::-webkit-color-swatch { border: 1px solid var(--color-base-300); border-radius: 9999px; }
+    #offcanvassetting input[type="color"]::-moz-color-swatch { border: 1px solid var(--color-base-300); border-radius: 9999px; }
 
     /* 搜索关键词高亮 */
     article .search-mark {
@@ -151,23 +159,25 @@ article{ font-weight: {{ user_setting.font_weight }}; }
 
         <!-- Settings Toast -->
         <div id="offcanvassetting" class="toast toast-top toast-end mt-16" style="display:none; z-index: 1080;">
-            <div class="rounded-box shadow-lg bg-base-100 border border-base-300 p-5 relative w-full flex flex-col gap-4" style="width: 400px; max-height: 80vh; color: var(--color-base-content);">
-                <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2 setting-close z-10" type="button">✕</button>
-                <h3 class="text-base font-bold text-center shrink-0 pb-2 border-b border-base-200">阅读设置</h3>
+            <div class="rounded-2xl shadow-xl bg-base-100 border border-base-200 p-4 w-full flex flex-col gap-3" style="width: 340px; max-height: 80vh; color: var(--color-base-content);">
+                <div class="flex items-center justify-between shrink-0 pl-1">
+                    <h3 class="text-sm font-semibold">阅读设置</h3>
+                    <button class="btn btn-xs btn-circle btn-ghost setting-close" type="button" aria-label="关闭设置">✕</button>
+                </div>
 
                 <!-- 背景 + 字体下拉（不滚动，避免 dropdown 被裁切） -->
-                <div class="flex flex-col gap-4 w-full shrink-0">
+                <div class="flex flex-col gap-3 w-full shrink-0">
                     <!-- 背景 -->
                     <div class="flex flex-col gap-2">
                         <div class="setting-row flex items-center justify-between gap-3">
                             <span class="text-sm text-base-content/70 shrink-0 w-16">背景颜色</span>
-                            <ul class="flex gap-2">
-                                <li class="w-8 h-8 rounded-lg border-2 cursor-pointer bg-setting read-white update-setting" style="background: #fff;"></li>
-                                <li class="w-8 h-8 rounded-lg border-2 cursor-pointer bg-setting read-blue update-setting" style="background: #c3d4e6;"></li>
-                                <li class="w-8 h-8 rounded-lg border-2 cursor-pointer bg-setting read-green update-setting" style="background: #c8e8c8;"></li>
-                                <li class="w-8 h-8 rounded-lg border-2 cursor-pointer bg-setting read-yellow update-setting" style="background: #c4b395"></li>
-                                <li class="w-8 h-8 rounded-lg border-2 cursor-pointer bg-setting read-black update-setting" style="background: #000"></li>
-                                <li class="w-8 h-8 rounded-lg border-2 cursor-pointer bg-setting read-theme update-setting" data-bg="var(--color-base-100)" style="background: var(--color-base-100);"></li>
+                            <ul class="flex gap-2.5">
+                                <li class="w-7 h-7 rounded-full border border-base-300 cursor-pointer bg-setting read-white update-setting transition-transform hover:scale-110" style="background: #fff;"></li>
+                                <li class="w-7 h-7 rounded-full border border-base-300 cursor-pointer bg-setting read-blue update-setting transition-transform hover:scale-110" style="background: #c3d4e6;"></li>
+                                <li class="w-7 h-7 rounded-full border border-base-300 cursor-pointer bg-setting read-green update-setting transition-transform hover:scale-110" style="background: #c8e8c8;"></li>
+                                <li class="w-7 h-7 rounded-full border border-base-300 cursor-pointer bg-setting read-yellow update-setting transition-transform hover:scale-110" style="background: #c4b395"></li>
+                                <li class="w-7 h-7 rounded-full border border-base-300 cursor-pointer bg-setting read-black update-setting transition-transform hover:scale-110" style="background: #000"></li>
+                                <li class="w-7 h-7 rounded-full border border-base-300 cursor-pointer bg-setting read-theme update-setting transition-transform hover:scale-110" data-bg="var(--color-base-100)" style="background: var(--color-base-100);"></li>
                             </ul>
                         </div>
                     </div>
@@ -179,11 +189,11 @@ article{ font-weight: {{ user_setting.font_weight }}; }
                         <div class="setting-row flex items-center justify-between gap-3">
                             <span class="text-sm text-base-content/70 shrink-0 w-16">字体样式</span>
                             <div class="dropdown dropdown-end setting-dropdown flex-1 min-w-0">
-                                <div tabindex="0" role="button" class="btn btn-sm btn-outline w-full justify-between font-normal px-3 min-h-8 h-8">
+                                <div tabindex="0" role="button" class="btn btn-sm border-none bg-base-200/60 hover:bg-base-200 w-full justify-between font-normal px-3 min-h-8 h-8">
                                     <span class="truncate font-setting-label">{% if user_setting.font_family %}{{ user_setting.font_family }}{% else %}默认字体{% endif %}</span>
                                     <iconify-icon icon="bi:chevron-down" class="text-xs opacity-60 shrink-0"></iconify-icon>
                                 </div>
-                                <ul tabindex="-1" class="dropdown-content flex flex-col gap-0.5 bg-base-100 rounded-box w-full p-1 shadow-lg border border-base-300 max-h-48 overflow-y-auto overflow-x-hidden">
+                                <ul tabindex="-1" class="dropdown-content flex flex-col gap-0.5 bg-base-100 rounded-xl w-full p-1 shadow-xl border border-base-200 max-h-48 overflow-y-auto overflow-x-hidden">
                                     <li><button type="button" class="font-setting-option w-full text-left text-sm rounded-lg px-2 py-1.5 hover:bg-base-300 transition-colors truncate {% if not user_setting.font_family %}active{% endif %}" data-value="">默认字体</button></li>
                                     {% for font in local_fonts %}
                                     <li><button type="button" class="font-setting-option w-full text-left text-sm rounded-lg px-2 py-1.5 hover:bg-base-300 transition-colors truncate {% if user_setting.font_family == font.name %}active{% endif %}" data-value="{{ font.name }}">{{ font.name }}</button></li>
@@ -196,7 +206,7 @@ article{ font-weight: {{ user_setting.font_weight }}; }
                         <div class="setting-row flex items-center justify-between gap-3">
                             <span class="text-sm text-base-content/70 shrink-0 w-16">字体粗细</span>
                             <div class="dropdown dropdown-end setting-dropdown flex-1 min-w-0">
-                                <div tabindex="0" role="button" class="btn btn-sm btn-outline w-full justify-between font-normal px-3 min-h-8 h-8">
+                                <div tabindex="0" role="button" class="btn btn-sm border-none bg-base-200/60 hover:bg-base-200 w-full justify-between font-normal px-3 min-h-8 h-8">
                                     <span class="truncate font-weight-label">
                                         {% if user_setting.font_weight == '300' %}细
                                         {% elif user_setting.font_weight == '400' %}常规
@@ -207,7 +217,7 @@ article{ font-weight: {{ user_setting.font_weight }}; }
                                     </span>
                                     <iconify-icon icon="bi:chevron-down" class="text-xs opacity-60 shrink-0"></iconify-icon>
                                 </div>
-                                <ul tabindex="-1" class="dropdown-content menu menu-sm bg-base-100 rounded-box w-full p-1 shadow-lg border border-base-300">
+                                <ul tabindex="-1" class="dropdown-content menu menu-sm bg-base-100 rounded-xl w-full p-1 shadow-xl border border-base-200">
                                     <li><button type="button" class="font-weight-option {% if not user_setting.font_weight %}active{% endif %}" data-value="">默认</button></li>
                                     <li><button type="button" class="font-weight-option {% if user_setting.font_weight == '300' %}active{% endif %}" data-value="300">细</button></li>
                                     <li><button type="button" class="font-weight-option {% if user_setting.font_weight == '400' %}active{% endif %}" data-value="400">常规</button></li>
@@ -224,24 +234,28 @@ article{ font-weight: {{ user_setting.font_weight }}; }
                 <div class="divider my-0 shrink-0"></div>
 
                 <!-- 其余设置可滚动 -->
-                <div class="flex flex-col gap-4 w-full min-h-0 overflow-y-auto">
+                <div class="flex flex-col gap-3 w-full min-h-0 overflow-y-auto custom-scrollbar">
                     <!-- 字号 · 颜色 -->
                     <div class="flex flex-col gap-2">
                         <div class="setting-row flex items-center justify-between gap-3">
                             <span class="text-sm text-base-content/70 shrink-0 w-16">字体大小</span>
-                            <div class="flex items-center gap-2">
-                                <button class="btn btn-sm btn-outline dec-font update-setting" type="button">A-</button>
-                                <span class="font-value text-center w-10 font-semibold text-sm"> </span>
-                                <button class="btn btn-sm btn-outline inc-font update-setting" type="button">A+</button>
+                            <div class="flex items-center gap-0.5 bg-base-200/60 rounded-lg p-0.5">
+                                <button class="btn btn-xs btn-ghost btn-square dec-font update-setting" type="button" aria-label="减小字号">
+                                    <iconify-icon icon="bi:dash" class="text-sm"></iconify-icon>
+                                </button>
+                                <span class="font-value text-center w-8 text-sm tabular-nums"> </span>
+                                <button class="btn btn-xs btn-ghost btn-square inc-font update-setting" type="button" aria-label="增大字号">
+                                    <iconify-icon icon="bi:plus" class="text-sm"></iconify-icon>
+                                </button>
                             </div>
                         </div>
 
                         <div class="setting-row flex items-center justify-between gap-3">
                             <span class="text-sm text-base-content/70 shrink-0 w-16">字体颜色</span>
-                            <div class="flex items-center gap-2">
+                            <div class="flex items-center gap-2.5">
                                 <input type="checkbox" class="toggle toggle-sm" id="enable-font-color"
                                     {% if user_setting.font_color %}checked{% endif %}>
-                                <input type="color" id="setting-font-color" class="w-8 h-8 rounded cursor-pointer"
+                                <input type="color" id="setting-font-color" class="w-7 h-7 rounded-full cursor-pointer shrink-0"
                                     value="{{ user_setting.font_color|default:'#333333' }}">
                             </div>
                         </div>
@@ -255,7 +269,7 @@ article{ font-weight: {{ user_setting.font_weight }}; }
                             <span class="text-sm text-base-content/70 shrink-0 w-16">文字字距</span>
                             <div class="flex items-center gap-2 flex-1">
                                 <input type="range" min="-2" max="10" step="1" value="{{ user_setting.letter_spacing|default:'0' }}" class="range range-xs flex-1 [--range-fill:0]" id="setting-letter-spacing">
-                                <span class="text-sm w-8 text-center" id="setting-letter-spacing-val">{{ user_setting.letter_spacing|default:'0' }}</span>
+                                <span class="text-xs tabular-nums text-base-content/60 w-8 text-center" id="setting-letter-spacing-val">{{ user_setting.letter_spacing|default:'0' }}</span>
                             </div>
                         </div>
 
@@ -263,7 +277,7 @@ article{ font-weight: {{ user_setting.font_weight }}; }
                             <span class="text-sm text-base-content/70 shrink-0 w-16">段落行距</span>
                             <div class="flex items-center gap-2 flex-1">
                                 <input type="range" min="0" max="6" step="0.1" value="{{ user_setting.line_height|default:'1.2' }}" class="range range-xs flex-1 [--range-fill:0]" id="setting-line-height">
-                                <span class="text-sm w-8 text-center" id="setting-line-height-val">{% if user_setting.line_height %}{{ user_setting.line_height }}{% else %}默认{% endif %}</span>
+                                <span class="text-xs tabular-nums text-base-content/60 w-8 text-center" id="setting-line-height-val">{% if user_setting.line_height %}{{ user_setting.line_height }}{% else %}默认{% endif %}</span>
                             </div>
                         </div>
                     </div>
@@ -276,7 +290,7 @@ article{ font-weight: {{ user_setting.font_weight }}; }
                             <span class="text-sm text-base-content/70 shrink-0 w-16">页面宽度</span>
                             <div class="flex items-center gap-2 flex-1">
                                 <input type="range" min="0" max="1600" step="20" value="{{ user_setting.page_width|default:'0' }}" class="range range-xs flex-1 [--range-fill:0]" id="setting-page-width">
-                                <span class="text-sm w-15 text-center" id="setting-page-width-val">{% if user_setting.page_width and user_setting.page_width >= 200 %}{{ user_setting.page_width }}px{% else %}默认{% endif %}</span>
+                                <span class="text-xs tabular-nums text-base-content/60 w-15 text-center" id="setting-page-width-val">{% if user_setting.page_width and user_setting.page_width >= 200 %}{{ user_setting.page_width }}px{% else %}默认{% endif %}</span>
                             </div>
                         </div>
 
@@ -284,7 +298,7 @@ article{ font-weight: {{ user_setting.font_weight }}; }
                             <span class="text-sm text-base-content/70 shrink-0 w-16">页面高度</span>
                             <div class="flex items-center gap-2 flex-1">
                                 <input type="range" min="0" max="1200" step="20" value="{{ user_setting.page_height|default:'0' }}" class="range range-xs flex-1 [--range-fill:0]" id="setting-page-height">
-                                <span class="text-sm w-15 text-center" id="setting-page-height-val">{% if user_setting.page_height and user_setting.page_height >= 200 %}{{ user_setting.page_height }}px{% else %}默认{% endif %}</span>
+                                <span class="text-xs tabular-nums text-base-content/60 w-15 text-center" id="setting-page-height-val">{% if user_setting.page_height and user_setting.page_height >= 200 %}{{ user_setting.page_height }}px{% else %}默认{% endif %}</span>
                             </div>
                         </div>
                     </div>
@@ -295,9 +309,9 @@ article{ font-weight: {{ user_setting.font_weight }}; }
                     <div class="flex flex-col gap-2">
                         <div class="setting-row flex items-center justify-between gap-3">
                             <span class="text-sm text-base-content/70 shrink-0 w-16">阅读方式</span>
-                            <div class="join">
-                                <button class="btn btn-sm btn-outline join-item mode-setting mode-page" type="button" data-mode="page">翻页</button>
-                                <button class="btn btn-sm btn-outline join-item mode-setting mode-slide" type="button" data-mode="slide">滑动</button>
+                            <div class="flex items-center gap-0.5 bg-base-200/60 rounded-lg p-0.5">
+                                <button class="btn btn-xs btn-ghost border-none rounded-md px-3 mode-setting mode-page text-base-content/50" type="button" data-mode="page">翻页</button>
+                                <button class="btn btn-xs btn-ghost border-none rounded-md px-3 mode-setting mode-slide text-base-content/50" type="button" data-mode="slide">滑动</button>
                             </div>
                         </div>
 
@@ -305,9 +319,9 @@ article{ font-weight: {{ user_setting.font_weight }}; }
                             <span class="text-sm text-base-content/70 shrink-0 w-16">自动阅读</span>
                             <div class="flex items-center gap-2 flex-1">
                                 <input type="checkbox" class="toggle toggle-sm" id="auto-read-toggle">
-                                <span class="text-sm text-base-content/70 ml-1">速度</span>
+                                <span class="text-xs text-base-content/50">速度</span>
                                 <input type="range" min="0" max="49" step="1" value="19" class="range range-xs flex-1 [--range-fill:0]" id="auto-read-speed">
-                                <span class="text-sm w-8 text-center" id="auto-read-speed-val">2</span>
+                                <span class="text-xs tabular-nums text-base-content/60 w-8 text-center" id="auto-read-speed-val">2</span>
                             </div>
                         </div>
                     </div>

@@ -77,11 +77,14 @@ function applyReadMode() {
     $('main').toggleClass('read-mode-slide', read_mode === 'slide');
 }
 
+// 阅读方式分段控件选中态：激活项白底浮起，未激活项弱化
+var MODE_ACTIVE_CLS = 'bg-base-100 shadow-sm text-base-content';
+var MODE_IDLE_CLS = 'text-base-content/50';
 function updateModeButtons() {
     $('.mode-setting').each(function() {
         var active = $(this).data('mode') === read_mode;
-        $(this).toggleClass('btn-active active', active)
-               .css('border', active ? '1px solid currentColor' : '');
+        $(this).toggleClass(MODE_ACTIVE_CLS, active)
+               .toggleClass(MODE_IDLE_CLS, !active);
     });
 }
 
@@ -841,16 +844,18 @@ $('.search-btn').click(function(e) {
 });
 
 // ===== 设置面板 =====
+// 背景色块选中态：圆形色块 + ring 高亮（与模板中的色块样式配套）
+var BG_ACTIVE_CLS = 'ring-2 ring-primary ring-offset-2 ring-offset-base-100';
 function showSettingsToast() {
     var toast = $('#offcanvassetting');
     $('.font-value').text(parseInt($('article').css('font-size')));
 
     // 选中态检测：若用户已选过 bg-setting 则保持，否则按 user_setting_bg 自动选中
-    var hadChoose = $('.bg-setting.bodder.border-4.border-secondary').length > 0;
+    var hadChoose = $('.bg-setting.ring-2').length > 0;
     if (!hadChoose) {
         $('.bg-setting').each(function() {
             var bgVal = $(this).attr('data-bg') || $(this).css('background-color');
-            if (bgVal == user_setting_bg) $(this).addClass('bodder border-4 border-secondary');
+            if (bgVal == user_setting_bg) $(this).addClass(BG_ACTIVE_CLS);
         });
     }
 
@@ -858,14 +863,14 @@ function showSettingsToast() {
     $('#auto-read-toggle').prop('checked', autoReadEnabled);
     $('#auto-read-speed').val(speedToSlider(autoReadSpeed));
     $('#auto-read-speed-val').text(autoReadSpeed);
-    toast.show();
+    toast.stop(true, true).fadeIn(150);
 }
 
 $('.setting-btn').click(function() {
     var toast = $('#offcanvassetting');
-    toast.is(':visible') ? toast.hide() : showSettingsToast();
+    toast.is(':visible') ? toast.stop(true, true).fadeOut(150) : showSettingsToast();
 });
-$('.setting-close').click(function() { $('#offcanvassetting').hide(); });
+$('.setting-close').click(function() { $('#offcanvassetting').stop(true, true).fadeOut(150); });
 
 $('.inc-font').click(function() {
     var font = parseInt($('article').css('font-size')) + 1;
@@ -890,15 +895,15 @@ var bgFontColorMap = {
 $('.bg-setting').click(function() {
     var $this = $(this);
     $('main').css('background', $this.attr('data-bg') || $this.css('background'));
-    $('.bg-setting').removeClass('bodder border-4 border-secondary');
-    $this.addClass('bodder border-4 border-secondary');
+    $('.bg-setting').removeClass(BG_ACTIVE_CLS);
+    $this.addClass(BG_ACTIVE_CLS);
     for (var cls in bgFontColorMap) {
         if ($this.hasClass(cls)) { $('main').css('color', bgFontColorMap[cls]); break; }
     }
 });
 
 function collectSettings() {
-    var $activeBg = $('.bg-setting.bodder');
+    var $activeBg = $('.bg-setting.ring-2');
     var readBg = ($activeBg.length && $activeBg.attr('data-bg'))
         ? $activeBg.attr('data-bg')
         : $('main').css('background-color');
