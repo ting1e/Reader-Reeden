@@ -2,13 +2,13 @@
 <header class="bg-base-100 shadow-sm w-full mb-4">
   <div class="navbar container mx-auto px-4">
     <nav class="tabs tabs-border flex-1" aria-label="主导航">
-      <a href="{% url 'reader:book_list'%}" class="text-base tab {% if url_name == 'book_list' %}tab-active font-medium{% endif %}" {% if url_name == 'book_list' %}aria-current="page"{% endif %}>
+      <a href="{% url 'reader:bookshelf'%}" class="text-base tab {% if url_name == 'bookshelf' %}tab-active font-medium{% endif %}" {% if url_name == 'bookshelf' %}aria-current="page"{% endif %}>
         <iconify-icon icon="bi:hdd" class="me-1.5" aria-hidden="true"></iconify-icon>本地书库
       </a>
-      <a href="{% url 'reader:book_list_remote'%}" class="text-base tab {% if url_name == 'book_list_remote' %}tab-active font-medium{% endif %}" {% if url_name == 'book_list_remote' %}aria-current="page"{% endif %}>
+      <a href="{% url 'reader:bookshelf_remote'%}" class="text-base tab {% if url_name == 'bookshelf_remote' %}tab-active font-medium{% endif %}" {% if url_name == 'bookshelf_remote' %}aria-current="page"{% endif %}>
         <iconify-icon icon="bi:cloud" class="me-1.5" aria-hidden="true"></iconify-icon>远程书库
       </a>
-      <a href="{% url 'reader:booklist_list'%}" class="text-base tab {% if url_name == 'booklist_list' or url_name == 'booklist_detail' or url_name == 'booklist_admin' %}tab-active font-medium{% endif %}" {% if url_name == 'booklist_list' or url_name == 'booklist_detail' or url_name == 'booklist_admin' %}aria-current="page"{% endif %}>
+      <a href="{% url 'reader:book_list_index'%}" class="text-base tab {% if url_name == 'book_list_index' or url_name == 'book_list_detail' or url_name == 'book_list_admin' %}tab-active font-medium{% endif %}" {% if url_name == 'book_list_index' or url_name == 'book_list_detail' or url_name == 'book_list_admin' %}aria-current="page"{% endif %}>
         <iconify-icon icon="bi:collection" class="me-1.5" aria-hidden="true"></iconify-icon>书单
       </a>
       <a href="{% url 'reader:reading_stats' %}" class="text-base tab {% if url_name == 'reading_stats' %}tab-active font-medium{% endif %}" {% if url_name == 'reading_stats' %}aria-current="page"{% endif %}>
@@ -23,12 +23,12 @@
     </nav>
 
     <div class="flex items-center gap-3">
-      {% if url_name == 'book_list' or url_name == 'book_list_remote' or url_name == 'book_view' %}
+      {% if url_name == 'bookshelf' or url_name == 'bookshelf_remote' or url_name == 'book_view' %}
       <label class="input input-bordered flex items-center gap-2 h-10 w-32 md:w-48 bg-base-200/50 focus-within:bg-base-100 transition-colors">
         <input type="text"
-               placeholder="{% if url_name == 'book_list' or url_name == 'book_list_remote' %}书籍搜索{% else %}全文搜索{% endif %}"
+               placeholder="{% if url_name == 'bookshelf' or url_name == 'bookshelf_remote' %}书籍搜索{% else %}全文搜索{% endif %}"
                aria-label="搜索"
-               class="grow content-search {% if url_name == 'book_list' or url_name == 'book_list_remote' %}book-search{% endif %}" />
+               class="grow content-search {% if url_name == 'bookshelf' or url_name == 'bookshelf_remote' %}book-search{% endif %}" />
         <iconify-icon icon="bi:search" class="text-base-content/50 shrink-0 {% if url_name == 'book_view' %}search-btn cursor-pointer{% endif %}" aria-hidden="true"></iconify-icon>
       </label>
       {% endif %}
@@ -80,7 +80,7 @@
           <li><a href="{% url 'reader:upload_file' %}"><iconify-icon icon="bi:upload" class="text-xl opacity-70" aria-hidden="true"></iconify-icon>上传书籍</a></li>
           <li><a href="{% url 'reader:book_admin' %}"><iconify-icon icon="bi:journal-text" class="text-xl opacity-70" aria-hidden="true"></iconify-icon>书籍管理</a></li>
           <li><a href="{% url 'reader:bookmark_admin' %}"><iconify-icon icon="bi:bookmark-star" class="text-xl opacity-70" aria-hidden="true"></iconify-icon>书签管理</a></li>
-          <li><a href="{% url 'reader:booklist_admin' %}"><iconify-icon icon="bi:collection" class="text-xl opacity-70" aria-hidden="true"></iconify-icon>书单管理</a></li>
+          <li><a href="{% url 'reader:book_list_admin' %}"><iconify-icon icon="bi:collection" class="text-xl opacity-70" aria-hidden="true"></iconify-icon>书单管理</a></li>
           <li><a href="{% url 'reader:reading_stats_admin' %}"><iconify-icon icon="bi:bar-chart-line" class="text-xl opacity-70" aria-hidden="true"></iconify-icon>统计管理</a></li>
           <li><a href="{% url 'reader:font_admin' %}"><iconify-icon icon="bi:fonts" class="text-xl opacity-70" aria-hidden="true"></iconify-icon>字体管理</a></li>
           <li><a href="{% url 'reader:user_settings' %}"><iconify-icon icon="bi:person-gear" class="text-xl opacity-70" aria-hidden="true"></iconify-icon>个人设置</a></li>
@@ -169,7 +169,7 @@
         document.documentElement.setAttribute('data-theme', t);
         syncThemeUI(t);
         {% if request.user.is_authenticated %}
-        $.post("{% url 'reader:set_theme' %}", {
+        $.post("{% url 'reader:user_settings_theme' %}", {
           theme: t,
           csrfmiddlewaretoken: '{{ csrf_token }}'
         });
@@ -217,7 +217,7 @@
     });
     {% endif %}
 
-    {% if url_name == 'book_list' or url_name == 'book_list_remote' %}
+    {% if url_name == 'bookshelf' or url_name == 'bookshelf_remote' %}
     // 书籍搜索（150ms 防抖，避免每个按键都全量遍历 DOM）
     (function() {
       var timer = null;

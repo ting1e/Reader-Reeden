@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}书单 - {{ booklist.name }}{% endblock %}
+{% block title %}书单 - {{ book_list.name }}{% endblock %}
 
 {% block header %}
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -10,7 +10,7 @@
 {% block content %}
 
 <main>
-  {% include 'header.html' %}
+  {% include '_header.html' %}
 
   <div class="container mx-auto px-4 py-4">
 
@@ -21,12 +21,12 @@
           <div class="flex items-center gap-4 flex-wrap mb-2">
             <div class="flex-1 min-w-0">
               <div class="bl-name-edit hidden items-center gap-2 flex-1">
-                <input type="text" class="input input-bordered input-sm flex-1 min-w-0 max-w-md bl-name-input" value="{{ booklist.name }}" maxlength="128" />
+                <input type="text" class="input input-bordered input-sm flex-1 min-w-0 max-w-md bl-name-input" value="{{ book_list.name }}" maxlength="128" />
                 <button type="button" class="btn btn-sm btn-primary btn-circle shrink-0 bl-name-save"><iconify-icon icon="bi:check-lg"></iconify-icon></button>
                 <button type="button" class="btn btn-sm btn-ghost btn-circle shrink-0 bl-name-cancel"><iconify-icon icon="bi:x"></iconify-icon></button>
               </div>
               <div class="bl-name-wrap flex items-center gap-2 flex-wrap">
-                <h2 class="text-2xl font-bold bl-name-display tracking-tight">{{ booklist.name }}</h2>
+                <h2 class="text-2xl font-bold bl-name-display tracking-tight">{{ book_list.name }}</h2>
                 <span class="badge badge-ghost badge-sm" id="item-count-badge">{{ items|length }} 本书</span>
                 {% if can_edit %}
                 <button type="button" class="btn btn-ghost btn-xs btn-circle bl-name-start h-7 w-7 min-h-7 opacity-70 hover:opacity-100" aria-label="编辑名称">
@@ -41,17 +41,17 @@
               <button type="button" class="btn btn-sm btn-neutral btn-outline" onclick="add_book_modal.showModal()">
                 <iconify-icon icon="bi:plus-lg"></iconify-icon> 添加书籍
               </button>
-              <button type="button" class="share-toggle btn btn-sm {% if booklist.is_public %}btn-outline btn-success{% else %}btn-outline btn-ghost{% endif %} gap-1 h-8 min-h-8"
-                      data-url="{% url 'reader:booklist_share_toggle' booklist.id %}">
-                <iconify-icon icon="bi:{% if booklist.is_public %}globe{% else %}lock{% endif %}"></iconify-icon>
-                {% if booklist.is_public %}共享{% else %}私有{% endif %}
+              <button type="button" class="share-toggle btn btn-sm {% if book_list.is_public %}btn-outline btn-success{% else %}btn-outline btn-ghost{% endif %} gap-1 h-8 min-h-8"
+                      data-url="{% url 'reader:book_list_share_toggle' book_list.id %}">
+                <iconify-icon icon="bi:{% if book_list.is_public %}globe{% else %}lock{% endif %}"></iconify-icon>
+                {% if book_list.is_public %}共享{% else %}私有{% endif %}
               </button>
-              <a href="{% url 'reader:booklist_list' %}" class="btn btn-sm btn-ghost">
+              <a href="{% url 'reader:book_list_index' %}" class="btn btn-sm btn-ghost">
                 <iconify-icon icon="bi:arrow-left"></iconify-icon> 返回
               </a>
             </div>
             {% else %}
-            <a href="{% url 'reader:booklist_list' %}" class="btn btn-sm btn-ghost shrink-0">
+            <a href="{% url 'reader:book_list_index' %}" class="btn btn-sm btn-ghost shrink-0">
               <iconify-icon icon="bi:arrow-left"></iconify-icon> 返回
             </a>
             {% endif %}
@@ -61,14 +61,14 @@
           <div class="bl-desc-wrapper">
             {% if can_edit %}
             <div class="bl-desc-display text-sm text-base-content whitespace-pre-line cursor-pointer hover:bg-base-200/50 rounded-lg px-3 py-2 transition-colors"
-                 {% if not booklist.description %}style="display:none"{% endif %}>{{ booklist.description|default:'' }}</div>
+                 {% if not book_list.description %}style="display:none"{% endif %}>{{ book_list.description|default:'' }}</div>
             <div class="bl-desc-placeholder text-sm text-base-content/50 cursor-pointer hover:bg-base-200/50 rounded-lg px-3 py-2 transition-colors inline-flex items-center gap-1.5"
-                 {% if booklist.description %}style="display:none"{% endif %}>
+                 {% if book_list.description %}style="display:none"{% endif %}>
               <iconify-icon icon="bi:plus-circle" class="opacity-70"></iconify-icon>添加简介
             </div>
-            <textarea class="textarea textarea-bordered w-full text-sm bl-desc-input hidden" rows="2" placeholder="简单描述这个书单">{{ booklist.description|default:'' }}</textarea>
+            <textarea class="textarea textarea-bordered w-full text-sm bl-desc-input hidden" rows="2" placeholder="简单描述这个书单">{{ book_list.description|default:'' }}</textarea>
             {% else %}
-            {% if booklist.description %}<div class="text-sm whitespace-pre-line">{{ booklist.description }}</div>{% endif %}
+            {% if book_list.description %}<div class="text-sm whitespace-pre-line">{{ book_list.description }}</div>{% endif %}
             {% endif %}
           </div>
         </div>
@@ -78,8 +78,8 @@
           {% for item in items %}
           <div class="item-row group border-t border-base-200/60 hover:bg-base-200/20 transition-colors"
                data-item-id="{{ item.id }}"
-               data-update-url="{% url 'reader:booklist_update_item' booklist.id item.id %}"
-               data-remove-url="{% url 'reader:booklist_remove_item' booklist.id item.id %}">
+               data-update-url="{% url 'reader:book_list_update_item' book_list.id item.id %}"
+               data-remove-url="{% url 'reader:book_list_remove_item' book_list.id item.id %}">
             <div class="flex items-start gap-0">
               <div class="w-12 sm:w-14 shrink-0 pt-4 pl-4 sm:pl-5 flex flex-col items-start">
                 <div class="font-bold text-sm text-base-content/60 select-none w-7 h-7 flex items-center justify-center rounded-full bg-base-200/60 group-hover:bg-primary/10 group-hover:text-primary/70 transition-colors">{{ forloop.counter }}</div>
@@ -108,7 +108,7 @@
                       {% endif %}
                       {% if can_edit and item.book_id == 0 and item.remote_file_name %}
                       <button type="button" class="btn btn-xs btn-ghost btn-circle text-primary/70 hover:text-primary item-download-btn" title="下载" aria-label="下载"
-                              data-url="{% url 'reader:booklist_download_remote' booklist.id item.id %}">
+                              data-url="{% url 'reader:book_list_download_remote' book_list.id item.id %}">
                         <iconify-icon icon="bi:cloud-download"></iconify-icon>
                       </button>
                       {% endif %}
@@ -120,7 +120,7 @@
                       </div>
                     </div>
                     <!-- 短评 -->
-                    <div class="item-review-wrapper mt-2.5" data-update-url="{% url 'reader:booklist_update_item' booklist.id item.id %}">
+                    <div class="item-review-wrapper mt-2.5" data-update-url="{% url 'reader:book_list_update_item' book_list.id item.id %}">
                       {% if can_edit %}
                       <div class="item-review-display review-md text-sm cursor-pointer pl-1 pr-1 py-1.5 transition-colors min-h-[2rem] hover:text-base-content hover:bg-base-200/30 rounded"
                            data-raw="{{ item.review|default:'' }}"
@@ -150,7 +150,7 @@
             </div>
           </div>
           {% empty %}
-          {% include '_booklist_empty.html' with icon='bi:inbox' icon_cls='text-3xl' title='书单暂无书籍' can_act=can_edit act_hint='点击右上角"添加书籍"按钮开始创建' %}
+          {% include '_book_list_empty.html' with icon='bi:inbox' icon_cls='text-3xl' title='书单暂无书籍' can_act=can_edit act_hint='点击右上角"添加书籍"按钮开始创建' %}
           {% endfor %}
         </div>
       </div>
@@ -306,7 +306,7 @@
     {% endif %}
 
     <!-- 空状态模板：页面初始渲染与 JS 动态替换共用（移除最后一本书后显示） -->
-    <template id="booklist-empty-tpl">{% include '_booklist_empty.html' with icon='bi:inbox' icon_cls='text-3xl' title='书单暂无书籍' can_act=can_edit act_hint='点击右上角"添加书籍"按钮开始创建' %}</template>
+    <template id="booklist-empty-tpl">{% include '_book_list_empty.html' with icon='bi:inbox' icon_cls='text-3xl' title='书单暂无书籍' can_act=can_edit act_hint='点击右上角"添加书籍"按钮开始创建' %}</template>
 
   </div>
 
@@ -357,8 +357,8 @@ textarea:focus, input[type="text"]:focus, input[type="password"]:focus {
 <script>
 (function() {
   var csrf = '{{ csrf_token }}';
-  var editUrl = '{% url "reader:booklist_edit" booklist.id %}';
-  var addBookUrl = '{% url "reader:booklist_add_book" booklist.id %}';
+  var editUrl = '{% url "reader:book_list_edit" book_list.id %}';
+  var addBookUrl = '{% url "reader:book_list_add_book" book_list.id %}';
 
   var emptyTpl = document.getElementById('booklist-empty-tpl');
   var EMPTY_STATE_HTML = emptyTpl ? emptyTpl.innerHTML : '';
@@ -608,7 +608,7 @@ textarea:focus, input[type="text"]:focus, input[type="password"]:focus {
   }
   function loadRemoteBooks() {
     $.ajax({
-      url: '{% url "reader:booklist_remote_books" %}',
+      url: '{% url "reader:book_list_remote_books" %}',
       type: 'get',
       success: function(resp) {
         if (resp && resp.success) {

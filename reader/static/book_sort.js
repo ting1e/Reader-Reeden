@@ -3,7 +3,7 @@
 //      window.BOOK_SORT_STORAGE_KEY  — localStorage 键名
 (function() {
     var defaultDir = window.BOOK_SORT_DEFAULT_DIR || {};
-    var STORAGE_KEY = window.BOOK_SORT_STORAGE_KEY || 'book_list_sort';
+    var STORAGE_KEY = window.BOOK_SORT_STORAGE_KEY || 'bookshelf_sort';
     var currentSort = null;
     var currentDir = null;
 

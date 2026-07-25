@@ -7,11 +7,11 @@
 {% block content %}
 
 <main>
-  {% include 'header.html' %}
+  {% include '_header.html' %}
 
   <div class="container mx-auto px-4 py-4">
 
-    {% if book_list %}
+    {% if bookshelf %}
     <div class="flex items-center gap-2 mb-6 sort-bar">
       <span class="text-sm text-base-content/60">排序：</span>
       <div class="join">
@@ -21,11 +21,11 @@
         <button class="btn btn-sm join-item sort-btn" data-sort="recent">最近阅读</button>
         <button class="btn btn-sm join-item sort-btn" data-sort="size">大小</button>
       </div>
-      <span class="ms-auto text-sm text-base-content/50">共 {{ book_list|length }} 本</span>
+      <span class="ms-auto text-sm text-base-content/50">共 {{ bookshelf|length }} 本</span>
     </div>
 
     <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-7 gap-5 book-grid">
-      {% for book in book_list %}
+      {% for book in bookshelf %}
       <div class="book-item"
            data-book-name="{{ book.name|default:book.file_name }}"
            data-sort-time="{{ book.upload_time|date:"U" }}"
@@ -86,7 +86,7 @@
 {% block body-bottom %}
 <script>
 window.BOOK_SORT_DEFAULT_DIR = {name: 'asc', time: 'desc', progress: 'desc', recent: 'desc', size: 'desc'};
-window.BOOK_SORT_STORAGE_KEY = 'book_list_sort';
+window.BOOK_SORT_STORAGE_KEY = 'bookshelf_sort';
 </script>
 <script src="{% static 'book_sort.js' %}"></script>
 {% endblock %}

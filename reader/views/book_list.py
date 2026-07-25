@@ -8,8 +8,8 @@ from django.db.models import Q as models_Q
 
 from ..models import BookList, BookListItem, Book
 from ..utils import (
-    get_accessible_books, can_admin_booklist, can_view_booklist, can_access_book,
-    fmt_file_size, get_local_books_dir, link_external_booklist_items,
+    get_accessible_books, can_admin_book_list, can_view_book_list, can_access_book,
+    fmt_file_size, get_local_books_dir, link_external_book_list_items,
 )
 from ..services.s3 import get_s3_config, _get_s3_client
 from ..services import book_parser
@@ -17,61 +17,61 @@ from ..services import book_parser
 logger = logging.getLogger('reader')
 
 
-def booklist_list(request):
+def book_list_index(request):
     """书单浏览：列出公开书单和用户自己的书单（只读）。
 
     未登录用户仅可查看公开书单，且不显示新建按钮。
     """
     user = request.user
     if getattr(user, 'is_superuser', False):
-        booklists = list(BookList.objects.all().order_by('-updated_time'))
+        book_lists = list(BookList.objects.all().order_by('-updated_time'))
     elif getattr(user, 'is_authenticated', False):
-        booklists = list(
+        book_lists = list(
             BookList.objects.filter(
                 models_Q(user_id=user.id) | models_Q(is_public=True)
             ).order_by('-updated_time')
         )
     else:
-        booklists = list(BookList.objects.filter(is_public=True).order_by('-updated_time'))
+        book_lists = list(BookList.objects.filter(is_public=True).order_by('-updated_time'))
 
-    booklist_ids = [bl.id for bl in booklists]
+    book_list_ids = [bl.id for bl in book_lists]
     item_counts = {}
-    for item in BookListItem.objects.filter(book_list_id__in=booklist_ids):
+    for item in BookListItem.objects.filter(book_list_id__in=book_list_ids):
         item_counts[item.book_list_id] = item_counts.get(item.book_list_id, 0) + 1
-    for bl in booklists:
+    for bl in book_lists:
         bl.item_count = item_counts.get(bl.id, 0)
 
-    return render(request, 'booklist_admin.html', {
-        'booklist_list': booklists,
+    return render(request, 'book_list_admin.html', {
+        'book_lists': book_lists,
         'can_create': bool(getattr(user, 'is_authenticated', False)),
         'can_delete': False,
     })
 
 
 @login_required(login_url='reader:index')
-def booklist_admin(request):
+def book_list_admin(request):
     """书单管理：列出当前用户创建的书单（超管可看全部）"""
     if request.user.is_superuser:
-        booklists = list(BookList.objects.all().order_by('-updated_time'))
+        book_lists = list(BookList.objects.all().order_by('-updated_time'))
     else:
-        booklists = list(BookList.objects.filter(user_id=request.user.id).order_by('-updated_time'))
+        book_lists = list(BookList.objects.filter(user_id=request.user.id).order_by('-updated_time'))
 
-    booklist_ids = [bl.id for bl in booklists]
+    book_list_ids = [bl.id for bl in book_lists]
     item_counts = {}
-    for item in BookListItem.objects.filter(book_list_id__in=booklist_ids):
+    for item in BookListItem.objects.filter(book_list_id__in=book_list_ids):
         item_counts[item.book_list_id] = item_counts.get(item.book_list_id, 0) + 1
-    for bl in booklists:
+    for bl in book_lists:
         bl.item_count = item_counts.get(bl.id, 0)
 
-    return render(request, 'booklist_admin.html', {
-        'booklist_list': booklists,
+    return render(request, 'book_list_admin.html', {
+        'book_lists': book_lists,
         'can_create': True,
         'can_delete': True,
     })
 
 
 @login_required(login_url='reader:index')
-def booklist_create(request):
+def book_list_create(request):
     """创建书单（AJAX，返回 JSON）"""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'method not allowed'})
@@ -90,14 +90,14 @@ def booklist_create(request):
     return JsonResponse({'success': True, 'id': bl.id, 'name': bl.name})
 
 
-def booklist_detail(request, pk):
+def book_list_detail(request, pk):
     """书单详情页：单页查看 + 内联编辑。
 
     未登录用户可查看公开书单（只读）；私有书单重定向到书单浏览页。
     """
     bl = get_object_or_404(BookList, id=pk)
-    if not can_view_booklist(bl, request.user):
-        return redirect('reader:booklist_list')
+    if not can_view_book_list(bl, request.user):
+        return redirect('reader:book_list_index')
 
     items = list(BookListItem.objects.filter(book_list_id=pk).order_by('sort_order', 'added_time'))
     book_ids = [it.book_id for it in items if it.book_id > 0]
@@ -105,11 +105,11 @@ def booklist_detail(request, pk):
     for it in items:
         it.book_obj = book_map.get(it.book_id) if it.book_id > 0 else None
 
-    can_edit = can_admin_booklist(bl, request.user)
+    can_edit = can_admin_book_list(bl, request.user)
     accessible_books = get_accessible_books(request.user) if can_edit else []
 
-    return render(request, 'booklist_detail.html', {
-        'booklist': bl,
+    return render(request, 'book_list_detail.html', {
+        'book_list': bl,
         'items': items,
         'accessible_books': accessible_books,
         'can_edit': can_edit,
@@ -117,12 +117,12 @@ def booklist_detail(request, pk):
 
 
 @login_required(login_url='reader:index')
-def booklist_edit(request, pk):
+def book_list_edit(request, pk):
     """编辑书单名称/简介（AJAX，返回 JSON）"""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'method not allowed'})
     bl = get_object_or_404(BookList, id=pk)
-    if not can_admin_booklist(bl, request.user):
+    if not can_admin_book_list(bl, request.user):
         return JsonResponse({'success': False, 'error': '无权限'})
 
     name = (request.POST.get('name') or '').strip()
@@ -139,12 +139,12 @@ def booklist_edit(request, pk):
 
 
 @login_required(login_url='reader:index')
-def booklist_delete(request, pk):
+def book_list_del(request, pk):
     """删除书单（AJAX，返回 JSON）"""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'method not allowed'})
     bl = get_object_or_404(BookList, id=pk)
-    if not can_admin_booklist(bl, request.user):
+    if not can_admin_book_list(bl, request.user):
         return JsonResponse({'success': False, 'error': '无权限'})
     name = bl.name
     BookListItem.objects.filter(book_list_id=pk).delete()
@@ -153,27 +153,27 @@ def booklist_delete(request, pk):
 
 
 @login_required(login_url='reader:index')
-def booklist_share_toggle(request, pk):
+def book_list_share_toggle(request, pk):
     """切换书单公开/私有状态
 
     详情页通过 AJAX 调用（返回 JSON），管理页通过 form POST 调用（返回 redirect）。
     """
     if request.method != 'POST':
-        return redirect('reader:booklist_admin')
+        return redirect('reader:book_list_admin')
     bl = get_object_or_404(BookList, id=pk)
-    if not can_admin_booklist(bl, request.user):
+    if not can_admin_book_list(bl, request.user):
         if request.headers.get('x-requested-with') == 'XMLHttpRequest':
             return JsonResponse({'success': False, 'error': '无权限'})
-        return redirect('reader:booklist_admin')
+        return redirect('reader:book_list_admin')
     bl.is_public = not bl.is_public
     bl.save(update_fields=['is_public'])
     if request.headers.get('x-requested-with') == 'XMLHttpRequest':
         return JsonResponse({'success': True, 'is_public': bl.is_public})
-    return redirect('reader:booklist_admin')
+    return redirect('reader:book_list_admin')
 
 
 @login_required(login_url='reader:index')
-def booklist_add_book(request, pk):
+def book_list_add_book(request, pk):
     """向书单添加书籍（AJAX，返回 JSON）
 
     两种模式：
@@ -183,7 +183,7 @@ def booklist_add_book(request, pk):
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'method not allowed'})
     bl = get_object_or_404(BookList, id=pk)
-    if not can_admin_booklist(bl, request.user):
+    if not can_admin_book_list(bl, request.user):
         return JsonResponse({'success': False, 'error': '无权限'})
 
     book_id = request.POST.get('book_id', '').strip()
@@ -290,12 +290,12 @@ def booklist_add_book(request, pk):
 
 
 @login_required(login_url='reader:index')
-def booklist_update_item(request, pk, item_id):
+def book_list_update_item(request, pk, item_id):
     """更新书单条目的评分/短评（AJAX，返回 JSON）"""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'method not allowed'})
     bl = get_object_or_404(BookList, id=pk)
-    if not can_admin_booklist(bl, request.user):
+    if not can_admin_book_list(bl, request.user):
         return JsonResponse({'success': False, 'error': '无权限'})
     item = get_object_or_404(BookListItem, id=item_id, book_list_id=pk)
 
@@ -320,12 +320,12 @@ def booklist_update_item(request, pk, item_id):
 
 
 @login_required(login_url='reader:index')
-def booklist_remove_item(request, pk, item_id):
+def book_list_remove_item(request, pk, item_id):
     """从书单移除某条目（AJAX，返回 JSON）"""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'method not allowed'})
     bl = get_object_or_404(BookList, id=pk)
-    if not can_admin_booklist(bl, request.user):
+    if not can_admin_book_list(bl, request.user):
         return JsonResponse({'success': False, 'error': '无权限'})
     item = get_object_or_404(BookListItem, id=item_id, book_list_id=pk)
     item.delete()
@@ -334,7 +334,7 @@ def booklist_remove_item(request, pk, item_id):
 
 
 @login_required(login_url='reader:index')
-def booklist_remote_books(request):
+def book_list_remote_books(request):
     """AJAX：列出 S3 远程书库中的 .txt 文件（已下载的带 book_id 供直接加入书单）"""
     cfg = get_s3_config(request.user)
     if not cfg:
@@ -380,21 +380,21 @@ def booklist_remote_books(request):
             })
         return JsonResponse({'success': True, 'books': result})
     except Exception as e:
-        logger.exception("booklist_remote_books: S3 list error")
+        logger.exception("book_list_remote_books: S3 list error")
         return JsonResponse({'success': False, 'error': f'远程书库列表获取失败: {e}'})
 
 
 @login_required(login_url='reader:index')
-def booklist_download_remote(request, pk, item_id):
+def book_list_download_remote(request, pk, item_id):
     """AJAX：下载书单中外部条目对应的远程书籍，入库后自动关联，返回 JSON。
 
     仅对标记了 remote_file_name 的外部条目（book_id=0）可用；下载成功后
-    link_external_booklist_items 会把条目转为真实书籍，前端 reload 即见「阅读」按钮。
+    link_external_book_list_items 会把条目转为真实书籍，前端 reload 即见「阅读」按钮。
     """
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'method not allowed'})
     bl = get_object_or_404(BookList, id=pk)
-    if not can_admin_booklist(bl, request.user):
+    if not can_admin_book_list(bl, request.user):
         return JsonResponse({'success': False, 'error': '无权限'})
     item = get_object_or_404(BookListItem, id=item_id, book_list_id=pk)
     if item.book_id != 0 or not item.remote_file_name:
@@ -409,7 +409,7 @@ def booklist_download_remote(request, pk, item_id):
     existing = Book.objects.filter(file_name=book_name).first()
     if existing:
         if can_access_book(existing, request.user):
-            link_external_booklist_items(request.user, existing)
+            link_external_book_list_items(request.user, existing)
             return JsonResponse({'success': True, 'already_in_db': True})
         # 同名书存在但无权访问（可能为他人的私有书），不重复下载以避免产生重复记录
         return JsonResponse({'success': False, 'error': '本地已存在同名书籍但你无权访问'})
@@ -427,7 +427,7 @@ def booklist_download_remote(request, pk, item_id):
     try:
         s3_client.download_file(bucket, s3_key, local_path)
     except Exception as e:
-        logger.exception("booklist_download_remote: S3 download error")
+        logger.exception("book_list_download_remote: S3 download error")
         # 清理失败的本地文件
         try:
             if os.path.exists(local_path):
@@ -450,5 +450,5 @@ def booklist_download_remote(request, pk, item_id):
         return JsonResponse({'success': False, 'error': '入库失败'})
 
     # 关联当前用户书单中匹配的外部条目（含本条目）
-    link_external_booklist_items(request.user, book)
+    link_external_book_list_items(request.user, book)
     return JsonResponse({'success': True})

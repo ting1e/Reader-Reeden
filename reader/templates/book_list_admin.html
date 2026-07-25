@@ -5,7 +5,7 @@
 {% block content %}
 
 <main>
-  {% include 'header.html' %}
+  {% include '_header.html' %}
 
   <div class="container mx-auto px-4 py-4">
     <div class="card bg-base-100 shadow-sm border border-base-200/70 mt-6 mb-5 overflow-hidden">
@@ -15,7 +15,7 @@
             <h2 class="text-2xl font-bold tracking-tight flex items-center gap-2.5 mb-1">
               {% if can_delete %}书单管理{% else %}书单{% endif %}
               <span class="badge badge-ghost gap-1 text-sm py-2.5 px-3">
-                <span id="booklist-count">{{ booklist_list|length }}</span>
+                <span id="booklist-count">{{ book_lists|length }}</span>
               </span>
             </h2>
             <p class="text-sm text-base-content/50">
@@ -29,7 +29,7 @@
           {% endif %}
         </div>
 
-        {% if booklist_list %}
+        {% if book_lists %}
         <div class="overflow-x-auto">
           <table class="table text-base">
             <thead class="bg-base-200/40 text-base-content/60">
@@ -43,15 +43,15 @@
               </tr>
             </thead>
             <tbody>
-              {% for bl in booklist_list %}
+              {% for bl in book_lists %}
               <tr class="booklist-row group hover:bg-base-200/40 transition-colors" data-booklist-id="{{ bl.id }}">
                 <td class="break-words max-w-xs align-middle">
-                  <a href="{% url 'reader:booklist_detail' bl.id %}" class="font-semibold text-base-content hover:text-primary transition-colors">
+                  <a href="{% url 'reader:book_list_detail' bl.id %}" class="font-semibold text-base-content hover:text-primary transition-colors">
                     {{ bl.name }}
                   </a>
                 </td>
                 <td class="hidden sm:table-cell break-words max-w-sm text-sm text-base-content/60 align-middle">
-                  <a href="{% url 'reader:booklist_detail' bl.id %}" class="hover:text-primary transition-colors">
+                  <a href="{% url 'reader:book_list_detail' bl.id %}" class="hover:text-primary transition-colors">
                     {{ bl.description|truncatechars:45|default:"—" }}
                   </a>
                 </td>
@@ -63,7 +63,7 @@
                 </td>
                 <td class="align-middle">
                   {% if can_delete %}
-                  <form method="POST" action="{% url 'reader:booklist_share_toggle' bl.id %}" class="inline">
+                  <form method="POST" action="{% url 'reader:book_list_share_toggle' bl.id %}" class="inline">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-sm {% if bl.is_public %}btn-outline btn-success{% else %}btn-outline btn-ghost{% endif %} gap-1 h-8 min-h-8">
                       <iconify-icon icon="bi:{% if bl.is_public %}globe{% else %}lock{% endif %}"></iconify-icon>
@@ -80,11 +80,11 @@
                 <td class="hidden md:table-cell text-sm text-base-content/55 align-middle">{{ bl.updated_time|date:"Y-m-d H:i" }}</td>
                 <td class="align-middle">
                   <div class="flex items-center gap-2 whitespace-nowrap">
-                    <a href="{% url 'reader:booklist_detail' bl.id %}" class="btn btn-sm btn-outline btn-primary gap-1 h-8 min-h-8">
+                    <a href="{% url 'reader:book_list_detail' bl.id %}" class="btn btn-sm btn-outline btn-primary gap-1 h-8 min-h-8">
                       <iconify-icon icon="bi:eye"></iconify-icon> 查看
                     </a>
                     {% if can_delete %}
-                    <form method="POST" action="{% url 'reader:booklist_delete' bl.id %}" class="inline booklist-del-form"
+                    <form method="POST" action="{% url 'reader:book_list_del' bl.id %}" class="inline booklist-del-form"
                           data-name="{{ bl.name }}"
                           data-confirm="确定删除书单《{{ bl.name }}》？\n\n书单中的所有书籍评价将一并删除。">
                       {% csrf_token %}
@@ -101,14 +101,14 @@
           </table>
         </div>
         {% else %}
-        {% include '_booklist_empty.html' with icon='bi:collection' title='暂无书单' can_act=can_create act_hint='点击右上角"新建书单"按钮开始创建' none_hint='还没有任何书单' %}
+        {% include '_book_list_empty.html' with icon='bi:collection' title='暂无书单' can_act=can_create act_hint='点击右上角"新建书单"按钮开始创建' none_hint='还没有任何书单' %}
         {% endif %}
       </div>
     </div>
   </div>
 
   <!-- 空状态模板：页面初始渲染与 JS 动态替换共用（删除最后一个书单后替换表格） -->
-  <template id="booklist-empty-tpl">{% include '_booklist_empty.html' with icon='bi:collection' title='暂无书单' can_act=can_create act_hint='点击右上角"新建书单"按钮开始创建' none_hint='还没有任何书单' %}</template>
+  <template id="booklist-empty-tpl">{% include '_book_list_empty.html' with icon='bi:collection' title='暂无书单' can_act=can_create act_hint='点击右上角"新建书单"按钮开始创建' none_hint='还没有任何书单' %}</template>
 
   <!-- 新建书单弹窗 -->
   {% if can_create %}
@@ -166,13 +166,13 @@
     if (!$form.find('[name="name"]').val().trim()) { notify('名称不能为空', 'warning'); return; }
     var $btn = $(this).prop('disabled', true);
     $.ajax({
-      url: '{% url "reader:booklist_create" %}',
+      url: '{% url "reader:book_list_create" %}',
       type: 'post',
       data: $form.serialize(),
       success: function(resp) {
         $btn.prop('disabled', false);
         if (resp && resp.success) {
-          window.location.href = '{% url "reader:booklist_detail" 0 %}'.replace('/0/', '/' + resp.id + '/');
+          window.location.href = '{% url "reader:book_list_detail" 0 %}'.replace('/0/', '/' + resp.id + '/');
         } else {
           notify((resp && resp.error) || '创建失败', 'error');
         }
@@ -200,7 +200,7 @@
             notify('书单《' + (resp.name || name) + '》已删除', 'success');
             $form.closest('tr').fadeOut(200, function() { $(this).remove(); });
             var $cnt = $('#booklist-count');
-            var n = ($cnt.data('count') || {{ booklist_list|length }}) - 1;
+            var n = ($cnt.data('count') || {{ book_lists|length }}) - 1;
             $cnt.data('count', n).text(n);
             if (n === 0) $cnt.closest('.card').find('table').parent().replaceWith(EMPTY_STATE_HTML);
           } else {

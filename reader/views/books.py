@@ -12,7 +12,7 @@ from django.utils.text import get_valid_filename
 from ..models import Book, Chapter, UserBookRecord, UserBookMark, BookListItem, ReadStat
 from ..utils import (
     get_file_md5, get_local_books_dir, get_upload_dir, get_progress_dir,
-    can_admin_book, fmt_file_size, link_external_booklist_items,
+    can_admin_book, fmt_file_size, link_external_book_list_items,
 )
 from ..services.progress import (
     get_books_progress, _parse_progress_time,
@@ -23,9 +23,9 @@ from ..services import book_parser
 logger = logging.getLogger('reader')
 
 
-class BookListView(generic.ListView):
-    template_name = 'book_list.html'
-    context_object_name = 'book_list'
+class BookshelfView(generic.ListView):
+    template_name = 'bookshelf.html'
+    context_object_name = 'bookshelf'
 
     def get_queryset(self):
         if self.request.user.is_superuser:
@@ -35,8 +35,8 @@ class BookListView(generic.ListView):
         return Book.objects.filter(share=True)
 
     def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        books = list(context['book_list'])
+        context = super().get_context_data()
+        books = list(context['bookshelf'])
         progress = get_books_progress(self.request.user, books)
         for book in books:
             book.progress_value = progress.get(book.id, 0)
@@ -50,13 +50,13 @@ class BookListView(generic.ListView):
             except Exception:
                 book.file_size = 0
                 book.file_size_display = ''
-        context['book_list'] = books
+        context['bookshelf'] = books
         return context
 
 
-class BookListRemoteView(generic.ListView):
-    template_name = 'book_list_remote.html'
-    context_object_name = 'book_list_remote'
+class BookshelfRemoteView(generic.ListView):
+    template_name = 'bookshelf_remote.html'
+    context_object_name = 'bookshelf_remote'
 
     def get_queryset(self):
         remote_files = []
@@ -83,7 +83,7 @@ class BookListRemoteView(generic.ListView):
                                 'last_modified': last_modified.isoformat() if last_modified else '',
                             })
             except Exception as e:
-                logger.exception("BookListRemoteView: S3 list error")
+                logger.exception("BookshelfRemoteView: S3 list error")
                 self.s3_error = f'远程书库列表获取失败: {e}'
             else:
                 self.s3_error = None
@@ -109,8 +109,8 @@ class BookListRemoteView(generic.ListView):
         return context
 
 
-class IndexView(BookListView):
-    template_name = 'book_list.html'
+class IndexView(BookshelfView):
+    template_name = 'bookshelf.html'
 
 
 @login_required(login_url='reader:index')
@@ -118,12 +118,12 @@ def open_remote_book(request):
     """点击远程书籍：已在本地则直接打开，否则从 S3 下载到 local/books、
     下载进度到 local/book_progress、入库分章后打开。"""
     if request.method != 'POST':
-        return redirect('reader:book_list_remote')
+        return redirect('reader:bookshelf_remote')
     book_name = request.POST.get('name', '')
     # 路径穿越防护：仅保留文件名，剥离任何目录部分
     book_name = os.path.basename(book_name)
     if not book_name or book_name in ('.', '..'):
-        return redirect('reader:book_list_remote')
+        return redirect('reader:bookshelf_remote')
 
     existing = Book.objects.filter(file_name=book_name).first()
     if existing:
@@ -154,7 +154,7 @@ def open_remote_book(request):
         return HttpResponse('入库失败')
 
     # 仅关联当前用户书单中匹配的外部条目
-    link_external_booklist_items(request.user, book)
+    link_external_book_list_items(request.user, book)
 
     try:
         md5_val = book.md5 or get_file_md5(local_path)
@@ -452,7 +452,7 @@ def upload_file(request):
         if result:
             book = Book.objects.filter(file_name=safe_name).first()
             if book:
-                link_external_booklist_items(request.user, book)
+                link_external_book_list_items(request.user, book)
             return JsonResponse({'success': True, 'name': safe_name})
         if os.path.exists(local_path):
             try:

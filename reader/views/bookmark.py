@@ -8,7 +8,7 @@ from ..utils import can_access_book
 
 
 class BookmarkListView(generic.ListView):
-    template_name = 'bookmark_list.html'
+    template_name = '_bookmark_list.html'
     context_object_name = 'bookmark_list'
 
     def get_queryset(self):

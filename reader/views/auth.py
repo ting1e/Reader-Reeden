@@ -35,8 +35,8 @@ def login_auth(request):
     return HttpResponse('success')
 
 
-def logout_view(request):
+def logout_auth(request):
     if request.method != 'POST':
-        return redirect('reader:book_list')
+        return redirect('reader:bookshelf')
     logout(request)
-    return redirect('reader:book_list')
+    return redirect('reader:bookshelf')

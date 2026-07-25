@@ -1,7 +1,7 @@
 
 {% extends "base.html" %}
 
-{% block title %} Reader {% endblock %}
+{% block title %}Reader{% endblock %}
 
 {% block content %}
 <style>
@@ -111,7 +111,7 @@ article{ font-weight: {{ user_setting.font_weight }}; }
   <div class="drawer-content">
     <main class="h-screen flex flex-col overflow-hidden">
 
-        {% include 'header.html' %}
+        {% include '_header.html' %}
 
         <div class="container mx-auto px-4 flex-1 flex flex-col min-h-0">
             <div class="article-container flex-1">
@@ -406,7 +406,7 @@ article{ font-weight: {{ user_setting.font_weight }}; }
     var user_setting_letter_spacing = parseFloat("{{user_setting.letter_spacing|default:'0'}}")
     var user_setting_line_height = parseFloat("{{user_setting.line_height|default:'0'}}")
     var user_setting_font_weight = "{{user_setting.font_weight|default:''}}"
-    var url_update_setting = "{% url 'reader:update_setting' %}"
+    var url_update_setting = "{% url 'reader:user_settings_update' %}"
     var url_bookmark_save = "{% url 'reader:bookmark_save' %}"
     var book_id = '{{book_id}}'
     var chapter_id = parseInt('{{chapter_id}}')
@@ -414,7 +414,7 @@ article{ font-weight: {{ user_setting.font_weight }}; }
 
     var url_book_reader = "{% url 'reader:book_view' %}";
     var url_chapter_content = "{% url 'reader:chapter_content' 0 %}";
-    var url_chapter_list_ajax = "{% url 'reader:chapter_list_ajax' book_id %}";
+    var url_chapter_list_ajax = "{% url 'reader:chapter_list' book_id %}";
     var chapter_ids = [{% for cid in chapter_ids %}{{cid}}{% if not forloop.last %},{% endif %}{% endfor %}];
 
     {% if user.is_authenticated %}

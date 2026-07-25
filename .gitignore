@@ -1,11 +1,12 @@
 db.*
 .vscode
 # test.py
-*/__pycache__*
-*/*/__pycache__*
+__pycache__/
+**/__pycache__/
+*.pyc
 git_ignore/
 storage_local/
 storage_upload/
 local/
-./static/
+/static/
 docker_test/

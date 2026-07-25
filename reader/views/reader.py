@@ -20,7 +20,7 @@ logger = logging.getLogger('reader')
 USER_SETTING_DEFAULTS = {'font_size': 16, 'read_bg': '#fff', 'read_mode': 'page'}
 
 
-def BookView(request):
+def book_view(request):
     """打开书籍并恢复阅读进度，支持 ?book_id=X&chapter_id=X&offset=Y 查询参数。
 
     GET  view/?book_id=X         — 打开书籍，自动恢复阅读进度
@@ -278,7 +278,7 @@ def BookView(request):
     if display_lines and display_lines[0].strip() == cur_chpt.title.strip():
         display_lines = display_lines[1:]
 
-    chapter_view = render_to_string('chapter_view.html', {
+    chapter_view = render_to_string('_chapter_view.html', {
         'chapter_title': cur_chpt.title,
         'content_lines': display_lines
     })
@@ -315,7 +315,7 @@ def chapter_content(request, chapter_id):
     display_lines = content
     if display_lines and display_lines[0].strip() == chapter.title.strip():
         display_lines = display_lines[1:]
-    chapter_view = render_to_string('chapter_view.html', {
+    chapter_view = render_to_string('_chapter_view.html', {
         'chapter_title': chapter.title,
         'content_lines': display_lines
     })
@@ -354,10 +354,10 @@ def keyword_search(request, book_pk, chapter_pk, kwd):
         for i in range(len(content_lines)):
             if content_lines[i].find(kwd) != -1:
                 search_list.append(search_item(book_pk, chapter.id, content_lines[i], content_cnt[i], chapter.title, chapter.index))
-    return render(request, 'search.html', {'list': search_list, 'chapter_pk': chapter_pk, 'book_pk': book_pk})
+    return render(request, '_search.html', {'list': search_list, 'chapter_pk': chapter_pk, 'book_pk': book_pk})
 
 
-def chapter_list_ajax(request, book_id):
+def chapter_list(request, book_id):
     """AJAX 返回书籍的章节列表 HTML，仅在用户打开目录时请求"""
     _book = get_object_or_404(Book, id=book_id)
     if not can_access_book(_book, request.user):
@@ -369,7 +369,7 @@ def chapter_list_ajax(request, book_id):
         chapter_id_param = int(chapter_id_param)
     except (TypeError, ValueError):
         chapter_id_param = None
-    html = render_to_string('chapter_list.html', {
+    html = render_to_string('_chapter_list.html', {
         'chapter_list': chapter_list,
         'chapter_id': chapter_id_param,
     }, request=request)

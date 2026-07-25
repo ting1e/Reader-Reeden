@@ -180,17 +180,17 @@ def get_accessible_books(user):
     return Book.objects.filter(share=True)
 
 
-def can_admin_booklist(booklist, user):
+def can_admin_book_list(book_list, user):
     """检查用户是否有权管理书单（编辑/删除/添加/移除）：超级管理员或创建者本人。"""
-    return user.is_superuser or user.id == booklist.user_id
+    return user.is_superuser or user.id == book_list.user_id
 
 
-def can_view_booklist(booklist, user):
+def can_view_book_list(book_list, user):
     """检查用户是否有权查看书单：公开书单、自己创建的、或超级管理员。"""
-    return booklist.is_public or user.is_superuser or user.id == booklist.user_id
+    return book_list.is_public or user.is_superuser or user.id == book_list.user_id
 
 
-def link_external_booklist_items(user, book):
+def link_external_book_list_items(user, book):
     """将当前用户书单中匹配的外部条目关联到已入库书籍。
 
     仅更新 user 自己创建的书单；按 book.name / file_name 及其去扩展名形式匹配 manual_name。

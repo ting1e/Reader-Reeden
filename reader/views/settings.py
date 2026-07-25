@@ -102,7 +102,7 @@ def user_settings_password(request):
 
 
 @login_required(login_url='reader:index')
-def update_setting(request):
+def user_settings_update(request):
     if request.method != 'POST':
         return HttpResponse('method not allowed', status=405)
     try:
@@ -171,7 +171,7 @@ def update_setting(request):
 
 
 @login_required(login_url='reader:index')
-def set_theme(request):
+def user_settings_theme(request):
     """保存用户选择的 daisyUI 主题。"""
     if request.method != 'POST':
         return HttpResponse('method not allowed')
