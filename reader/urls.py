@@ -1,10 +1,11 @@
 from django.urls import path
+from django.views.generic import RedirectView
 
 from . import views
 
 app_name = 'reader'
 urlpatterns = [
-    path('', views.IndexView.as_view(), name='index'),
+    path('', RedirectView.as_view(pattern_name='reader:bookshelf'), name='index'),
     path('bookshelf/', views.BookshelfView.as_view(), name='bookshelf'),
     path('bookshelf_remote/', views.BookshelfRemoteView.as_view(), name='bookshelf_remote'),
     path('open_remote/', views.open_remote_book, name='open_remote_book'),
