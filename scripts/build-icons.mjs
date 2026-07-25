@@ -81,7 +81,7 @@ const bundle = {
   height: collection.height,
 };
 
-const js = `import { addCollection } from './iconify-icon.min.js';
+const js = `import { addCollection } from './iconify-icon.mjs';
 addCollection(${JSON.stringify(bundle)});
 `;
 

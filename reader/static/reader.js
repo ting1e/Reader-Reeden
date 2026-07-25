@@ -11,6 +11,8 @@ var page_contents_len = new Array(page_num + 1).fill(0);
 
 var current_page_idx = 0;
 var initial_last_words = last_words;
+// 初始打开按保存偏移恢复；首页"上一页"跳末章走 restoreLastPosition，置 false 避免回调回拉
+var initialOffsetRestore = !localStorage.getItem('prev-chapter');
 
 // ===== 章节缓存系统 =====
 const chapterCache = new Map();
@@ -618,16 +620,19 @@ measurePageNavHeight();
 applyPageSize();
 reinitPages();
 
-// @font-face 异步加载完成后文本尺寸变化，翻页模式需重算分页以避免错位
-if (document.fonts && document.fonts.ready) {
-    document.fonts.ready.then(function() {
-        if (read_mode !== 'slide') {
-            var off = currentWordsRead();
-            reinitPages();
-            goToPageByOffset(off);
-        }
-    });
-}
+// // @font-face 异步加载完成后文本尺寸变化，翻页模式需重算分页以避免错位
+// 目前有bug 更新字体后，跳转的页面有问题
+// if (document.fonts && document.fonts.ready) {
+//     document.fonts.ready.then(function() {
+//         if (read_mode !== 'slide') {
+//             // 初始恢复期用保存的偏移（非当前页起始），否则字体重排后会被拉回错误位置
+//             var off = initialOffsetRestore ? initial_last_words : currentWordsRead();
+//             reinitPages();
+//             goToPageByOffset(initial_last_words);
+
+//         }
+//     });
+// }
 
 // ===== 上下章按钮 =====
 $('.prev-chapter, .next-chapter').click(function(e) {
