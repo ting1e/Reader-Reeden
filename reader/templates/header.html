@@ -1,70 +1,53 @@
+{% with request.resolver_match.url_name|default:'' as url_name %}
 <header class="bg-base-100 shadow-sm w-full mb-4">
   <div class="navbar container mx-auto px-4">
-    <div role="tablist" class="tabs tabs-border flex-1">
-      {% with request.resolver_match.url_name as url_name %}
-      <a role="tab" href="{% url 'reader:book_list'%}" class="text-base tab {% if url_name == 'book_list' %}tab-active font-medium{% endif %}">
-        <iconify-icon icon="bi:hdd" class="me-1.5"></iconify-icon>本地书库
+    <nav class="tabs tabs-border flex-1" aria-label="主导航">
+      <a href="{% url 'reader:book_list'%}" class="text-base tab {% if url_name == 'book_list' %}tab-active font-medium{% endif %}" {% if url_name == 'book_list' %}aria-current="page"{% endif %}>
+        <iconify-icon icon="bi:hdd" class="me-1.5" aria-hidden="true"></iconify-icon>本地书库
       </a>
-      <a role="tab" href="{% url 'reader:book_list_remote'%}" class="text-base tab {% if url_name == 'book_list_remote' %}tab-active font-medium{% endif %}">
-        <iconify-icon icon="bi:cloud" class="me-1.5"></iconify-icon>远程书库
+      <a href="{% url 'reader:book_list_remote'%}" class="text-base tab {% if url_name == 'book_list_remote' %}tab-active font-medium{% endif %}" {% if url_name == 'book_list_remote' %}aria-current="page"{% endif %}>
+        <iconify-icon icon="bi:cloud" class="me-1.5" aria-hidden="true"></iconify-icon>远程书库
       </a>
-      <a role="tab" href="{% url 'reader:booklist_list'%}" class="text-base tab {% if url_name == 'booklist_list' or url_name == 'booklist_detail' or  url_name == 'booklist_admin'%}tab-active font-medium{% endif %}">
-        <iconify-icon icon="bi:collection" class="me-1.5"></iconify-icon>书单
+      <a href="{% url 'reader:booklist_list'%}" class="text-base tab {% if url_name == 'booklist_list' or url_name == 'booklist_detail' or url_name == 'booklist_admin' %}tab-active font-medium{% endif %}" {% if url_name == 'booklist_list' or url_name == 'booklist_detail' or url_name == 'booklist_admin' %}aria-current="page"{% endif %}>
+        <iconify-icon icon="bi:collection" class="me-1.5" aria-hidden="true"></iconify-icon>书单
       </a>
-      <a role="tab" href="{% url 'reader:reading_stats' %}" class="text-base tab {% if url_name == 'reading_stats' %}tab-active font-medium{% endif %}">
-        <iconify-icon icon="bi:bar-chart-line" class="me-1.5"></iconify-icon>阅读统计
+      <a href="{% url 'reader:reading_stats' %}" class="text-base tab {% if url_name == 'reading_stats' %}tab-active font-medium{% endif %}" {% if url_name == 'reading_stats' %}aria-current="page"{% endif %}>
+        <iconify-icon icon="bi:bar-chart-line" class="me-1.5" aria-hidden="true"></iconify-icon>阅读统计
       </a>
-      {% endwith %}
 
-      {% if 'book_view' in request.resolver_match.url_name %}
-        <a role="tab" class="text-base tab tab-active font-medium"><iconify-icon icon="bi:book-half" class="me-1.5"></iconify-icon>阅读中</a>
+      {% for name, icon, label in extra_tabs %}
+      {% if url_name == name %}
+      <a class="text-base tab tab-active font-medium" aria-current="page"><iconify-icon icon="{{ icon }}" class="me-1.5" aria-hidden="true"></iconify-icon>{{ label }}</a>
       {% endif %}
-      {% if request.resolver_match.url_name == 'book_admin' %}
-        <a role="tab" class="text-base tab tab-active font-medium"><iconify-icon icon="bi:journal-text" class="me-1.5"></iconify-icon>书籍管理</a>
-      {% endif %}
+      {% endfor %}
+    </nav>
 
-      {% if request.resolver_match.url_name == 'bookmark_admin' %}
-        <a role="tab" class="text-base tab tab-active font-medium"><iconify-icon icon="bi:bookmark-star" class="me-1.5"></iconify-icon>书签管理</a>
-      {% endif %}
-      {% if request.resolver_match.url_name == 'reading_stats_admin' %}
-        <a role="tab" class="text-base tab tab-active font-medium"><iconify-icon icon="bi:bar-chart-line" class="me-1.5"></iconify-icon>统计管理</a>
-      {% endif %}
-      {% if request.resolver_match.url_name == 'upload_file' %}
-        <a role="tab" class="text-base tab tab-active font-medium"><iconify-icon icon="bi:upload" class="me-1.5"></iconify-icon>上传书籍</a>
-      {% endif %}
-      {% if request.resolver_match.url_name == 'user_settings' %}
-        <a role="tab" class="text-base tab tab-active font-medium"><iconify-icon icon="bi:person-gear" class="me-1.5"></iconify-icon>个人设置</a>
-      {% endif %}
-      {% if request.resolver_match.url_name == 'font_admin' %}
-        <a role="tab" class="text-base tab tab-active font-medium"><iconify-icon icon="bi:fonts" class="me-1.5"></iconify-icon>字体管理</a>
-      {% endif %}
-    </div>
-   
     <div class="flex items-center gap-3">
-      {% with request.resolver_match.url_name as url_name %}
+      {% if url_name == 'book_list' or url_name == 'book_list_remote' or url_name == 'book_view' %}
       <label class="input input-bordered flex items-center gap-2 h-10 w-32 md:w-48 bg-base-200/50 focus-within:bg-base-100 transition-colors">
-        <input type="text" 
-               placeholder="{% if url_name == 'book_list' or url_name == 'book_list_remote' %}书籍搜索{% else %}全文搜索{% endif %}" 
+        <input type="text"
+               placeholder="{% if url_name == 'book_list' or url_name == 'book_list_remote' %}书籍搜索{% else %}全文搜索{% endif %}"
+               aria-label="搜索"
                class="grow content-search {% if url_name == 'book_list' or url_name == 'book_list_remote' %}book-search{% endif %}" />
-        <iconify-icon icon="bi:search" class="text-base-content/50 shrink-0 {% if url_name == 'book_view' %}search-btn cursor-pointer{% endif %}"></iconify-icon>
+        <iconify-icon icon="bi:search" class="text-base-content/50 shrink-0 {% if url_name == 'book_view' %}search-btn cursor-pointer{% endif %}" aria-hidden="true"></iconify-icon>
       </label>
-      {% endwith %}
+      {% endif %}
 
       <div class="dropdown dropdown-end">
-        <button tabindex="0" role="button" class="btn btn-ghost btn-sm h-10 px-2 group " aria-label="主题">
-          <div class="bg-base-100 group-hover:border-base-content/20 grid shrink-0 grid-cols-2 gap-0.5 rounded-md border border-base-content/10 p-1 transition-colors">
+        <button tabindex="0" role="button" class="btn btn-ghost btn-sm h-10 px-2 group theme-menu-btn" aria-label="主题">
+          <div class="bg-base-100 group-hover:border-base-content/20 grid shrink-0 grid-cols-2 gap-0.5 rounded-md border border-base-content/10 p-1 transition-colors" aria-hidden="true">
             <div class="bg-base-content size-1.5 rounded-full"></div>
             <div class="bg-primary size-1.5 rounded-full"></div>
             <div class="bg-secondary size-1.5 rounded-full"></div>
             <div class="bg-accent size-1.5 rounded-full"></div>
           </div>
         </button>
-        <div tabindex="-1" class="dropdown-content bg-base-200 text-base-content rounded-box z-50 mt-3 w-48 p-2 max-h-[50vh] overflow-y-auto shadow-2xl border border-base-300">
+        <div tabindex="-1" class="dropdown-content bg-base-100 text-base-content rounded-box z-50 mt-3 w-48 p-2 max-h-[50vh] overflow-y-auto shadow-xl border border-base-200">
           <div class="flex flex-col gap-0.5">
             <div class="text-xs font-bold uppercase tracking-widest text-base-content/40 px-2 py-1">主题</div>
             {% for t, t_label in daisyui_themes %}
-            <button type="button" class="cursor-pointer theme-option flex items-center gap-3 px-2 py-1.5 w-full text-left rounded-lg hover:bg-base-300 transition-colors {% if daisyui_theme == t %}font-medium bg-base-300/50{% endif %}" data-themeval="{{ t }}">
-              <div data-theme="{{ t }}" class="grid shrink-0 grid-cols-2 gap-0.5 rounded-md p-1 shadow-sm">
+            <button type="button" class="cursor-pointer theme-option flex items-center gap-3 px-2 py-1.5 w-full text-left rounded-lg hover:bg-base-300 transition-colors {% if daisyui_theme == t %}font-medium bg-base-300/50{% endif %}" data-themeval="{{ t }}" aria-pressed="{% if daisyui_theme == t %}true{% else %}false{% endif %}">
+              <div data-theme="{{ t }}" class="grid shrink-0 grid-cols-2 gap-0.5 rounded-md p-1 shadow-sm" aria-hidden="true">
                 <div class="bg-base-content size-1 rounded-full"></div>
                 <div class="bg-primary size-1 rounded-full"></div>
                 <div class="bg-secondary size-1 rounded-full"></div>
@@ -72,7 +55,7 @@
               </div>
               <div class="flex-1 truncate">{{ t_label }}</div>
               {% if daisyui_theme == t %}
-              <iconify-icon icon="bi:check-lg" class="text-base-content shrink-0"></iconify-icon>
+              <iconify-icon icon="bi:check-lg" class="text-base-content shrink-0 theme-check" aria-hidden="true"></iconify-icon>
               {% else %}
               <span class="w-3.5 shrink-0"></span>
               {% endif %}
@@ -85,47 +68,55 @@
       {% if request.user.is_authenticated %}
       <div class="dropdown dropdown-end">
         <button tabindex="0" role="button" class="btn btn-ghost btn-sm h-10 px-2" aria-label="用户菜单">
-          <iconify-icon icon="bi:person-circle" class="text-xl text-base-content/80"></iconify-icon>
+          <iconify-icon icon="bi:person-circle" class="text-xl text-base-content/80" aria-hidden="true"></iconify-icon>
         </button>
         <ul tabindex="-1" class="menu menu-md text-base dropdown-content bg-base-100 rounded-box z-50 mt-3 w-48 p-2 shadow-xl border border-base-200">
-          <li><a href="{% url 'reader:upload_file' %}"><iconify-icon icon="bi:upload" class="text-xl opacity-70"></iconify-icon>上传书籍</a></li>
-          <li><a href="{% url 'reader:book_admin' %}"><iconify-icon icon="bi:journal-text" class="text-xl opacity-70"></iconify-icon>书籍管理</a></li>
-          <li><a href="{% url 'reader:bookmark_admin' %}"><iconify-icon icon="bi:bookmark-star" class="text-xl opacity-70"></iconify-icon>书签管理</a></li>
-          <li><a href="{% url 'reader:booklist_admin' %}"><iconify-icon icon="bi:collection" class="text-xl opacity-70"></iconify-icon>书单管理</a></li>
-          <li><a href="{% url 'reader:reading_stats_admin' %}"><iconify-icon icon="bi:bar-chart-line" class="text-xl opacity-70"></iconify-icon>统计管理</a></li>
-          <li><a href="{% url 'reader:font_admin' %}"><iconify-icon icon="bi:fonts" class="text-xl opacity-70"></iconify-icon>字体管理</a></li>
-          <li><a href="{% url 'reader:user_settings' %}"><iconify-icon icon="bi:person-gear" class="text-xl opacity-70"></iconify-icon>个人设置</a></li>
-          <div class="divider my-1 h-px"></div>
-          <li><a href="/admin/"><iconify-icon icon="bi:shield-lock" class="text-xl opacity-70"></iconify-icon>后台管理</a></li>
+          <li class="px-2 pt-1 pb-2 mb-1 border-b border-base-200">
+            <div class="flex items-baseline gap-2 w-full">
+              <span class="font-medium truncate min-w-0">{{ request.user.username }}</span>
+              <span class="text-xs text-base-content/50 shrink-0">{% if request.user.is_staff %}管理员{% else %}读者{% endif %}</span>
+            </div>
+          </li>
+          <li><a href="{% url 'reader:upload_file' %}"><iconify-icon icon="bi:upload" class="text-xl opacity-70" aria-hidden="true"></iconify-icon>上传书籍</a></li>
+          <li><a href="{% url 'reader:book_admin' %}"><iconify-icon icon="bi:journal-text" class="text-xl opacity-70" aria-hidden="true"></iconify-icon>书籍管理</a></li>
+          <li><a href="{% url 'reader:bookmark_admin' %}"><iconify-icon icon="bi:bookmark-star" class="text-xl opacity-70" aria-hidden="true"></iconify-icon>书签管理</a></li>
+          <li><a href="{% url 'reader:booklist_admin' %}"><iconify-icon icon="bi:collection" class="text-xl opacity-70" aria-hidden="true"></iconify-icon>书单管理</a></li>
+          <li><a href="{% url 'reader:reading_stats_admin' %}"><iconify-icon icon="bi:bar-chart-line" class="text-xl opacity-70" aria-hidden="true"></iconify-icon>统计管理</a></li>
+          <li><a href="{% url 'reader:font_admin' %}"><iconify-icon icon="bi:fonts" class="text-xl opacity-70" aria-hidden="true"></iconify-icon>字体管理</a></li>
+          <li><a href="{% url 'reader:user_settings' %}"><iconify-icon icon="bi:person-gear" class="text-xl opacity-70" aria-hidden="true"></iconify-icon>个人设置</a></li>
+          <li class="divider my-1 h-px" aria-hidden="true"></li>
+          {% if request.user.is_staff %}
+          <li><a href="/admin/"><iconify-icon icon="bi:shield-lock" class="text-xl opacity-70" aria-hidden="true"></iconify-icon>后台管理</a></li>
+          {% endif %}
           <li>
             <form method="POST" action="{% url 'reader:logout' %}" class="p-0">
               {% csrf_token %}
               <button type="submit" class="flex items-center gap-2 w-full text-left px-4 py-2 text-error hover:bg-error/10 hover:text-error rounded-md transition-colors">
-                <iconify-icon icon="bi:box-arrow-right" class="text-xl"></iconify-icon>登出
+                <iconify-icon icon="bi:box-arrow-right" class="text-xl" aria-hidden="true"></iconify-icon>登出
               </button>
             </form>
           </li>
         </ul>
       </div>
       {% else %}
-      <button type="button" class="btn btn-primary btn-sm h-10 px-4" onclick="login_modal.showModal()">登录</button>
+      <button type="button" class="btn btn-primary btn-sm h-10 px-4 login-open-btn">登录</button>
 
       <dialog id="login_modal" class="modal">
         <div class="modal-box max-w-sm">
           <form method="dialog">
-            <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+            <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" aria-label="关闭">✕</button>
           </form>
           <h3 class="text-xl font-bold mb-1">欢迎回来</h3>
           <p class="mb-5 text-sm text-base-content/60">请输入您的用户名和密码以继续阅读</p>
           <form class="login_form flex flex-col gap-3" onsubmit="return false;">
             {% csrf_token %}
             <label class="input input-bordered flex items-center gap-2">
-              <iconify-icon icon="bi:person" class="text-base-content/50"></iconify-icon>
-              <input type="text" name="username" class="grow" placeholder="用户名" required />
+              <iconify-icon icon="bi:person" class="text-base-content/50" aria-hidden="true"></iconify-icon>
+              <input type="text" name="username" class="grow" placeholder="用户名" aria-label="用户名" required />
             </label>
             <label class="input input-bordered flex items-center gap-2">
-              <iconify-icon icon="bi:key" class="text-base-content/50"></iconify-icon>
-              <input type="password" name="password" class="grow" placeholder="密码" required />
+              <iconify-icon icon="bi:key" class="text-base-content/50" aria-hidden="true"></iconify-icon>
+              <input type="password" name="password" class="grow" placeholder="密码" aria-label="密码" required />
             </label>
             <button class="btn btn-primary w-full mt-2 login_btn" type="button">登录</button>
             <div class="login_msg mt-2 hidden text-sm"></div>
@@ -135,86 +126,114 @@
           <button>close</button>
         </form>
       </dialog>
-
-      <script>
-        $('.login_btn').click(e => {
-          var $btn = $(e.target);
-          $btn.prop('disabled', true).html('<span class="loading loading-spinner loading-sm"></span>');
-          $.ajax({
-            url: "{% url 'reader:login' %}",
-            type: 'post',
-            data: $('.login_form').serialize(),
-            success: function (data) {
-              if (data != 'success') {
-                $('.login_msg').text(data).removeClass('hidden').addClass('alert alert-error py-2 rounded-lg');
-                $btn.prop('disabled', false).text('登录');
-              } else {
-                location.reload();
-              }
-            },
-            error: function() {
-              $btn.prop('disabled', false).text('登录');
-            }
-          })
-        })
-      </script>
       {% endif %}
     </div>
   </div>
 
-  {% with request.resolver_match.url_name as url_name %}
-  {% if url_name == 'book_list' or url_name == 'book_list_remote' %}
-  <script>
-    $('.book-search').on('input', function() {
-      var kwd = $(this).val().trim().toLowerCase();
-      $('.book-item').each(function() {
-        var name = ($(this).data('book-name') || '').toString().toLowerCase();
-        $(this).toggle(kwd === '' || name.indexOf(kwd) !== -1);
-      });
-    });
-  </script>
-  {% endif %}
-  {% endwith %}
-
-  {% if request.resolver_match.url_name != 'book_view' %}
+  {% if url_name != 'book_view' %}
   <a href="#" id="back-to-top" class="btn btn-square btn-sm bg-base-100 border border-base-300 shadow-md hover:bg-base-200" aria-label="回到顶部" title="回到顶部" style="position:fixed; right:20px; bottom:20px; z-index:40; display:none; opacity:0; transition:opacity .2s;">
-    <iconify-icon icon="bi:chevron-up" class="text-lg"></iconify-icon>
+    <iconify-icon icon="bi:chevron-up" class="text-lg" aria-hidden="true"></iconify-icon>
   </a>
   {% endif %}
 
   <script>
-    {% if not request.user.is_authenticated %}
+    // 主题切换：立即应用并异步保存，无需整页刷新
     (function() {
-      var currentTheme = document.documentElement.getAttribute('data-theme') || 'autumn';
-      $('.theme-option').each(function() {
-        var t = $(this).data('themeval');
-        var isActive = (t === currentTheme);
-        $(this).toggleClass('font-medium bg-base-300/50', isActive);
-        $(this).find('iconify-icon, span.w-3\\.5').remove();
-        if (isActive) {
-          $(this).append('<iconify-icon icon="bi:check-lg" class="text-base-content shrink-0"></iconify-icon>');
-        } else {
-          $(this).append('<span class="w-3.5 shrink-0"></span>');
+      function syncThemeUI(t) {
+        $('.theme-option').each(function() {
+          var isActive = ($(this).data('themeval') === t);
+          $(this).toggleClass('font-medium bg-base-300/50', isActive)
+                 .attr('aria-pressed', isActive);
+          $(this).find('.theme-check, span.w-3\\.5').remove();
+          $(this).append(isActive
+            ? '<iconify-icon icon="bi:check-lg" class="text-base-content shrink-0 theme-check" aria-hidden="true"></iconify-icon>'
+            : '<span class="w-3.5 shrink-0"></span>');
+        });
+      }
+
+      // 页面加载时同步一次（未登录用户的主题来自 localStorage，服务端渲染的高亮可能不对）
+      syncThemeUI(document.documentElement.getAttribute('data-theme') || 'autumn');
+
+      // 展开主题下拉时，将当前主题滚动到可视区中部（36 个主题超出 max-h 可滚动区域时定位用）
+      $('.theme-menu-btn').on('focus', function() {
+        var content = $(this).siblings('.dropdown-content')[0];
+        var active = $(this).siblings('.dropdown-content').find('.theme-option[aria-pressed="true"]')[0];
+        if (content && active) {
+          content.scrollTop = active.offsetTop - content.clientHeight / 2;
         }
+      });
+
+      $('.theme-option').click(function(e) {
+        e.preventDefault();
+        var t = $(this).data('themeval');
+        document.documentElement.setAttribute('data-theme', t);
+        syncThemeUI(t);
+        {% if request.user.is_authenticated %}
+        $.post("{% url 'reader:set_theme' %}", {
+          theme: t,
+          csrfmiddlewaretoken: '{{ csrf_token }}'
+        });
+        {% else %}
+        localStorage.setItem('daisyui_theme', t);
+        {% endif %}
+      });
+    })();
+
+    {% if not request.user.is_authenticated %}
+    // 登录弹窗与登录请求
+    $('.login-open-btn').click(function() {
+      document.getElementById('login_modal').showModal();
+    });
+
+    // 输入框内按 Enter 触发登录
+    $('.login_form').on('keydown', 'input', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        $('.login_btn').click();
+      }
+    });
+
+    $('.login_btn').click(function(e) {
+      var form = $('.login_form')[0];
+      if (form && !form.reportValidity()) return; // 让 required 原生校验生效
+      var $btn = $(e.target);
+      $btn.prop('disabled', true).html('<span class="loading loading-spinner loading-sm"></span>');
+      $.ajax({
+        url: "{% url 'reader:login' %}",
+        type: 'post',
+        data: $('.login_form').serialize(),
+        success: function (data) {
+          if (data != 'success') {
+            $('.login_msg').text(data).removeClass('hidden').addClass('alert alert-error py-2 rounded-lg');
+            $btn.prop('disabled', false).text('登录');
+          } else {
+            location.reload();
+          }
+        },
+        error: function() {
+          $btn.prop('disabled', false).text('登录');
+        }
+      })
+    });
+    {% endif %}
+
+    {% if url_name == 'book_list' or url_name == 'book_list_remote' %}
+    // 书籍搜索（150ms 防抖，避免每个按键都全量遍历 DOM）
+    (function() {
+      var timer = null;
+      $('.book-search').on('input', function() {
+        var input = this;
+        clearTimeout(timer);
+        timer = setTimeout(function() {
+          var kwd = $(input).val().trim().toLowerCase();
+          $('.book-item').each(function() {
+            var name = ($(this).data('book-name') || '').toString().toLowerCase();
+            $(this).toggle(kwd === '' || name.indexOf(kwd) !== -1);
+          });
+        }, 150);
       });
     })();
     {% endif %}
-
-    $('.theme-option').click(function(e){
-      e.preventDefault();
-      var t = $(this).data('themeval');
-      {% if request.user.is_authenticated %}
-      $.post("{% url 'reader:set_theme' %}", {
-        theme: t,
-        csrfmiddlewaretoken: '{{ csrf_token }}'
-      }, function(){
-        location.reload();
-      });
-      {% else %}
-      localStorage.setItem('daisyui_theme', t);
-      location.reload();
-      {% endif %}
-    });
 
     // 回到顶部按钮（阅读页不显示，避免与浮动操作按钮冲突）
     (function() {
@@ -237,3 +256,4 @@
   </script>
 
 </header>
+{% endwith %}

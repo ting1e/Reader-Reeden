@@ -15,6 +15,18 @@ DAISYUI_THEMES = [
     'silk', 'abyss',
 ]
 
+# header 附加导航 tab：仅当前页面的 url_name 命中时显示
+# 格式：(url_name, iconify 图标, 标签文字)
+EXTRA_TABS = [
+    ('book_view', 'bi:book-half', '阅读中'),
+    ('book_admin', 'bi:journal-text', '书籍管理'),
+    ('bookmark_admin', 'bi:bookmark-star', '书签管理'),
+    ('reading_stats_admin', 'bi:bar-chart-line', '统计管理'),
+    ('upload_file', 'bi:upload', '上传书籍'),
+    ('user_settings', 'bi:person-gear', '个人设置'),
+    ('font_admin', 'bi:fonts', '字体管理'),
+]
+
 THEME_LABELS = {
     'light': '明亮',
     'dark': '深色',
@@ -70,3 +82,11 @@ def daisyui_theme(request):
         'daisyui_themes': [(k, THEME_LABELS.get(k, k)) for k in DAISYUI_THEMES],
         'theme_labels': THEME_LABELS,
     }
+
+
+def header_tabs(request):
+    """注入 header 附加导航 tab 列表（extra_tabs），供 header.html 循环渲染。
+
+    与主题无关，独立成函数以保持职责单一；需在 settings 的 context_processors 中注册。
+    """
+    return {'extra_tabs': EXTRA_TABS}

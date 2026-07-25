@@ -78,6 +78,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'reader.context_processors.daisyui_theme',
+                'reader.context_processors.header_tabs',
             ],
         },
     },
