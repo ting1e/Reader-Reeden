@@ -194,9 +194,9 @@ article{ font-weight: {{ user_setting.font_weight }}; }
                                     <iconify-icon icon="bi:chevron-down" class="text-xs opacity-60 shrink-0"></iconify-icon>
                                 </div>
                                 <ul tabindex="-1" class="dropdown-content flex flex-col gap-0.5 bg-base-100 rounded-xl w-full p-1 shadow-xl border border-base-200 max-h-48 overflow-y-auto overflow-x-hidden">
-                                    <li><button type="button" class="font-setting-option w-full text-left text-sm rounded-lg px-2 py-1.5 hover:bg-base-300 transition-colors truncate {% if not user_setting.font_family %}active{% endif %}" data-value="">默认字体</button></li>
+                                    <li><button type="button" class="font-setting-option w-full text-left text-sm rounded-lg px-2 py-1.5 hover:bg-base-300 transition-colors truncate {% if not user_setting.font_family %}active{% endif %}" data-value="" title="默认字体">默认字体</button></li>
                                     {% for font in local_fonts %}
-                                    <li><button type="button" class="font-setting-option w-full text-left text-sm rounded-lg px-2 py-1.5 hover:bg-base-300 transition-colors truncate {% if user_setting.font_family == font.name %}active{% endif %}" data-value="{{ font.name }}">{{ font.name }}</button></li>
+                                    <li><button type="button" class="font-setting-option w-full text-left text-sm rounded-lg px-2 py-1.5 hover:bg-base-300 transition-colors truncate {% if user_setting.font_family == font.name %}active{% endif %}" data-value="{{ font.name }}" title="{{ font.name }}">{{ font.name }}</button></li>
                                     {% endfor %}
                                 </ul>
                                 <input type="hidden" class="font-setting" value="{{ user_setting.font_family|default:'' }}">
