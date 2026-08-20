@@ -75,6 +75,8 @@ class UserSetting(models.Model):
     chapter_rule = models.CharField(max_length=1024, default=DEFAULT_CHAPTER_RULE)
     chapter_rule_2 = models.CharField(max_length=1024, default='')
     chapter_rule_3 = models.CharField(max_length=1024, default='')
+    chapter_min_len = models.IntegerField(default=100)
+    chapter_max_len = models.IntegerField(default=100000)
 
 class UserBookMark(models.Model):
     user_id = models.IntegerField()

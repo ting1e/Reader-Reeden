@@ -67,6 +67,20 @@ def user_settings_rule(request):
     rule_3 = request.POST.get('chapter_rule_3', '').strip()
     if not rule:
         return JsonResponse({'success': False, 'error': '主分章规则不能为空'})
+    try:
+        min_len = int(request.POST.get('chapter_min_len', 100))
+    except (TypeError, ValueError):
+        return JsonResponse({'success': False, 'error': '单章最小字数必须为整数'})
+    try:
+        max_len = int(request.POST.get('chapter_max_len', 100000))
+    except (TypeError, ValueError):
+        return JsonResponse({'success': False, 'error': '单章最大字数必须为整数'})
+    if not 0 <= min_len <= 1000000:
+        return JsonResponse({'success': False, 'error': '单章最小字数需在 0 ~ 1000000 之间'})
+    if max_len and not 1000 <= max_len <= 10000000:
+        return JsonResponse({'success': False, 'error': '单章最大字数需为 0（不启用）或 1000 ~ 10000000 之间'})
+    if min_len and max_len and min_len >= max_len:
+        return JsonResponse({'success': False, 'error': '单章最小字数需小于最大字数'})
     for label, r in [('主规则', rule), ('备用规则1', rule_2), ('备用规则2', rule_3)]:
         if r:
             try:
@@ -77,6 +91,8 @@ def user_settings_rule(request):
     setting.chapter_rule = rule
     setting.chapter_rule_2 = rule_2
     setting.chapter_rule_3 = rule_3
+    setting.chapter_min_len = min_len
+    setting.chapter_max_len = max_len
     setting.save()
     return JsonResponse({'success': True, 'msg': '分章规则已保存'})
 

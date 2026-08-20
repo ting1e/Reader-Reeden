@@ -61,7 +61,7 @@
           <h3 class="text-base font-bold mb-1.5 flex items-center gap-2">
             <iconify-icon icon="bi:list-task"></iconify-icon>分章规则
           </h3>
-          <p class="text-sm text-base-content/55 mb-3">正则表达式，用于匹配章节标题行。主规则不能为空，备用规则留空表示不使用。</p>
+          <p class="text-sm text-base-content/55 mb-3">正则表达式，用于匹配章节标题行。主规则不能为空，备用规则留空表示不使用。可设置单章字数上下限（对之后入库或重新分章的书籍生效）。</p>
           <details class="mb-3 group">
             <summary class="text-sm text-base-content/60 cursor-pointer hover:text-primary transition-colors select-none flex items-center gap-1 w-fit">
               <iconify-icon icon="bi:chevron-right" class="transition-transform group-open:rotate-90"></iconify-icon>
@@ -86,6 +86,20 @@
                 <label class="text-sm font-semibold mb-1.5 block">备用规则 2</label>
                 <textarea name="chapter_rule_3" class="textarea textarea-bordered w-full font-mono text-sm leading-relaxed"
                           rows="3" placeholder="留空表示不使用">{{ setting.chapter_rule_3|default:'' }}</textarea>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label class="text-sm font-semibold mb-1.5 block">单章最小字数</label>
+                  <input type="number" name="chapter_min_len" min="0" max="1000000" step="1"
+                         class="input input-bordered w-full" value="{{ setting.chapter_min_len }}">
+                  <p class="text-xs text-base-content/50 mt-1">低于该字数的章节将并入上一章，0 表示不启用。</p>
+                </div>
+                <div>
+                  <label class="text-sm font-semibold mb-1.5 block">单章最大字数</label>
+                  <input type="number" name="chapter_max_len" min="0" max="10000000" step="1"
+                         class="input input-bordered w-full" value="{{ setting.chapter_max_len }}">
+                  <p class="text-xs text-base-content/50 mt-1">超过该字数的章节将自动拆分为多章，启用时至少 1000，0 表示不启用。</p>
+                </div>
               </div>
             </div>
             <div class="flex justify-end mt-3">
