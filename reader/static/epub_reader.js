@@ -169,6 +169,7 @@
     dirty = true; currentRaw = position().raw; progressLabel();
     clearTimeout(saveTimer); saveTimer = setTimeout(() => save(), 600);
   }
+  const readerBackground = () => getComputedStyle(document.querySelector('main')).backgroundColor;
   // Single source of truth for the reader's injected CSS. It is used both when
   // pre-rendering a chapter into the iframe (first paint) and for live updates.
   function readerCss() {
@@ -180,7 +181,7 @@
     css += 'img,svg{max-width:100%;height:auto;max-height:85vh;object-fit:contain;cursor:zoom-in} table{display:block;overflow:auto;break-inside:avoid;max-width:100%;max-height:85vh}';
     if (mode() === 'page') css += `html{overflow:hidden!important}body{height:${height}px!important;column-width:${Math.max(100, width - 40)}px!important;column-gap:40px!important;column-fill:auto!important;overflow:visible!important;}`;
     if (mode() === 'slide') css += 'html{overflow:auto!important}body{height:auto!important;columns:auto!important}';
-    if ($('epub-style').value === 'custom') css += `body{font-family:${config.settings.fontFamily ? JSON.stringify(config.settings.fontFamily) : (config.language.startsWith('zh') ? 'system-ui,sans-serif' : 'Georgia,"Times New Roman",serif')}!important;font-size:${Math.max(12, Math.min(40, Number($('epub-font').value)))}px!important;line-height:${config.settings.lineHeight}!important;letter-spacing:${config.settings.letterSpacing}px!important;font-weight:${config.settings.fontWeight || 'normal'}!important;color:${config.settings.color || '#222'}!important;background:${getComputedStyle(document.querySelector('main')).backgroundColor}!important}p{font-size:inherit!important;line-height:inherit!important}`;
+    if ($('epub-style').value === 'custom') css += `body{font-family:${config.settings.fontFamily ? JSON.stringify(config.settings.fontFamily) : (config.language.startsWith('zh') ? 'system-ui,sans-serif' : 'Georgia,"Times New Roman",serif')}!important;font-size:${Math.max(12, Math.min(40, Number($('epub-font').value)))}px!important;line-height:${config.settings.lineHeight}!important;letter-spacing:${config.settings.letterSpacing}px!important;font-weight:${config.settings.fontWeight || 'normal'}!important;color:${config.settings.color || '#222'}!important;background:${readerBackground()}!important}p{font-size:inherit!important;line-height:inherit!important}`;
     return css;
   }
   const customStyle = () => !fixed() && $('epub-style').value === 'custom';
@@ -207,6 +208,7 @@
     if (!doc) return;
     document.querySelector('main').classList.toggle('read-mode-slide', mode() === 'slide');
     frame.style.transform = ''; frame.style.width = '100%'; frame.style.height = '100%';
+    frame.style.background = customStyle() ? readerBackground() : '';
     canvas.style.width = '100%'; canvas.style.height = '100%';
     addLayoutStyle();
     if (fixed()) fixedSize();
