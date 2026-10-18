@@ -30,7 +30,12 @@
   let dirty = false, saveTimer, resizeTimer, nodes = [], currentRaw = config.raw, generation = 0;
   let pending = { raw: config.raw, location: config.location }, noteTarget = null;
   let savedSignature = '', lastLocation = null;
-  let layoutStyle = null, renderId = 0;
+  let layoutStyle = null, renderId = 0, readyMark = null, pendingSnapshot = null, preloadTimer = null;
+  // Sanitized chapter HTML is cached per section; it does not depend on the
+  // reading style, which prepareDocument() applies at render time.
+  const chapterCache = new Map(), chapterInflight = new Map(), preloadQueue = [];
+  let cacheBytes = 0, preloadActive = 0;
+  const CACHE_LIMIT = 5, CACHE_BYTES = 12 * 1024 * 1024, PRELOAD_CONCURRENCY = 2;
   let saving = false, saveAgain = false;
   let suspended = false, autoRead = null;
   let presentationUntouched = true;
@@ -319,27 +324,41 @@
     // Layout wrappers would change the canonical block index. Keep the original
     // table DOM; the trusted stylesheet handles wide-table overflow instead.
   }
+  const withTimeout = (promise, ms) => Promise.race([promise, new Promise(resolve => setTimeout(resolve, ms))]);
+  const docMarker = root => {
+    for (const node of root?.head?.childNodes || []) if (node.nodeType === 8 && node.data.startsWith('render ')) return Number(node.data.slice(7));
+    return null;
+  };
   async function loaded() {
+    const target = frame.contentDocument;
+    if (!target?.body) { finishLoad(); notifyError('图文加载失败，可切换纯文本阅读。'); return; }
+    const marker = docMarker(target);
+    // Ignore stale/double load events: the marker identifies the exact render
+    // this event belongs to, so a superseded chapter can never drive state.
+    if (marker !== null && (marker === readyMark || marker !== renderId)) return;
+    doc = target; readyMark = marker;
+    layoutStyle = doc.getElementById('reader-layout') || null;
     const token = ++generation;
+    loading = true;
     try {
-      doc = frame.contentDocument;
-      layoutStyle = doc?.getElementById('reader-layout') || null;
-      if (!doc?.body) throw Error('正文不可访问');
-      loading = true;
-      await Promise.all(Array.from(doc.images).map(img => img.complete ? Promise.resolve() : new Promise(resolve => { img.addEventListener('load', resolve, { once: true }); img.addEventListener('error', resolve, { once: true }); })));
+      await withTimeout(Promise.all(Array.from(doc.images).map(img => img.complete ? Promise.resolve() : new Promise(resolve => { img.addEventListener('load', resolve, { once: true }); img.addEventListener('error', resolve, { once: true }); }))), 6000);
       if (token !== generation) return;
       $('epub-status').textContent = fixed() ? '固定版式 · 按原页面缩放' : '';
       locateNodes(); wireDocument(); layout();
-      await doc.fonts.ready;
+      if (doc.fonts?.ready) await withTimeout(doc.fonts.ready.catch(() => {}), 3000);
       if (token !== generation) return;
       layout(); restore({ ...(pending || {}), preferFraction: Number.isFinite(pending?.location?.fraction)
         && (!pending.location.width || pending.location.width === frame.clientWidth)
         && (!pending.location.height || pending.location.height === frame.clientHeight) });
-      loading = false;
-      $('epub-display').disabled = false;
-      stage.setAttribute('aria-busy', 'false');
-    if (dirty) changed();
-    } catch (_) { loading = false; $('epub-display').disabled = false; stage.setAttribute('aria-busy', 'false'); notifyError('图文加载失败，可切换纯文本阅读。'); }
+      finishLoad();
+      if (dirty) changed();
+      preloadAround();
+    } catch (_) { finishLoad(); notifyError('图文加载失败，可切换纯文本阅读。'); }
+  }
+  function finishLoad() {
+    loading = false;
+    $('epub-display').disabled = false;
+    stage.setAttribute('aria-busy', 'false');
   }
   frame.addEventListener('load', loaded);
   // Pre-render the sanitized chapter with the reader CSS already applied so the
@@ -358,29 +377,93 @@
       return '<!doctype html>' + parsed.documentElement.outerHTML;
     } catch (_) { return html; }
   }
-  async function renderSection(id, url) {
-    try {
-      const response = await fetch(url, { credentials: 'same-origin' });
-      if (!response.ok) throw Error();
-      const html = await response.text();
-      if (id !== renderId) return;
-      frame.srcdoc = prepareDocument(html, id);
-    } catch (_) {
-      if (id !== renderId) return;
-      frame.src = url;
+  function cacheGet(index) {
+    if (!chapterCache.has(index)) return null;
+    const html = chapterCache.get(index);
+    chapterCache.delete(index); chapterCache.set(index, html); // LRU touch
+    return html;
+  }
+  function cacheSet(index, html) {
+    if (chapterCache.has(index)) { cacheBytes -= chapterCache.get(index).length; chapterCache.delete(index); }
+    chapterCache.set(index, html); cacheBytes += html.length;
+    while (chapterCache.size > CACHE_LIMIT || cacheBytes > CACHE_BYTES) {
+      if (chapterCache.size <= 1) break;
+      const oldest = chapterCache.keys().next().value;
+      cacheBytes -= chapterCache.get(oldest).length; chapterCache.delete(oldest);
     }
+  }
+  // One request per section, reused by navigation and preloading; one retry.
+  function fetchChapter(index) {
+    const cached = cacheGet(index);
+    if (cached !== null) return Promise.resolve(cached);
+    if (chapterInflight.has(index)) return chapterInflight.get(index);
+    const request = (async () => {
+      let lastError;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        if (attempt) await new Promise(resolve => setTimeout(resolve, 400));
+        try {
+          const response = await fetch(config.sections[index].url, { credentials: 'same-origin' });
+          if (!response.ok) throw Error('HTTP ' + response.status);
+          const html = await response.text();
+          cacheSet(index, html);
+          return html;
+        } catch (error) { lastError = error; }
+      }
+      throw lastError;
+    })();
+    chapterInflight.set(index, request);
+    const settle = () => chapterInflight.delete(index);
+    request.then(settle, settle);
+    return request;
+  }
+  function pumpPreload() {
+    while (preloadActive < PRELOAD_CONCURRENCY && preloadQueue.length) {
+      const index = preloadQueue.shift();
+      if (cacheGet(index) !== null || chapterInflight.has(index)) continue;
+      preloadActive++;
+      fetchChapter(index).then(() => {}, () => {}).then(() => { preloadActive--; pumpPreload(); });
+    }
+  }
+  // Idle preload: next chapter first, then the previous one, then one further ahead.
+  function preloadAround() {
+    clearTimeout(preloadTimer);
+    preloadTimer = setTimeout(() => {
+      if (loading) return;
+      for (const index of [section + 1, section - 1, section + 2]) {
+        if (index < 0 || index >= config.sections.length) continue;
+        if (cacheGet(index) !== null || chapterInflight.has(index) || preloadQueue.includes(index)) continue;
+        preloadQueue.push(index);
+      }
+      pumpPreload();
+    }, 500);
+  }
+  function loadFailed(id) {
+    if (id !== renderId) return;
+    // Keep the chapter that is already displayed instead of switching to an error page.
+    if (pendingSnapshot) ({ section, page, dirty, savedSignature, lastLocation, pending } = pendingSnapshot);
+    finishLoad(); notifyError('章节加载失败，请重试');
+    if (doc) { layout(); progressLabel(); }
+    preloadAround();
+  }
+  async function renderSection(id, index) {
+    let html;
+    try { html = await fetchChapter(index); }
+    catch (_) { return loadFailed(id); }
+    if (id !== renderId) return;
+    frame.srcdoc = prepareDocument(html, id);
   }
   function load(index, target = {}, userAction = false) {
     if (index < 0 || index >= config.sections.length) return;
     save(); clearTimeout(saveTimer);
     const id = ++renderId; generation++;
+    pendingSnapshot = { section, page, dirty, savedSignature, lastLocation, pending };
     section = index; page = 0; dirty = userAction; savedSignature = ''; lastLocation = null;
     pending = target; loading = true;
     $('epub-display').disabled = true;
     stage.setAttribute('aria-busy', 'true');
     $('epub-title').textContent = config.toc.find(t => t.href === config.sections[index].href)?.title || config.title;
     $('epub-status').textContent = '正在加载图文…';
-    renderSection(id, config.sections[index].url);
+    renderSection(id, index);
   }
   function turn(direction) {
     if (loading) return;
