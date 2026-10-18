@@ -14,7 +14,15 @@
 .epub-warning { margin: 0; padding: .4rem 1rem; color: #854d0e; background: #fef9c3; font-size: .85rem; }
 /* 页码条的省略号占位，与文本阅读模式一致且不可点击 */
 .page-ellipsis { border: 0; background: transparent; color: inherit; pointer-events: none; }
-#epub-note-frame { width: 100%; height: 55dvh; border: 0; background: white; }
+/* 注释弹窗：只渲染目标那一条注释，高度随内容自适应，超过 70dvh 由弹窗内部滚动 */
+.epub-note-box { width: calc(100vw - 1.5rem); max-width: 640px; max-height: 70dvh; padding: 0; display: flex; flex-direction: column; overflow: hidden; }
+.epub-note-head, .epub-note-foot { display: flex; align-items: center; gap: .5rem; flex: none; padding: .55rem .9rem; }
+.epub-note-head { justify-content: space-between; border-bottom: 1px solid var(--color-base-300); }
+.epub-note-foot { justify-content: flex-end; border-top: 1px solid var(--color-base-300); }
+.epub-note-title { margin: 0; font-size: .95rem; font-weight: 600; }
+.epub-note-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 1rem 1.1rem; }
+.epub-note-status { margin: 0; font-size: .85rem; opacity: .65; }
+.epub-note-frame { display: block; width: 100%; border: 0; background: transparent; }
 #epub-image-body { overflow: auto; max-height: 80dvh; padding-top: 1.5rem; }
 #epub-image-body img { display: block; max-width: none; height: auto; margin: auto; }
 /* No closing animation: a transparent top-layer dialog must never linger over
@@ -34,6 +42,7 @@
   .reader-shell > header nav.tabs iconify-icon { display: none; }
   .reader-shell > header label.input:has(.content-search) { width: 5rem; }
   .reader-shell > header .navbar > .flex { gap: .15rem; }
-  .reader-shell .myModal .modal-box, #epub-note .modal-box, #epub-image .modal-box { width: calc(100% - 1rem); max-height: 85dvh; padding: 1.25rem 1rem; }
+  .reader-shell .myModal .modal-box, #epub-image .modal-box { width: calc(100% - 1rem); max-height: 85dvh; padding: 1.25rem 1rem; }
+  .epub-note-box { width: calc(100vw - 1rem); max-height: 75dvh; }
   .reader-shell .page-nav .btn { font-size: .75rem; padding-inline: .5rem; }
 }

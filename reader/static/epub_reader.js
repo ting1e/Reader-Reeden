@@ -54,9 +54,6 @@
   const normalize = text => text.replace(/[ \t\r\n\f]+/g, ' ').replace(/^[ \t\r\n\f]+|[ \t\r\n\f]+$/g, '');
   const units = text => text.length;
 
-  function resource(path, fragment) {
-    return config.resourceUrl + '?path=' + encodeURIComponent(path) + (fragment ? '#' + encodeURIComponent(fragment) : '');
-  }
   function notifyError(message) { $('epub-status').textContent = message; }
   function remember() {
     localStorage.setItem(key, JSON.stringify({ mode: $('epub-mode').value, style: $('epub-style').value, fontSize: Number($('epub-font').value) }));
@@ -398,12 +395,7 @@
   }
   function navigateLink(target, isNote) {
     const index = config.sections.findIndex(s => s.href === target.path);
-    if (isNote) {
-      noteTarget = { ...target, section: index };
-      $('epub-note-frame').src = resource(target.path, target.fragment);
-      $('epub-note-jump').disabled = index < 0;
-      note.showModal(); return;
-    }
+    if (isNote) { openNote({ ...target, section: index }); return; }
     if (index < 0) { navigateLink(target, true); return; }
     if (index === section) { restore({ fragment: target.fragment }); changed(); }
     else load(index, { fragment: target.fragment }, true);
@@ -872,12 +864,126 @@
       if ($('drawer-left').checked && !$('tab-bookmarks').classList.contains('hidden')) showBookmarks();
     } catch (_) { notifyError('书签保存失败'); }
   };
-  $('epub-note-frame').onload = () => {
-    const noteDoc = $('epub-note-frame').contentDocument; if (!noteDoc) return;
-    if (noteTarget?.fragment) noteDoc.getElementById(noteTarget.fragment)?.scrollIntoView();
-    noteDoc.addEventListener('click', e => { if (e.target.closest('a')) { e.preventDefault(); note.close(); } });
-  };
   $('epub-note-jump').onclick = () => { note.close(); if (noteTarget) navigateLink(noteTarget, false); };
+  // ===== 注释（脚注/尾注）=====
+  // 只渲染目标那一条注释：服务端已清理的 HTML 在父页面用 DOMParser 解析（不插入父 DOM），
+  // 取出对应块后再写进 sandbox iframe，排版、配色和高度都由这里统一控制。
+  const NOTE_BLOCKS = new Set(['ASIDE','LI','P','DIV','SECTION','BLOCKQUOTE','DD','FIGURE','TABLE','OL','UL','ARTICLE','H1','H2','H3','H4','H5','H6']);
+  const NOTE_CACHE_LIMIT = 4;
+  const noteCache = new Map();
+  // 从注释锚点向上找到承载这条注释的最小块级容器
+  function noteBlock(anchor) {
+    const root = anchor.ownerDocument;
+    let element = anchor.nodeType === 1 ? anchor : anchor.parentElement;
+    while (element && element.parentElement && element.parentElement !== root.body && !NOTE_BLOCKS.has(element.tagName)) element = element.parentElement;
+    if (!element || element === root.documentElement) return null;
+    // 注释容器（aside/li 等）里再嵌段落时，展示整个容器而不是单段
+    const parent = element.parentElement;
+    if (parent && parent !== root.body && ['ASIDE','LI','DD','FIGURE'].includes(parent.tagName)) return parent;
+    return element;
+  }
+  // 标题式注释（如 "注释" 标题后跟若干段落）要把后续兄弟节点一起带上
+  function noteMarkup(anchor) {
+    const block = noteBlock(anchor);
+    if (!block) return '';
+    if (!/^H[1-6]$/.test(block.tagName)) return block.outerHTML;
+    const parts = [block.outerHTML];
+    for (let next = block.nextElementSibling; next; next = next.nextElementSibling) {
+      if (next.id || /^H[1-6]$/.test(next.tagName)) break;
+      parts.push(next.outerHTML);
+    }
+    return parts.join('');
+  }
+  // 弹窗底色跟随阅读背景，文字色优先用读者设置的，否则按背景亮度取深浅
+  function noteCss() {
+    const background = readerBackground();
+    let text = config.settings.color || '';
+    if (!text) {
+      const rgb = background.match(/rgba?\(([^)]+)\)/);
+      let light = true;
+      if (rgb) {
+        const [r, g, b] = rgb[1].split(',').slice(0, 3).map(Number);
+        light = (0.2126 * (r || 0) + 0.7152 * (g || 0) + 0.0722 * (b || 0)) / 255 > 0.55;
+      }
+      text = light ? '#1f1f1f' : '#ececec';
+    }
+    const root = getComputedStyle(document.documentElement);
+    const accent = (root.getPropertyValue('--color-primary') || '').trim() || text;
+    const family = config.settings.fontFamily
+      ? JSON.stringify(config.settings.fontFamily) + ', sans-serif'
+      : (config.language.startsWith('zh') ? 'system-ui, sans-serif' : 'Georgia, "Times New Roman", serif');
+    const size = Math.max(13, Math.min(20, Number($('epub-font').value) || 16));
+    const line = Math.max(1.4, Math.min(2.2, Number(config.settings.lineHeight) || 1.7));
+    const faint = 'color-mix(in oklab, currentColor 28%, transparent)';
+    return `html,body{margin:0;padding:0}
+body{background:${background};color:${text};font-family:${family};font-size:${size}px;line-height:${line};overflow-wrap:break-word}
+body>*:first-child{margin-top:0}body>*:last-child{margin-bottom:0}
+p{margin:0 0 .75em}
+a{color:${accent};text-decoration:underline;text-underline-offset:2px}
+ul,ol{margin:0 0 .75em;padding-inline-start:1.4em}
+li{margin:.2em 0}
+blockquote{margin:0 0 .75em;padding:.1em 0 .1em .8em;border-inline-start:3px solid ${faint};opacity:.92}
+sup,sub{font-size:.72em;line-height:0}
+img,svg,video{max-width:100%;height:auto}
+figure{margin:0 0 .75em}
+table{width:100%;max-width:100%;border-collapse:collapse;font-size:.95em}
+th,td{border:1px solid ${faint};padding:.35em .5em;text-align:start}
+hr{border:0;border-top:1px solid ${faint};margin:1em 0}
+code,pre{font-size:.9em}`;
+  }
+  function fitNote() {
+    const frame = $('epub-note-frame'), doc = frame.contentDocument;
+    if (!doc?.body) return;
+    frame.style.height = '1px';   // 先归零，量出内容自身高度（同一帧内完成，不会闪）
+    const height = Math.max(doc.body.scrollHeight, Math.ceil(doc.body.getBoundingClientRect().height));
+    frame.style.height = Math.max(24, height) + 'px';
+  }
+  function noteClick(event) {
+    const link = event.target.closest('a[href]');
+    if (!link) return;
+    event.preventDefault();
+    const type = (link.getAttribute('epub:type') || '') + ' ' + (link.getAttribute('role') || '');
+    const target = urlTarget(link.href || link.getAttribute('href'));
+    note.close();
+    if (/backlink/.test(type) || !target) return;   // 返回正文：只关闭，阅读位置保持不变
+    navigateLink(target, /noteref|doc-noteref/.test(type) || Boolean(link.querySelector('sup')));
+  }
+  $('epub-note-frame').onload = () => {
+    const frame = $('epub-note-frame'), doc = frame.contentDocument;
+    if (!doc?.body || !note.open) return;
+    doc.addEventListener('click', noteClick);
+    $('epub-note-status').hidden = true;
+    frame.hidden = false;
+    fitNote();
+    for (const image of doc.images) image.addEventListener('load', fitNote);
+  };
+  async function openNote(target) {
+    const frame = $('epub-note-frame'), status = $('epub-note-status');
+    noteTarget = target;
+    $('epub-note-jump').disabled = target.section < 0;
+    status.textContent = '正在加载注释…'; status.hidden = false;
+    frame.hidden = true; frame.removeAttribute('style'); frame.srcdoc = '';
+    if (!note.open) note.showModal();
+    let html = noteCache.get(target.path);
+    if (html === undefined) {
+      try {
+        const response = await fetch(config.resourceUrl + '?path=' + encodeURIComponent(target.path), { credentials: 'same-origin' });
+        if (!response.ok) throw Error('HTTP ' + response.status);
+        html = await response.text();
+      } catch (_) { if (noteTarget === target) status.textContent = '注释加载失败，请重试'; return; }
+      if (noteCache.size >= NOTE_CACHE_LIMIT) noteCache.delete(noteCache.keys().next().value);
+      noteCache.set(target.path, html);
+    }
+    if (noteTarget !== target) return;   // 期间打开了别的注释
+    let block = '';
+    try {
+      const parsed = new DOMParser().parseFromString(html, 'text/html');
+      const anchor = target.fragment ? parsed.getElementById(target.fragment) : null;
+      if (anchor) block = noteMarkup(anchor);
+    } catch (_) {}
+    if (!block) { status.textContent = target.fragment ? '未找到该注释' : '该链接没有可显示的注释'; return; }
+    frame.srcdoc = '<!doctype html><html><head><meta charset="utf-8"><style>' + noteCss() + '</style></head><body>' + block + '</body></html>';
+  }
   for (const id of ['epub-mode','epub-font','epub-zoom']) $(id).onchange = async () => {
     const p = lastLocation || position(), token = generation;
     remember(); invalidateShadow(); layout();

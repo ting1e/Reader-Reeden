@@ -26,12 +26,22 @@
 {% endblock %}
 
 {% block body-bottom %}
-<dialog id="epub-note" class="modal"><div class="modal-box max-w-3xl">
-  <form method="dialog"><button class="btn btn-sm btn-circle absolute right-2 top-2" aria-label="关闭脚注">×</button></form>
-  <h2 class="text-lg font-bold mb-4">脚注 / 注释</h2>
-  <iframe id="epub-note-frame" sandbox="allow-same-origin" title="脚注内容" referrerpolicy="no-referrer"></iframe>
-  <button type="button" class="btn btn-sm mt-3" id="epub-note-jump">跳到原文位置</button>
-</div><form method="dialog" class="modal-backdrop"><button>返回正文</button></form></dialog>
+<dialog id="epub-note" class="modal">
+  <div class="modal-box epub-note-box">
+    <div class="epub-note-head">
+      <h2 class="epub-note-title">注释</h2>
+      <form method="dialog"><button class="btn btn-sm btn-circle btn-ghost" aria-label="关闭注释">✕</button></form>
+    </div>
+    <div class="epub-note-body">
+      <p id="epub-note-status" class="epub-note-status" role="status">正在加载注释…</p>
+      <iframe id="epub-note-frame" class="epub-note-frame" sandbox="allow-same-origin" title="注释内容" referrerpolicy="no-referrer" hidden></iframe>
+    </div>
+    <div class="epub-note-foot">
+      <button type="button" class="btn btn-sm" id="epub-note-jump">前往注释位置</button>
+      <form method="dialog"><button class="btn btn-sm btn-ghost">关闭</button></form>
+    </div>
+  </div><form method="dialog" class="modal-backdrop"><button>返回正文</button></form>
+</dialog>
 <dialog id="epub-image" class="modal"><div class="modal-box max-w-5xl">
   <form method="dialog"><button class="btn btn-sm btn-circle absolute right-2 top-2" aria-label="关闭图片">×</button></form>
   <div id="epub-image-body"></div>
