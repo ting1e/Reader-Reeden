@@ -193,6 +193,7 @@ article{ font-weight: {{ user_setting.font_weight }}; }
                 <!-- 背景 + 字体下拉（不滚动，避免 dropdown 被裁切） -->
                 <div class="flex flex-col gap-3 w-full shrink-0">
                     {% if book_format == 'epub' %}
+                    <p class="text-xs font-medium text-base-content/50">EPUB 设置</p>
                     <div class="setting-row flex items-center justify-between gap-3">
                         <span class="text-sm shrink-0 w-16">正文显示</span>
                         <select id="epub-display" class="select select-sm flex-1" aria-label="正文显示">
@@ -223,16 +224,6 @@ article{ font-weight: {{ user_setting.font_weight }}; }
 
                     <!-- 字体 -->
                     <div class="flex flex-col gap-2">
-                        {% if book_format == 'epub' %}
-                        <div class="setting-row flex items-center justify-between gap-3">
-                            <span class="text-sm text-base-content/70 shrink-0 w-16">自定义字体</span>
-                            <label class="flex items-center gap-2.5 cursor-pointer">
-                                <span class="text-xs text-base-content/60" id="epub-custom-font-state">开启</span>
-                                <input type="checkbox" class="toggle toggle-sm" id="epub-custom-font"
-                                    aria-label="使用自定义字体">
-                            </label>
-                        </div>
-                        {% endif %}
                         <div class="setting-row flex items-center justify-between gap-3">
                             <span class="text-sm text-base-content/70 shrink-0 w-16">字体样式</span>
                             <div class="dropdown dropdown-end setting-dropdown flex-1 min-w-0">

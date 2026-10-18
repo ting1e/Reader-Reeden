@@ -17,6 +17,13 @@
   <span class="text-sm shrink-0 w-16">排版样式</span>
   <select id="epub-style" class="select select-sm flex-1" aria-label="排版样式"><option value="original">原书样式</option><option value="custom">自定义样式</option></select>
 </label>
+<label class="setting-row flex items-center justify-between gap-3 min-h-8">
+  <span class="text-sm shrink-0">自定义字体</span>
+  <span class="flex items-center gap-2.5 shrink-0">
+    <span class="text-xs text-base-content/60" id="epub-custom-font-state">开启</span>
+    <input type="checkbox" class="toggle toggle-sm" id="epub-custom-font" aria-label="使用自定义字体">
+  </span>
+</label>
 <label class="setting-row flex items-center justify-between gap-3">
   <span class="text-sm shrink-0 w-16">页面缩放</span>
   <select id="epub-zoom" class="select select-sm flex-1" aria-label="固定版式缩放"><option value="fit">适应页面</option><option value="1">100%</option><option value="1.5">150%</option><option value="2">200%</option></select>
