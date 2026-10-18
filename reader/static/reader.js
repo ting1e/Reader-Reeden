@@ -72,6 +72,15 @@ var CHAPTER_ACTIVE_CLASSES = 'active bg-base-content text-base-100 font-medium';
 function highlightChapter(id) {
     $('.list-group-item').removeClass(CHAPTER_ACTIVE_CLASSES).addClass('text-base-content');
     $('.list-group-item[data-chapter-id="' + id + '"]').addClass(CHAPTER_ACTIVE_CLASSES).removeClass('text-base-content');
+    updateChapterNav(id);
+}
+
+// 首/末章时上下章按钮置灰（与 EPUB 阅读器表现一致）
+function updateChapterNav(id) {
+    if (typeof chapter_ids === 'undefined') return;
+    var idx = chapter_ids.indexOf(id);
+    $('.prev-chapter').prop('disabled', idx <= 0);
+    $('.next-chapter').prop('disabled', idx === -1 || idx >= chapter_ids.length - 1);
 }
 
 // ===== 阅读模式 =====
@@ -626,6 +635,7 @@ document.addEventListener('click', function(e) {
 }, true);
 applyReadMode();
 updateModeButtons();
+updateChapterNav(chapter_id);
 if (read_mode === 'slide') initSlideMode();
 measurePageNavHeight();
 applyPageSize();

@@ -12,8 +12,8 @@
 .epub-status { position: absolute; top: 5rem; left: 50%; transform: translateX(-50%); z-index: 10; padding: .25rem .75rem; border-radius: .5rem; margin: 0; font-size: .8rem; background: var(--color-base-100); color: var(--color-base-content); pointer-events: none; }
 .epub-status:empty { display: none; }
 .epub-warning { margin: 0; padding: .4rem 1rem; color: #854d0e; background: #fef9c3; font-size: .85rem; }
-.epub-entry { display: block; width: 100%; text-align: left; padding: .6rem .5rem; border-radius: .4rem; cursor: pointer; }
-.epub-entry:hover { background: var(--color-base-200); }
+/* 页码条的省略号占位，与文本阅读模式一致且不可点击 */
+.page-ellipsis { border: 0; background: transparent; color: inherit; pointer-events: none; }
 #epub-note-frame { width: 100%; height: 55dvh; border: 0; background: white; }
 #epub-image-body { overflow: auto; max-height: 80dvh; padding-top: 1.5rem; }
 #epub-image-body img { display: block; max-width: none; height: auto; margin: auto; }
