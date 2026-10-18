@@ -4,7 +4,10 @@
   const config = JSON.parse(document.getElementById('epub-config').textContent);
   const aliases = { 'epub-title': 'read-chapter-text', 'epub-progress': 'read-progress-text' };
   const $ = id => document.getElementById(aliases[id] || id);
-  const frame = $('epub-frame'), stage = $('epub-stage'), canvas = $('epub-canvas');
+  const primaryFrame = $('epub-frame'), shadowEl = $('epub-frame-shadow'), stage = $('epub-stage'), canvas = $('epub-canvas');
+  // Two iframes: the active one is visible, the other renders the next chapter
+  // out of sight so a forward turn becomes a swap instead of a reload.
+  let frame = primaryFrame, shadowFrame = shadowEl;
   const searchModal = document.querySelector('.myModal'), searchResults = document.querySelector('.search-res'), note = $('epub-note');
   const controls = { 'epub-prev': '.prev-page', 'epub-next': '.next-page',
     'epub-prev-section': '.prev-chapter', 'epub-next-section': '.next-chapter',
@@ -30,7 +33,9 @@
   let dirty = false, saveTimer, resizeTimer, nodes = [], currentRaw = config.raw, generation = 0;
   let pending = { raw: config.raw, location: config.location }, noteTarget = null;
   let savedSignature = '', lastLocation = null;
-  let layoutStyle = null, renderId = 0, readyMark = null, pendingSnapshot = null, preloadTimer = null;
+  let renderId = 0, activeMark = null, readyMark = null, seq = 0;
+  let shadow = null, shadowReady = null, revision = 0;
+  let pendingSnapshot = null, preloadTimer = null;
   // Sanitized chapter HTML is cached per section; it does not depend on the
   // reading style, which prepareDocument() applies at render time.
   const chapterCache = new Map(), chapterInflight = new Map(), preloadQueue = [];
@@ -39,7 +44,8 @@
   let saving = false, saveAgain = false;
   let suspended = false, autoRead = null;
   let presentationUntouched = true;
-  const fixed = () => Boolean(config.sections[section].fixed);
+  const sectionFixed = index => Boolean(config.sections[index].fixed);
+  const fixed = () => sectionFixed(section);
   const mode = () => fixed() ? 'fixed' : $('epub-mode').value;
   const normalize = text => text.replace(/[ \t\r\n\f]+/g, ' ').replace(/^[ \t\r\n\f]+|[ \t\r\n\f]+$/g, '');
   const units = text => text.length;
@@ -51,7 +57,7 @@
   function remember() {
     localStorage.setItem(key, JSON.stringify({ mode: $('epub-mode').value, style: $('epub-style').value, fontSize: Number($('epub-font').value) }));
   }
-  function locateNodes() {
+  function collectNodes(targetDoc, index) {
     // Match the stable plain-text blocks without putting wrappers into book markup.
     // DOM text nodes are grouped using the same boundaries as the import parser.
     const blocks = new Set(['P','DIV','H1','H2','H3','H4','H5','H6','LI','DT','DD','BLOCKQUOTE','PRE','SECTION','ARTICLE','HEADER','FOOTER','TR','FIGURE','FIGCAPTION']);
@@ -70,13 +76,14 @@
       for (const child of node.childNodes) walk(child);
       if (blocks.has(node.tagName)) flush();
     }
-    walk(doc.body); flush();
-    const paragraphs = config.sections[section].paragraphs;
-    nodes = paragraphs.map((p, index) => {
-      const match = extracted[index];
+    walk(targetDoc.body); flush();
+    const paragraphs = config.sections[index].paragraphs;
+    return paragraphs.map((p, position) => {
+      const match = extracted[position];
       return { ...p, nodes: match && match.text === p.text ? match.nodes : [], length: units(p.text) };
     });
   }
+  function locateNodes() { nodes = collectNodes(doc, section); }
   function visiblePoint(entry) {
     for (const node of entry.nodes) {
       if (!node.parentElement || getComputedStyle(node.parentElement).display === 'none') continue;
@@ -177,26 +184,28 @@
   const readerBackground = () => getComputedStyle(document.querySelector('main')).backgroundColor;
   // Single source of truth for the reader's injected CSS. It is used both when
   // pre-rendering a chapter into the iframe (first paint) and for live updates.
-  function readerCss() {
+  function readerCss(index = section) {
     const width = frame.clientWidth || stage.clientWidth;
     const height = frame.clientHeight || stage.clientHeight;
-    if (fixed()) return 'html,body{margin:0!important;padding:0!important;overflow:hidden!important}';
+    if (sectionFixed(index)) return 'html,body{margin:0!important;padding:0!important;overflow:hidden!important}';
+    const current = $('epub-mode').value;
     let css = 'html{scroll-behavior:auto!important} body{margin:0;padding:20px;box-sizing:border-box;}';
     for (const font of config.fonts || []) css += `@font-face{font-family:${JSON.stringify(font.name)};src:url(${JSON.stringify(font.url)}) format(${JSON.stringify(font.format)})}`;
     css += 'img,svg{max-width:100%;height:auto;max-height:85vh;object-fit:contain;cursor:zoom-in} table{display:block;overflow:auto;break-inside:avoid;max-width:100%;max-height:85vh}';
-    if (mode() === 'page') css += `html{overflow:hidden!important}body{height:${height}px!important;column-width:${Math.max(100, width - 40)}px!important;column-gap:40px!important;column-fill:auto!important;overflow:visible!important;}`;
-    if (mode() === 'slide') css += 'html{overflow:auto!important}body{height:auto!important;columns:auto!important}';
+    if (current === 'page') css += `html{overflow:hidden!important}body{height:${height}px!important;column-width:${Math.max(100, width - 40)}px!important;column-gap:40px!important;column-fill:auto!important;overflow:visible!important;}`;
+    if (current === 'slide') css += 'html{overflow:auto!important}body{height:auto!important;columns:auto!important}';
     if ($('epub-style').value === 'custom') css += `body{font-family:${config.settings.fontFamily ? JSON.stringify(config.settings.fontFamily) : (config.language.startsWith('zh') ? 'system-ui,sans-serif' : 'Georgia,"Times New Roman",serif')}!important;font-size:${Math.max(12, Math.min(40, Number($('epub-font').value)))}px!important;line-height:${config.settings.lineHeight}!important;letter-spacing:${config.settings.letterSpacing}px!important;font-weight:${config.settings.fontWeight || 'normal'}!important;color:${config.settings.color || '#222'}!important;background:${readerBackground()}!important}p{font-size:inherit!important;line-height:inherit!important}`;
     return css;
   }
-  const customStyle = () => !fixed() && $('epub-style').value === 'custom';
-  function addLayoutStyle() {
-    layoutStyle?.remove();
-    const style = doc.createElement('style'); style.id = 'reader-layout'; layoutStyle = style;
-    style.textContent = readerCss(); doc.head.appendChild(style);
-    for (const sheet of doc.querySelectorAll('link[rel=stylesheet],style')) {
-      if (sheet === layoutStyle) continue;
-      sheet.disabled = customStyle();
+  const customStyle = (index = section) => !sectionFixed(index) && $('epub-style').value === 'custom';
+  function applyLayoutStyle(targetDoc, index) {
+    targetDoc.getElementById('reader-layout')?.remove();
+    const style = targetDoc.createElement('style');
+    style.id = 'reader-layout'; style.textContent = readerCss(index);
+    targetDoc.head.appendChild(style);
+    for (const sheet of targetDoc.querySelectorAll('link[rel=stylesheet],style')) {
+      if (sheet === style) continue;
+      sheet.disabled = customStyle(index);
       if (sheet.sheet) sheet.sheet.disabled = sheet.disabled;
     }
   }
@@ -215,7 +224,7 @@
     frame.style.transform = ''; frame.style.width = '100%'; frame.style.height = '100%';
     frame.style.background = customStyle() ? readerBackground() : '';
     canvas.style.width = '100%'; canvas.style.height = '100%';
-    addLayoutStyle();
+    applyLayoutStyle(doc, section);
     if (fixed()) fixedSize();
     pageCount = fixed() || mode() === 'slide' ? 1 : Math.max(1, Math.ceil(doc.scrollingElement.scrollWidth / frame.clientWidth));
     page = Math.min(page, pageCount - 1);
@@ -329,19 +338,19 @@
     for (const node of root?.head?.childNodes || []) if (node.nodeType === 8 && node.data.startsWith('render ')) return Number(node.data.slice(7));
     return null;
   };
+  const waitImages = targetDoc => Promise.all(Array.from(targetDoc.images).map(img => img.complete ? Promise.resolve() : new Promise(resolve => { img.addEventListener('load', resolve, { once: true }); img.addEventListener('error', resolve, { once: true }); })));
   async function loaded() {
     const target = frame.contentDocument;
     if (!target?.body) { finishLoad(); notifyError('图文加载失败，可切换纯文本阅读。'); return; }
     const marker = docMarker(target);
     // Ignore stale/double load events: the marker identifies the exact render
     // this event belongs to, so a superseded chapter can never drive state.
-    if (marker !== null && (marker === readyMark || marker !== renderId)) return;
+    if (marker === null || marker !== activeMark || marker === readyMark) return;
     doc = target; readyMark = marker;
-    layoutStyle = doc.getElementById('reader-layout') || null;
     const token = ++generation;
     loading = true;
     try {
-      await withTimeout(Promise.all(Array.from(doc.images).map(img => img.complete ? Promise.resolve() : new Promise(resolve => { img.addEventListener('load', resolve, { once: true }); img.addEventListener('error', resolve, { once: true }); }))), 6000);
+      await withTimeout(waitImages(doc), 6000);
       if (token !== generation) return;
       $('epub-status').textContent = fixed() ? '固定版式 · 按原页面缩放' : '';
       locateNodes(); wireDocument(); layout();
@@ -352,7 +361,7 @@
         && (!pending.location.height || pending.location.height === frame.clientHeight) });
       finishLoad();
       if (dirty) changed();
-      preloadAround();
+      schedulePreload();
     } catch (_) { finishLoad(); notifyError('图文加载失败，可切换纯文本阅读。'); }
   }
   function finishLoad() {
@@ -360,17 +369,23 @@
     $('epub-display').disabled = false;
     stage.setAttribute('aria-busy', 'false');
   }
-  frame.addEventListener('load', loaded);
+  // Both frames stay mounted and swap roles, so dispatch by current role.
+  const onFrameLoad = event => {
+    if (event.target === frame) loaded();
+    else if (event.target === shadowFrame) shadowLoaded();
+  };
+  primaryFrame.addEventListener('load', onFrameLoad);
+  shadowEl.addEventListener('load', onFrameLoad);
   // Pre-render the sanitized chapter with the reader CSS already applied so the
   // iframe's first paint is final: no flash of the book's own styles.
-  function prepareDocument(html, id) {
+  function prepareDocument(html, id, index = section) {
     try {
       const parsed = new DOMParser().parseFromString(html, 'text/html');
       const head = parsed.head;
       if (!head) return html;
-      if (customStyle()) for (const node of parsed.querySelectorAll('link[rel=stylesheet],style')) node.remove();
+      if (customStyle(index)) for (const node of parsed.querySelectorAll('link[rel=stylesheet],style')) node.remove();
       const style = parsed.createElement('style');
-      style.id = 'reader-layout'; style.textContent = readerCss();
+      style.id = 'reader-layout'; style.textContent = readerCss(index);
       head.appendChild(style);
       // A unique marker guarantees the iframe reloads even for identical content.
       head.appendChild(parsed.createComment('render ' + id));
@@ -424,8 +439,9 @@
       fetchChapter(index).then(() => {}, () => {}).then(() => { preloadActive--; pumpPreload(); });
     }
   }
-  // Idle preload: next chapter first, then the previous one, then one further ahead.
-  function preloadAround() {
+  // Idle work: warm the HTML cache for the neighbouring chapters, then fully
+  // render the next chapter in the hidden iframe.
+  function schedulePreload() {
     clearTimeout(preloadTimer);
     preloadTimer = setTimeout(() => {
       if (loading) return;
@@ -435,7 +451,65 @@
         preloadQueue.push(index);
       }
       pumpPreload();
+      prerenderNext();
     }, 500);
+  }
+  function invalidateShadow() { revision++; shadow = null; }
+  function prerenderNext() {
+    const index = section + 1;
+    if (index >= config.sections.length) { shadow = null; return; }
+    if (shadow && shadow.section === index && shadow.revision === revision && shadow.doc) return;
+    const mark = ++seq;
+    shadow = { mark, section: index, revision, doc: null, nodes: null, ready: false };
+    renderShadow(mark, index);
+  }
+  async function renderShadow(mark, index) {
+    let html;
+    try { html = await fetchChapter(index); }
+    catch (_) { if (shadow?.mark === mark) shadow = null; return; }
+    if (shadow?.mark !== mark) return;
+    shadowReady = null;
+    shadowFrame.srcdoc = prepareDocument(html, mark, index);
+  }
+  async function shadowLoaded() {
+    const target = shadowFrame.contentDocument, current = shadow;
+    if (!current || !target?.body) return;
+    const marker = docMarker(target);
+    if (marker === null || marker !== current.mark || marker === shadowReady) return;
+    shadowReady = marker;
+    current.doc = target;
+    try {
+      await withTimeout(waitImages(target), 6000);
+      if (shadow !== current) return;
+      if (target.fonts?.ready) await withTimeout(target.fonts.ready.catch(() => {}), 3000);
+    } catch (_) { /* fall back to a partial prerender */ }
+    if (shadow !== current || current.revision !== revision) { if (shadow === current) shadow = null; return; }
+    current.nodes = collectNodes(target, current.section);
+    current.ready = true;
+  }
+  // Swap the prerendered chapter in without re-parsing, re-fetching or hiding
+  // the content, so a forward turn shows a finished page immediately.
+  function adoptShadow(target, userAction) {
+    const current = shadow; shadow = null;
+    save(); clearTimeout(saveTimer);
+    renderId++; generation++;
+    pendingSnapshot = { section, page, dirty, savedSignature, lastLocation, pending };
+    const previous = frame;
+    frame = shadowFrame; shadowFrame = previous;
+    frame.classList.remove('is-prerender'); frame.classList.add('is-active');
+    shadowFrame.classList.add('is-prerender'); shadowFrame.classList.remove('is-active');
+    section = current.section; page = 0; dirty = userAction;
+    savedSignature = ''; lastLocation = null; pending = { ...target };
+    doc = current.doc; nodes = current.nodes || [];
+    activeMark = null; readyMark = current.mark; loading = false;
+    $('epub-title').textContent = config.toc.find(t => t.href === config.sections[section].href)?.title || config.title;
+    $('epub-status').textContent = '';
+    $('epub-display').disabled = false;
+    stage.setAttribute('aria-busy', 'false');
+    wireDocument(); layout(); restore({ ...pending });
+    currentRaw = (lastLocation || position()).raw;
+    if (dirty) changed();
+    schedulePreload();
   }
   function loadFailed(id) {
     if (id !== renderId) return;
@@ -443,17 +517,22 @@
     if (pendingSnapshot) ({ section, page, dirty, savedSignature, lastLocation, pending } = pendingSnapshot);
     finishLoad(); notifyError('章节加载失败，请重试');
     if (doc) { layout(); progressLabel(); }
-    preloadAround();
+    schedulePreload();
   }
   async function renderSection(id, index) {
     let html;
     try { html = await fetchChapter(index); }
     catch (_) { return loadFailed(id); }
     if (id !== renderId) return;
-    frame.srcdoc = prepareDocument(html, id);
+    activeMark = ++seq; readyMark = null;
+    frame.srcdoc = prepareDocument(html, activeMark, index);
   }
   function load(index, target = {}, userAction = false) {
     if (index < 0 || index >= config.sections.length) return;
+    // A forward turn with no explicit anchor can use the prerendered chapter.
+    if (index === section + 1 && !target.fragment && !target.location && !target.raw
+      && shadow?.ready && shadow.section === index && shadow.revision === revision) return adoptShadow(target, userAction);
+    invalidateShadow();
     save(); clearTimeout(saveTimer);
     const id = ++renderId; generation++;
     pendingSnapshot = { section, page, dirty, savedSignature, lastLocation, pending };
@@ -598,13 +677,13 @@
   };
   $('epub-note-jump').onclick = () => { note.close(); if (noteTarget) navigateLink(noteTarget, false); };
   for (const id of ['epub-mode','epub-font','epub-zoom']) $(id).onchange = async () => {
-    const p = lastLocation || position(); remember(); layout(); await doc.fonts.ready; layout(); restore({ raw: p.raw, location: p });
+    const p = lastLocation || position(); remember(); invalidateShadow(); layout(); await doc.fonts.ready; layout(); restore({ raw: p.raw, location: p }); schedulePreload();
   };
   // Book styles are dropped/kept while pre-rendering, so switching between
   // 原书样式 and 自定义样式 reloads the chapter once, keeping the passage.
   $('epub-style').onchange = () => {
-    const p = doc ? (lastLocation || position()) : null; remember();
-    if (p) load(section, { raw: p.raw, location: p }, false); else layout();
+    const p = doc ? (lastLocation || position()) : null; remember(); invalidateShadow();
+    if (p) load(section, { raw: p.raw, location: p }, false); else { layout(); schedulePreload(); }
   };
   // Shared TXT shell controls; only the content engine differs.
   document.querySelector('.setting-btn').onclick = event => {
@@ -649,7 +728,9 @@
     document.querySelector('.font-value').textContent = config.settings.fontSize;
     document.querySelector('main').style.background = config.settings.background;
     applyDimensions(); persistSettings();
+    invalidateShadow();
     if (doc) { layout(); restore({ raw: point.raw, location: point }); }
+    schedulePreload();
   }
   document.querySelector('.font-value').textContent = config.settings.fontSize;
   for (const [id, property] of [['setting-letter-spacing','letterSpacing'],['setting-line-height','lineHeight'],
@@ -704,11 +785,12 @@
       if (!loading && doc) {
         const p = lastLocation || position();
         const unchanged = p.width === frame.clientWidth && p.height === frame.clientHeight;
-        layout(); restore({ raw: p.raw, location: p, preferFraction: unchanged });
+        invalidateShadow(); layout(); restore({ raw: p.raw, location: p, preferFraction: unchanged }); schedulePreload();
       }
     }, 120);
   }).observe(stage);
-  frame.addEventListener('pointerleave', () => { if (doc) lastLocation = position(); });
+  // Both frames stay mounted and swap roles, so track the pointer on each.
+  for (const element of [primaryFrame, shadowEl]) element.addEventListener('pointerleave', () => { if (doc && element === frame) lastLocation = position(); });
   window.addEventListener('pagehide', () => save(true));
   window.epubPresentation = {
     capture: () => {
