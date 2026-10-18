@@ -36,6 +36,8 @@
   let renderId = 0, activeMark = null, readyMark = null, seq = 0;
   let shadow = null, shadowReady = null, revision = 0;
   let highlightedHref = null, navBuffer = 80, currentChapter = null;
+  let committedSection = section, pageNavKey = null, pageNavSlotKey = null, pageNavSlot = 32;
+  let stageSize = { w: 0, h: 0 };
   let pendingSnapshot = null, preloadTimer = null;
   // Sanitized chapter HTML is cached per section; it does not depend on the
   // reading style, which prepareDocument() applies at render time.
@@ -44,7 +46,7 @@
   const CACHE_LIMIT = 5, CACHE_BYTES = 12 * 1024 * 1024, PRELOAD_CONCURRENCY = 2;
   let saving = false, saveAgain = false;
   let suspended = false, autoRead = null;
-  let autoReadPausedUntil = 0, autoReadPrevMode = null;
+  let autoReadPausedUntil = 0, autoReadPrevMode = null, autoReadAdvancedAt = 0, autoReadProgressAt = 0;
   let presentationUntouched = true;
   const sectionFixed = index => Boolean(config.sections[index].fixed);
   const fixed = () => sectionFixed(section);
@@ -200,27 +202,35 @@
     active?.scrollIntoView({ block: 'nearest' });
   }
   // 页码条：与文本阅读模式相同的「首页 + 窗口 + 末页 + 省略号」结构。
+  // 页码、页数、容器宽度都没变时直接复用，避免自动阅读等高频刷新反复重建。
   function renderPageButtons() {
     const pages = document.querySelector('.pages-container');
-    pages.replaceChildren();
-    pages.hidden = mode() === 'slide';
     const count = fixed() ? config.sections.length : pageCount;
     const current = fixed() ? section : page;
-    if (pages.hidden || count <= 0) return;
-    // 用最大页码做样本量单个槽位宽，多位数页码才不会被低估
-    let slot;
-    const probe = () => {
-      const button = document.createElement('button');
-      button.type = 'button'; button.className = 'join-item btn btn-outline btn-sm';
-      button.textContent = count; button.style.visibility = 'hidden';
-      return button;
-    };
-    const first = probe(), second = probe();
-    pages.append(first, second);
-    slot = second.offsetLeft - first.offsetLeft;
-    first.remove(); second.remove();
-    if (!slot || slot < 1) slot = 32;
-    const maxVisible = Math.max(5, Math.floor(pages.clientWidth / slot));
+    const hidden = mode() === 'slide';
+    pages.hidden = hidden;
+    const key = hidden ? 'hidden' : [count, current, pages.clientWidth].join('/');
+    if (key === pageNavKey) return;
+    pageNavKey = key;
+    pages.replaceChildren();
+    if (hidden || count <= 0) return;
+    // 用最大页码做样本量单个槽位宽，多位数页码才不会被低估；同宽度同位数时复用结果
+    const slotKey = pages.clientWidth + ':' + String(count).length;
+    if (slotKey !== pageNavSlotKey) {
+      const probe = () => {
+        const button = document.createElement('button');
+        button.type = 'button'; button.className = 'join-item btn btn-outline btn-sm';
+        button.textContent = count; button.style.visibility = 'hidden';
+        return button;
+      };
+      const first = probe(), second = probe();
+      pages.append(first, second);
+      const measured = second.offsetLeft - first.offsetLeft;
+      first.remove(); second.remove();
+      pageNavSlotKey = slotKey;
+      pageNavSlot = measured > 1 ? measured : 32;
+    }
+    const maxVisible = Math.max(5, Math.floor(pages.clientWidth / pageNavSlot));
     for (const item of buildPageList(count, current + 1, maxVisible)) {
       if (item.type === 'ellipsis') {
         const dots = document.createElement('span');
@@ -278,9 +288,7 @@
   const readerBackground = () => getComputedStyle(document.querySelector('main')).backgroundColor;
   // Single source of truth for the reader's injected CSS. It is used both when
   // pre-rendering a chapter into the iframe (first paint) and for live updates.
-  function readerCss(index = section) {
-    const width = frame.clientWidth || stage.clientWidth;
-    const height = frame.clientHeight || stage.clientHeight;
+  function readerCss(index = section, width = frame.clientWidth || stage.clientWidth, height = frame.clientHeight || stage.clientHeight) {
     if (sectionFixed(index)) return 'html,body{margin:0!important;padding:0!important;overflow:hidden!important}';
     const current = $('epub-mode').value;
     let css = 'html{scroll-behavior:auto!important} body{margin:0;padding:20px;box-sizing:border-box;}';
@@ -293,13 +301,26 @@
   }
   const customStyle = (index = section) => !sectionFixed(index) && $('epub-style').value === 'custom';
   function applyLayoutStyle(targetDoc, index) {
-    targetDoc.getElementById('reader-layout')?.remove();
+    // Adopting a prerendered chapter usually needs no style change at all: the
+    // srcdoc already carries the same CSS. Skipping the rebuild keeps the swap
+    // from triggering a needless style recalc.
+    const css = readerCss(index), custom = customStyle(index);
+    const existing = targetDoc.getElementById('reader-layout');
+    if (existing && existing.textContent === css) {
+      let settled = true;
+      for (const sheet of targetDoc.querySelectorAll('link[rel=stylesheet],style')) {
+        if (sheet === existing) continue;
+        if (sheet.disabled !== custom) { settled = false; break; }
+      }
+      if (settled) return;
+    }
+    existing?.remove();
     const style = targetDoc.createElement('style');
-    style.id = 'reader-layout'; style.textContent = readerCss(index);
+    style.id = 'reader-layout'; style.textContent = css;
     targetDoc.head.appendChild(style);
     for (const sheet of targetDoc.querySelectorAll('link[rel=stylesheet],style')) {
       if (sheet === style) continue;
-      sheet.disabled = customStyle(index);
+      sheet.disabled = custom;
       if (sheet.sheet) sheet.sheet.disabled = sheet.disabled;
     }
   }
@@ -389,7 +410,11 @@
   }
   // 自动阅读期间用户操作 → 暂停，1s 后自动恢复（与文本阅读模式一致）。
   function pauseAutoRead() { if (autoRead) autoReadPausedUntil = Date.now() + 1000; }
+  // 每个文档只绑定一次监听，避免预渲染文档被 adopt 时重复注册（会双跳页）。
+  const wiredDocs = new WeakSet();
   function wireDocument() {
+    if (wiredDocs.has(doc)) return;
+    wiredDocs.add(doc);
     doc.addEventListener('click', event => {
       $('offcanvassetting').style.display = 'none';
       const link = event.target.closest('a[href]');
@@ -479,6 +504,7 @@
         && (!pending.location.width || pending.location.width === frame.clientWidth)
         && (!pending.location.height || pending.location.height === frame.clientHeight) });
       finishLoad();
+      committedSection = section;
       if (dirty) changed();
       schedulePreload();
     } catch (_) { finishLoad(); notifyError('图文加载失败，可切换纯文本阅读。'); }
@@ -497,14 +523,14 @@
   shadowEl.addEventListener('load', onFrameLoad);
   // Pre-render the sanitized chapter with the reader CSS already applied so the
   // iframe's first paint is final: no flash of the book's own styles.
-  function prepareDocument(html, id, index = section) {
+  function prepareDocument(html, id, index = section, width, height) {
     try {
       const parsed = new DOMParser().parseFromString(html, 'text/html');
       const head = parsed.head;
       if (!head) return html;
       if (customStyle(index)) for (const node of parsed.querySelectorAll('link[rel=stylesheet],style')) node.remove();
       const style = parsed.createElement('style');
-      style.id = 'reader-layout'; style.textContent = readerCss(index);
+      style.id = 'reader-layout'; style.textContent = readerCss(index, width, height);
       head.appendChild(style);
       // A unique marker guarantees the iframe reloads even for identical content.
       head.appendChild(parsed.createComment('render ' + id));
@@ -564,8 +590,10 @@
     clearTimeout(preloadTimer);
     preloadTimer = setTimeout(() => {
       if (loading) return;
-      for (const index of [section + 1, section - 1, section + 2]) {
-        if (index < 0 || index >= config.sections.length) continue;
+      // Drop chapters queued for a position the reader has already left.
+      const wanted = [section + 1, section - 1, section + 2].filter(index => index >= 0 && index < config.sections.length);
+      for (let i = preloadQueue.length - 1; i >= 0; i--) if (!wanted.includes(preloadQueue[i])) preloadQueue.splice(i, 1);
+      for (const index of wanted) {
         if (cacheGet(index) !== null || chapterInflight.has(index) || preloadQueue.includes(index)) continue;
         preloadQueue.push(index);
       }
@@ -588,7 +616,11 @@
     catch (_) { if (shadow?.mark === mark) shadow = null; return; }
     if (shadow?.mark !== mark) return;
     shadowReady = null;
-    shadowFrame.srcdoc = prepareDocument(html, mark, index);
+    // Drop any inline sizing left over from a fixed-layout chapter that used
+    // this frame before, and measure against the box the frame will have once
+    // it becomes visible instead of the currently displayed one.
+    shadowFrame.style.transform = ''; shadowFrame.style.width = '100%'; shadowFrame.style.height = '100%';
+    shadowFrame.srcdoc = prepareDocument(html, mark, index, stage.clientWidth, stage.clientHeight);
   }
   async function shadowLoaded() {
     const target = shadowFrame.contentDocument, current = shadow;
@@ -597,9 +629,6 @@
     if (marker === null || marker !== current.mark || marker === shadowReady) return;
     shadowReady = marker;
     current.doc = target;
-    // Safety net for browsers without `inert`: a key pressed while the hidden
-    // frame holds focus still steers the visible chapter.
-    target.addEventListener('keydown', keyboard);
     try {
       await withTimeout(waitImages(target), 6000);
       if (shadow !== current) return;
@@ -609,6 +638,20 @@
     current.nodes = collectNodes(target, current.section);
     current.ready = true;
   }
+  // Single place that moves the reader between the two iframes, keeping the
+  // classes, inert, aria-hidden and focus state in sync.
+  function setActiveFrame(next) {
+    const previous = frame;
+    frame = next; shadowFrame = previous;
+    frame.classList.remove('is-prerender'); frame.classList.add('is-active');
+    frame.removeAttribute('inert'); frame.removeAttribute('aria-hidden'); frame.removeAttribute('tabindex');
+    shadowFrame.classList.add('is-prerender'); shadowFrame.classList.remove('is-active');
+    shadowFrame.setAttribute('inert', ''); shadowFrame.setAttribute('aria-hidden', 'true'); shadowFrame.setAttribute('tabindex', '-1');
+    // The outgoing frame may still hold focus (setting inert releases it); keep
+    // the keyboard working on the frame that is visible now.
+    if (previous.contains(document.activeElement)) frame.focus({ preventScroll: true });
+    return previous;
+  }
   // Swap the prerendered chapter in without re-parsing, re-fetching or hiding
   // the content, so a forward turn shows a finished page immediately.
   function adoptShadow(target, userAction) {
@@ -616,14 +659,7 @@
     save(); clearTimeout(saveTimer);
     renderId++; generation++;
     pendingSnapshot = { section, page, dirty, savedSignature, lastLocation, pending };
-    const previous = frame;
-    frame = shadowFrame; shadowFrame = previous;
-    frame.classList.remove('is-prerender'); frame.classList.add('is-active');
-    frame.removeAttribute('inert');
-    // Marking the outgoing frame inert also releases any focus left inside it,
-    // so keyboard input keeps reaching the reader after the swap.
-    shadowFrame.classList.add('is-prerender'); shadowFrame.classList.remove('is-active');
-    shadowFrame.setAttribute('inert', '');
+    setActiveFrame(shadowFrame);
     section = current.section; page = 0; dirty = userAction;
     savedSignature = ''; lastLocation = null; pending = { ...target };
     doc = current.doc; nodes = current.nodes || [];
@@ -633,16 +669,25 @@
     $('epub-display').disabled = false;
     stage.setAttribute('aria-busy', 'false');
     wireDocument(); layout(); restore({ ...pending });
+    committedSection = section;
     currentRaw = (lastLocation || position()).raw;
     if (dirty) changed();
     schedulePreload();
   }
   function loadFailed(id) {
     if (id !== renderId) return;
-    // Keep the chapter that is already displayed instead of switching to an error page.
-    if (pendingSnapshot) ({ section, page, dirty, savedSignature, lastLocation, pending } = pendingSnapshot);
+    // Keep the chapter that is already displayed instead of switching to an
+    // error page. `section` may already point at a chapter that never rendered
+    // (rapid navigation), so roll back to the last committed one and re-derive
+    // the page from the document that is actually on screen.
+    if (pendingSnapshot) ({ dirty, savedSignature, lastLocation, pending } = pendingSnapshot);
+    section = committedSection;
     finishLoad(); notifyError('章节加载失败，请重试');
-    if (doc) { layout(); progressLabel(); }
+    if (doc) {
+      layout();
+      if (mode() === 'page') page = Math.max(0, Math.min(pageCount - 1, Math.round(doc.scrollingElement.scrollLeft / Math.max(1, frame.clientWidth))));
+      progressLabel();
+    }
     schedulePreload();
   }
   async function renderSection(id, index) {
@@ -834,7 +879,11 @@
   };
   $('epub-note-jump').onclick = () => { note.close(); if (noteTarget) navigateLink(noteTarget, false); };
   for (const id of ['epub-mode','epub-font','epub-zoom']) $(id).onchange = async () => {
-    const p = lastLocation || position(); remember(); invalidateShadow(); layout(); await doc.fonts.ready; layout(); restore({ raw: p.raw, location: p }); schedulePreload();
+    const p = lastLocation || position(), token = generation;
+    remember(); invalidateShadow(); layout();
+    await doc.fonts.ready.catch(() => {});
+    if (token !== generation) return;   // 期间切了章，别用旧位置覆盖新章节
+    layout(); restore({ raw: p.raw, location: p }); schedulePreload();
   };
   // Book styles are dropped/kept while pre-rendering, so switching between
   // 原书样式 and 自定义样式 reloads the chapter once, keeping the passage.
@@ -933,13 +982,20 @@
     if ($('auto-read-toggle').checked && !fixed()) {
       autoReadPrevMode = mode();
       $('epub-mode').value = 'slide'; settingsChanged();
-      autoReadPausedUntil = 0;
+      autoReadPausedUntil = 0; autoReadAdvancedAt = 0; autoReadProgressAt = 0;
       autoRead = setInterval(() => {
         if (loading || suspended || !doc || Date.now() < autoReadPausedUntil) return;
         const scroll = doc.scrollingElement;
-        scroll.scrollTop += Math.max(1, Number($('auto-read-speed').value) / 10);
-        changed();
+        if (!fixed()) {
+          scroll.scrollTop += Math.max(1, Number($('auto-read-speed').value) / 10);
+          // 位置定位会遍历文本节点，按 ~150ms 节流，停读时仍会精确保存
+          if (Date.now() - autoReadProgressAt >= 150) { autoReadProgressAt = Date.now(); changed(); }
+          else dirty = true;
+        }
         if (scroll.scrollTop + frame.clientHeight >= scroll.scrollHeight - 2) {
+          // 固定版式一节即一屏（无法滚动），停留一段时间再翻，否则每 50ms 跳过一页
+          if (Date.now() - autoReadAdvancedAt < (fixed() ? 4000 : 0)) return;
+          autoReadAdvancedAt = Date.now();
           if (section < config.sections.length - 1) load(section + 1, {}, true);
           else { clearInterval(autoRead); autoRead = null; $('auto-read-toggle').checked = false; restoreAutoReadMode(); }
         }
@@ -951,11 +1007,15 @@
   applyDimensions();
   new ResizeObserver(() => {
     clearTimeout(resizeTimer); resizeTimer = setTimeout(() => {
-      if (!loading && doc) {
-        const p = lastLocation || position();
-        const unchanged = p.width === frame.clientWidth && p.height === frame.clientHeight;
-        invalidateShadow(); applyDimensions(); layout(); restore({ raw: p.raw, location: p, preferFraction: unchanged }); schedulePreload();
-      }
+      if (loading || !doc) return;
+      // Ignore notifications that do not actually change the reading area, so a
+      // stale prerender is not thrown away for nothing.
+      const w = stage.clientWidth, h = stage.clientHeight;
+      if (w === stageSize.w && h === stageSize.h) return;
+      stageSize = { w, h };
+      const p = lastLocation || position();
+      const unchanged = p.width === frame.clientWidth && p.height === frame.clientHeight;
+      invalidateShadow(); applyDimensions(); layout(); restore({ raw: p.raw, location: p, preferFraction: unchanged }); schedulePreload();
     }, 120);
   }).observe(stage);
   // Both frames stay mounted and swap roles, so track the pointer on each.
