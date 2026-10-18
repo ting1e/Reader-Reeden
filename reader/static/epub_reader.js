@@ -33,6 +33,7 @@
   $('epub-custom-font').checked = prefs.customFont !== false;
   let section = config.section, doc = null, page = 0, pageCount = 1, loading = false;
   let dirty = false, saveTimer, resizeTimer, nodes = [], currentRaw = config.raw, generation = 0;
+  let settingsRevision = 0;
   let pending = { raw: config.raw, location: config.location }, noteTarget = null;
   let savedSignature = '', lastLocation = null;
   let renderId = 0, activeMark = null, readyMark = null, seq = 0;
@@ -110,6 +111,9 @@
     return null;
   }
   function position() {
+    // While fetching/rendering, section is the destination but doc may still be
+    // the outgoing chapter. Never combine their coordinates.
+    if (loading) return pending?.location || { raw: pending?.raw ?? config.sections[section].start, section, fraction: 0 };
     if (!doc) return lastLocation || { raw: currentRaw, section, fraction: 0 };
     const scrolling = doc.scrollingElement;
     let fraction = mode() === 'page' ? page / Math.max(1, pageCount) : scrolling.scrollTop / Math.max(1, scrolling.scrollHeight - scrolling.clientHeight);
@@ -280,6 +284,7 @@
       .finally(() => { saving = false; if (saveAgain) { saveAgain = false; save(); } });
   }
   function changed() {
+    if (loading) return;
     presentationUntouched = false;
     dirty = true; currentRaw = position().raw; progressLabel();
     clearTimeout(saveTimer); saveTimer = setTimeout(() => save(), 600);
@@ -303,6 +308,18 @@
     return css;
   }
   const customStyle = (index = section) => !sectionFixed(index) && $('epub-style').value === 'custom';
+  function cleanInlineTypography(targetDoc) {
+    // Keep illustration/table geometry, emphasis, superscripts and book semantics.
+    // Remove only declarations that compete with the reader's typography.
+    for (const element of targetDoc.querySelectorAll('[style]')) {
+      if (element.closest('svg,math,table,figure')) continue;
+      // Remove font shorthand's conflicting longhands individually, so italic
+      // and bold survive even when the book expressed them through `font`.
+      for (const property of ['font-family', 'font-size', 'line-height', 'letter-spacing', 'color', 'background', 'background-color', 'columns', 'column-width', 'column-count', 'column-gap']) {
+        element.style.removeProperty(property);
+      }
+    }
+  }
   function applyLayoutStyle(targetDoc, index) {
     // Adopting a prerendered chapter usually needs no style change at all: the
     // srcdoc already carries the same CSS. Skipping the rebuild keeps the swap
@@ -419,6 +436,16 @@
   function wireDocument() {
     if (wiredDocs.has(doc)) return;
     wiredDocs.add(doc);
+    const wiredDoc = doc;
+    doc.addEventListener('mouseover', event => {
+      const link = event.target.closest('a[href]');
+      if (!link || link.contains(event.relatedTarget) || loading || wiredDoc !== doc || !isNoteLink(link)) return;
+      queueNotePreview(link);
+    });
+    doc.addEventListener('mouseout', event => {
+      const link = event.target.closest('a[href]');
+      if (link && !link.contains(event.relatedTarget)) leaveNotePreview();
+    });
     doc.addEventListener('click', event => {
       $('offcanvassetting').style.display = 'none';
       const link = event.target.closest('a[href]');
@@ -489,29 +516,51 @@
   const waitImages = targetDoc => Promise.all(Array.from(targetDoc.images).map(img => img.complete ? Promise.resolve() : new Promise(resolve => { img.addEventListener('load', resolve, { once: true }); img.addEventListener('error', resolve, { once: true }); })));
   async function loaded() {
     const target = frame.contentDocument;
-    if (!target?.body) { finishLoad(); notifyError('图文加载失败，可切换纯文本阅读。'); return; }
     const marker = docMarker(target);
     // Ignore stale/double load events: the marker identifies the exact render
     // this event belongs to, so a superseded chapter can never drive state.
     if (marker === null || marker !== activeMark || marker === readyMark) return;
+    if (!target?.body) { loadFailed(renderId); return; }
     doc = target; readyMark = marker;
     const token = ++generation;
     loading = true;
     try {
-      await withTimeout(waitImages(doc), 6000);
-      if (token !== generation) return;
       $('epub-status').textContent = fixed() ? '固定版式 · 按原页面缩放' : '';
       locateNodes(); wireDocument(); layout();
-      if (doc.fonts?.ready) await withTimeout(doc.fonts.ready.catch(() => {}), 3000);
+      // Start layout (and font discovery) immediately; assets settle in parallel,
+      // rather than adding the font timeout after the image timeout.
+      await Promise.all([
+        withTimeout(waitImages(target), 6000),
+        target.fonts?.ready ? withTimeout(target.fonts.ready.catch(() => {}), 3000) : Promise.resolve()
+      ]);
       if (token !== generation) return;
       layout(); restore({ ...(pending || {}), preferFraction: Number.isFinite(pending?.location?.fraction)
         && (!pending.location.width || pending.location.width === frame.clientWidth)
         && (!pending.location.height || pending.location.height === frame.clientHeight) });
       finishLoad();
       committedSection = section;
+      lastLocation = null; progressLabel();
+      // Images that outlive the bounded wait must not leave stale pagination.
+      // Preserve the passage the reader has reached, not the initial load target.
+      let assetTimer;
+      const settleAssets = () => {
+        clearTimeout(assetTimer);
+        assetTimer = setTimeout(() => {
+          if (token !== generation || loading || doc !== target) return;
+          const point = lastLocation || position();
+          invalidateShadow(); layout(); restore({ raw: point.raw, location: point }); schedulePreload();
+        }, 80);
+      };
+      for (const image of target.images) if (!image.complete) {
+        image.addEventListener('load', settleAssets, { once: true });
+        image.addEventListener('error', settleAssets, { once: true });
+      }
       if (dirty) changed();
       schedulePreload();
-    } catch (_) { finishLoad(); notifyError('图文加载失败，可切换纯文本阅读。'); }
+    } catch (_) {
+      if (token !== generation) return;
+      finishLoad(); notifyError('图文加载失败，可切换纯文本阅读。');
+    }
   }
   function finishLoad() {
     loading = false;
@@ -528,18 +577,19 @@
   // Pre-render the sanitized chapter with the reader CSS already applied so the
   // iframe's first paint is final: no flash of the book's own styles.
   function prepareDocument(html, id, index = section, width, height) {
-    try {
-      const parsed = new DOMParser().parseFromString(html, 'text/html');
-      const head = parsed.head;
-      if (!head) return html;
-      if (customStyle(index)) for (const node of parsed.querySelectorAll('link[rel=stylesheet],style')) node.remove();
-      const style = parsed.createElement('style');
-      style.id = 'reader-layout'; style.textContent = readerCss(index, width, height);
-      head.appendChild(style);
-      // A unique marker guarantees the iframe reloads even for identical content.
-      head.appendChild(parsed.createComment('render ' + id));
-      return '<!doctype html>' + parsed.documentElement.outerHTML;
-    } catch (_) { return html; }
+    const parsed = new DOMParser().parseFromString(html, 'text/html');
+    const head = parsed.head;
+    if (!head || !parsed.body) throw Error('Invalid chapter document');
+    if (customStyle(index)) {
+      for (const node of parsed.querySelectorAll('link[rel=stylesheet],style')) node.remove();
+      cleanInlineTypography(parsed);
+    }
+    const style = parsed.createElement('style');
+    style.id = 'reader-layout'; style.textContent = readerCss(index, width, height);
+    head.appendChild(style);
+    // A unique marker guarantees the iframe reloads even for identical content.
+    head.appendChild(parsed.createComment('render ' + id));
+    return '<!doctype html>' + parsed.documentElement.outerHTML;
   }
   function cacheGet(index) {
     if (!chapterCache.has(index)) return null;
@@ -620,11 +670,11 @@
     catch (_) { if (shadow?.mark === mark) shadow = null; return; }
     if (shadow?.mark !== mark) return;
     shadowReady = null;
-    // Drop any inline sizing left over from a fixed-layout chapter that used
-    // this frame before, and measure against the box the frame will have once
-    // it becomes visible instead of the currently displayed one.
-    shadowFrame.style.transform = ''; shadowFrame.style.width = '100%'; shadowFrame.style.height = '100%';
-    shadowFrame.srcdoc = prepareDocument(html, mark, index, stage.clientWidth, stage.clientHeight);
+    // Independent pixel geometry: canvas may still be scaled for a fixed page.
+    shadowFrame.style.transform = '';
+    shadowFrame.style.width = stage.clientWidth + 'px'; shadowFrame.style.height = stage.clientHeight + 'px';
+    try { shadowFrame.srcdoc = prepareDocument(html, mark, index, stage.clientWidth, stage.clientHeight); }
+    catch (_) { if (shadow?.mark === mark) shadow = null; }
   }
   async function shadowLoaded() {
     const target = shadowFrame.contentDocument, current = shadow;
@@ -634,9 +684,10 @@
     shadowReady = marker;
     current.doc = target;
     try {
-      await withTimeout(waitImages(target), 6000);
-      if (shadow !== current) return;
-      if (target.fonts?.ready) await withTimeout(target.fonts.ready.catch(() => {}), 3000);
+      await Promise.all([
+        withTimeout(waitImages(target), 6000),
+        target.fonts?.ready ? withTimeout(target.fonts.ready.catch(() => {}), 3000) : Promise.resolve()
+      ]);
     } catch (_) { /* fall back to a partial prerender */ }
     if (shadow !== current || current.revision !== revision) { if (shadow === current) shadow = null; return; }
     current.nodes = collectNodes(target, current.section);
@@ -700,17 +751,20 @@
     catch (_) { return loadFailed(id); }
     if (id !== renderId) return;
     activeMark = ++seq; readyMark = null;
-    frame.srcdoc = prepareDocument(html, activeMark, index);
+    try { frame.srcdoc = prepareDocument(html, activeMark, index, stage.clientWidth, stage.clientHeight); }
+    catch (_) { loadFailed(id); }
   }
   function load(index, target = {}, userAction = false) {
     if (index < 0 || index >= config.sections.length) return;
+    clearTimeout(noteShowTimer); clearTimeout(noteHideTimer);
+    if (noteHover && note.open) note.close();
     // A forward turn with no explicit anchor can use the prerendered chapter.
     if (index === section + 1 && !target.fragment && !target.location && !target.raw
       && shadow?.ready && shadow.section === index && shadow.revision === revision) return adoptShadow(target, userAction);
     invalidateShadow();
     save(); clearTimeout(saveTimer);
     const id = ++renderId; generation++;
-    pendingSnapshot = { section, page, dirty, savedSignature, lastLocation, pending };
+    if (!loading) pendingSnapshot = { section, page, dirty, savedSignature, lastLocation, pending };
     section = index; page = 0; dirty = userAction; savedSignature = ''; lastLocation = null;
     pending = target; loading = true;
     $('epub-display').disabled = true;
@@ -876,13 +930,50 @@
       if ($('drawer-left').checked && !$('tab-bookmarks').classList.contains('hidden')) showBookmarks();
     } catch (_) { notifyError('书签保存失败'); }
   };
-  $('epub-note-jump').onclick = () => { note.close(); if (noteTarget) navigateLink(noteTarget, false); };
+  $('epub-note-jump').onclick = () => { const target = noteTarget; note.close(); if (target) navigateLink(target, false); };
   // ===== 注释（脚注/尾注）=====
   // 只渲染目标那一条注释：服务端已清理的 HTML 在父页面用 DOMParser 解析（不插入父 DOM），
   // 取出对应块后再写进 sandbox iframe，排版、配色和高度都由这里统一控制。
   const NOTE_BLOCKS = new Set(['ASIDE','LI','P','DIV','SECTION','BLOCKQUOTE','DD','FIGURE','TABLE','OL','UL','ARTICLE','H1','H2','H3','H4','H5','H6']);
   const NOTE_CACHE_LIMIT = 4;
   const noteCache = new Map();
+  let noteHover = false, noteShowTimer, noteHideTimer, noteAnchor = null, noteSerial = 0;
+  const isNoteLink = link => /noteref|doc-noteref/.test((link.getAttribute('epub:type') || '') + ' ' + (link.getAttribute('role') || '')) || Boolean(link.querySelector('sup'));
+  function leaveNotePreview() {
+    clearTimeout(noteShowTimer);
+    clearTimeout(noteHideTimer);
+    noteHideTimer = setTimeout(() => { if (noteHover) note.close(); }, 150);
+  }
+  function queueNotePreview(link) {
+    if (note.open && !noteHover) return;
+    clearTimeout(noteShowTimer); clearTimeout(noteHideTimer);
+    const target = urlTarget(link.href);
+    if (!target) return;
+    noteShowTimer = setTimeout(() => {
+      if (loading || link.ownerDocument !== doc || !link.isConnected) return;
+      const rect = link.getBoundingClientRect(), frameRect = frame.getBoundingClientRect();
+      noteAnchor = { left: frameRect.left + rect.left, top: frameRect.top + rect.top, bottom: frameRect.top + rect.bottom };
+      openNote({ ...target, section: config.sections.findIndex(s => s.href === target.path) }, true);
+    }, 500);
+  }
+  function placeNotePreview() {
+    if (!noteHover || !noteAnchor) return;
+    const box = note.querySelector('.epub-note-box');
+    box.style.left = Math.max(12, Math.min(noteAnchor.left, innerWidth - box.offsetWidth - 12)) + 'px';
+    const below = noteAnchor.bottom + 8;
+    box.style.top = Math.max(12, below + box.offsetHeight <= innerHeight - 12 ? below : noteAnchor.top - box.offsetHeight - 8) + 'px';
+  }
+  const noteBox = note.querySelector('.epub-note-box');
+  noteBox.addEventListener('mouseenter', () => { clearTimeout(noteHideTimer); });
+  noteBox.addEventListener('mouseleave', leaveNotePreview);
+  note.addEventListener('close', () => {
+    // A queued close event from promoting a preview must not invalidate the modal.
+    if (note.open) return;
+    noteSerial++; noteTarget = null; noteHover = false;
+    clearTimeout(noteShowTimer); clearTimeout(noteHideTimer);
+    note.classList.remove('is-hover');
+    noteBox.style.left = ''; noteBox.style.top = '';
+  });
   // 从注释锚点向上找到承载这条注释的最小块级容器
   function noteBlock(anchor) {
     const root = anchor.ownerDocument;
@@ -947,6 +1038,7 @@ code,pre{font-size:.9em}`;
     frame.style.height = '1px';   // 先归零，量出内容自身高度（同一帧内完成，不会闪）
     const height = Math.max(doc.body.scrollHeight, Math.ceil(doc.body.getBoundingClientRect().height));
     frame.style.height = Math.max(24, height) + 'px';
+    placeNotePreview();
   }
   function noteClick(event) {
     const link = event.target.closest('a[href]');
@@ -960,20 +1052,34 @@ code,pre{font-size:.9em}`;
   }
   $('epub-note-frame').onload = () => {
     const frame = $('epub-note-frame'), doc = frame.contentDocument;
-    if (!doc?.body || !note.open) return;
+    if (!doc?.body || !note.open || doc.body.dataset.noteRender !== String(noteSerial)) return;
     doc.addEventListener('click', noteClick);
     $('epub-note-status').hidden = true;
     frame.hidden = false;
     fitNote();
     for (const image of doc.images) image.addEventListener('load', fitNote);
   };
-  async function openNote(target) {
+  async function openNote(target, hover = false) {
     const frame = $('epub-note-frame'), status = $('epub-note-status');
+    clearTimeout(noteShowTimer); clearTimeout(noteHideTimer);
+    if (note.open && noteHover !== hover) note.close();
+    const serial = ++noteSerial;
+    noteHover = hover;
+    note.classList.toggle('is-hover', hover);
+    if (!hover) { noteBox.style.left = ''; noteBox.style.top = ''; }
     noteTarget = target;
     $('epub-note-jump').disabled = target.section < 0;
     status.textContent = '正在加载注释…'; status.hidden = false;
-    frame.hidden = true; frame.removeAttribute('style'); frame.srcdoc = '';
-    if (!note.open) note.showModal();
+    frame.hidden = true; frame.removeAttribute('style');
+    if (!note.open) {
+      if (hover) {
+        const focused = document.activeElement;
+        const innerFocused = focused === frame ? null : focused?.contentDocument?.activeElement;
+        note.show();
+        focused?.focus({ preventScroll: true }); innerFocused?.focus({ preventScroll: true });
+      } else note.showModal();
+    }
+    placeNotePreview();
     let html = noteCache.get(target.path);
     if (html === undefined) {
       try {
@@ -984,7 +1090,7 @@ code,pre{font-size:.9em}`;
       if (noteCache.size >= NOTE_CACHE_LIMIT) noteCache.delete(noteCache.keys().next().value);
       noteCache.set(target.path, html);
     }
-    if (noteTarget !== target) return;   // 期间打开了别的注释
+    if (noteTarget !== target || serial !== noteSerial || !note.open) return;
     let block = '';
     try {
       const parsed = new DOMParser().parseFromString(html, 'text/html');
@@ -992,19 +1098,26 @@ code,pre{font-size:.9em}`;
       if (anchor) block = noteMarkup(anchor);
     } catch (_) {}
     if (!block) { status.textContent = target.fragment ? '未找到该注释' : '该链接没有可显示的注释'; return; }
-    frame.srcdoc = '<!doctype html><html><head><meta charset="utf-8"><style>' + noteCss() + '</style></head><body>' + block + '</body></html>';
+    frame.srcdoc = '<!doctype html><html><head><meta charset="utf-8"><style>' + noteCss() + '</style></head><body data-note-render="' + serial + '">' + block + '</body></html>';
   }
   for (const id of ['epub-mode','epub-font','epub-zoom','epub-custom-font']) $(id).onchange = async () => {
+    const revision = ++settingsRevision;
+    remember(); invalidateShadow();
+    if (refreshLoadingSettings()) return;
+    if (!doc) return;
     const p = lastLocation || position(), token = generation;
-    remember(); invalidateShadow(); layout();
+    layout();
     await doc.fonts.ready.catch(() => {});
-    if (token !== generation) return;   // 期间切了章，别用旧位置覆盖新章节
+    if (token !== generation || revision !== settingsRevision) return;
     layout(); restore({ raw: p.raw, location: p }); schedulePreload();
   };
   // Book styles are dropped/kept while pre-rendering, so switching between
   // 原书样式 and 自定义样式 reloads the chapter once, keeping the passage.
   $('epub-style').onchange = () => {
-    const p = doc ? (lastLocation || position()) : null; remember(); invalidateShadow();
+    settingsRevision++;
+    remember(); invalidateShadow();
+    if (refreshLoadingSettings()) return;
+    const p = doc ? (lastLocation || position()) : null;
     if (p) load(section, { raw: p.raw, location: p }, false); else { layout(); schedulePreload(); }
   };
   // Shared TXT shell controls; only the content engine differs.
@@ -1049,14 +1162,24 @@ code,pre{font-size:.9em}`;
     settingsTimer = setTimeout(() => fetch(config.updateSettingsUrl, { method: 'POST', body: new URLSearchParams(values) })
       .catch(() => notifyError('阅读设置保存失败')), 250);
   }
+  // Keep the requested chapter/anchor/user action intact. Only restart its render
+  // with the latest settings; never measure the outgoing chapter as the target.
+  function refreshLoadingSettings() {
+    if (!loading) return false;
+    generation++; activeMark = null; readyMark = null;
+    renderSection(++renderId, section);
+    return true;
+  }
   function settingsChanged() {
-    const point = lastLocation || (doc ? position() : null);
+    settingsRevision++;
+    const point = !loading && doc ? (lastLocation || position()) : null;
     config.settings.fontSize = Number($('epub-font').value);
     config.settings.mode = $('epub-mode').value;
     document.querySelector('.font-value').textContent = config.settings.fontSize;
     document.querySelector('main').style.background = config.settings.background;
     applyDimensions(); persistSettings();
     invalidateShadow();
+    if (refreshLoadingSettings()) return;
     if (doc) { layout(); restore({ raw: point.raw, location: point }); }
     schedulePreload();
   }
@@ -1135,7 +1258,7 @@ code,pre{font-size:.9em}`;
     }, 120);
   }).observe(stage);
   // Both frames stay mounted and swap roles, so track the pointer on each.
-  for (const element of [primaryFrame, shadowEl]) element.addEventListener('pointerleave', () => { if (doc && element === frame) lastLocation = position(); });
+  for (const element of [primaryFrame, shadowEl]) element.addEventListener('pointerleave', () => { if (!loading && doc && element === frame) lastLocation = position(); });
   window.addEventListener('pagehide', () => save(true));
   window.epubPresentation = {
     capture: () => {
