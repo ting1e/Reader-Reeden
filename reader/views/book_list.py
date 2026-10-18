@@ -291,13 +291,21 @@ def book_list_add_book(request, pk):
 
 @login_required(login_url='reader:index')
 def book_list_update_item(request, pk, item_id):
-    """更新书单条目的评分/短评（AJAX，返回 JSON）"""
+    """更新书单条目的阅读状态/评分/短评（AJAX，返回 JSON）"""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'method not allowed'})
     bl = get_object_or_404(BookList, id=pk)
     if not can_admin_book_list(bl, request.user):
         return JsonResponse({'success': False, 'error': '无权限'})
     item = get_object_or_404(BookListItem, id=item_id, book_list_id=pk)
+
+    if 'read_status' in request.POST:
+        read_status = request.POST.get('read_status')
+        if read_status not in BookListItem.ReadStatus.values:
+            return JsonResponse({'success': False, 'error': '无效的阅读状态'})
+        item.read_status = read_status
+        item.save(update_fields=['read_status'])
+        return JsonResponse({'success': True, 'read_status': item.read_status})
 
     if 'rating' in request.POST:
         try:

@@ -98,11 +98,17 @@ class BookList(models.Model):
 
 
 class BookListItem(models.Model):
+    class ReadStatus(models.TextChoices):
+        UNREAD = 'unread', '未读'
+        READ = 'read', '已读'
+        ABANDONED = 'abandoned', '弃读'
+
     book_list_id = models.IntegerField()
     book_id = models.IntegerField(default=0)
     manual_name = models.CharField(max_length=128, default='')
     manual_author = models.CharField(max_length=64, default='')
     remote_file_name = models.CharField(max_length=256, default='')
+    read_status = models.CharField(max_length=16, choices=ReadStatus.choices, default=ReadStatus.UNREAD)
     rating = models.IntegerField(default=0)
     review = models.TextField(default='')
     sort_order = models.IntegerField(default=0)
