@@ -121,6 +121,8 @@ def _split_into_chapters(book, data, match, url, set_md5, min_len=0, max_len=0):
 
 
 def handle_local_book(request, url, local_only=False):
+    if Path(url).suffix.lower() == '.epub':
+        return _handle_epub(request, url, local_only)
     if Path(url).suffix.lower() != '.txt':
         return False
     file_name = os.path.splitext(os.path.basename(url))[0]
@@ -147,6 +149,40 @@ def handle_local_book(request, url, local_only=False):
             return _split_into_chapters(book, data, match, url, set_md5=True, min_len=min_len, max_len=max_len)
 
     return False
+
+
+def _handle_epub(request, url, local_only):
+    from .epub import parse_epub, write_cache
+    import uuid
+    data = parse_epub(url)
+    cache_path = str(Path(url).parent / (uuid.uuid4().hex + '.reader.json'))
+    book = Book(
+        book_url=to_rel_path(url), file_name=os.path.basename(url),
+        name=(data['title'] or Path(url).stem)[:64], author=data['author'][:64],
+        intro=data['text'][:512], format='epub', content_path=to_rel_path(cache_path),
+        charset='utf-8', local=True, local_only=local_only,
+        uploader=request.user.id if request.user.is_authenticated else 0,
+        md5=get_file_md5(url), word_count=len(data['text']),
+    )
+    try:
+        write_cache(cache_path, data)
+        with transaction.atomic():
+            book.save()
+            Chapter.objects.bulk_create([
+                Chapter(book_id=book.id, book_url=book.book_url, index=index,
+                        title=ch['title'], start=ch['start'], end=ch['end'])
+                for index, ch in enumerate(data['chapters'])
+            ])
+            chapters = list(Chapter.objects.filter(book_id=book.id).order_by('index'))
+            book.first_chapter_id, book.last_chapter_id = chapters[0].id, chapters[-1].id
+            book.first_chapter_title, book.last_chapter_title = chapters[0].title, chapters[-1].title
+            book.total_chapter_num = len(chapters)
+            book.save()
+    except Exception:
+        if os.path.exists(cache_path):
+            os.remove(cache_path)
+        raise
+    return True
 
 
 def rechapter_book(book, user=None, rule_choice='main'):

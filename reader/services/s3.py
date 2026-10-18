@@ -78,13 +78,30 @@ def sync_progress_to_s3(request, book):
     s3_key = f"{cfg['prefix']}book_progress/{md5_val}.json"
     try:
         client = _get_s3_client(cfg)
+        remote_missing = False
         try:
             resp = client.get_object(Bucket=cfg['bucket'], Key=s3_key)
             remote_data = json.load(resp['Body'])
             remote_time = _parse_progress_time(remote_data)
-        except Exception:
+        except Exception as exc:
+            if book.format == 'epub':
+                code = getattr(exc, 'response', {}).get('Error', {}).get('Code')
+                if code not in ('NoSuchKey', '404', 'NotFound'):
+                    logger.warning('EPUB cloud progress unreadable; skipping upload')
+                    return
             remote_data = None
             remote_time = None
+            remote_missing = True
+        if book.format == 'epub' and not remote_missing:
+            if (not isinstance(remote_data, dict) or remote_data.get('bookId') != md5_val
+                    or remote_data.get('schemaVersion') != 1 or remote_time is None):
+                logger.warning('Unsupported EPUB cloud progress; skipping upload')
+                return
+            # Preserve remote extensions without keeping a stale position marker.
+            own_position = local_data.get('readerEpub')
+            local_data = {**remote_data, **local_data}
+            if own_position is None:
+                local_data.pop('readerEpub', None)
         if remote_time is None or local_time > remote_time:
             if remote_data and isinstance(remote_data.get('todayStats'), dict) \
                and isinstance(local_data.get('todayStats'), dict) \
@@ -105,8 +122,19 @@ def sync_progress_to_s3(request, book):
                         json.dump(local_data, f, ensure_ascii=False)
                 except Exception:
                     logger.exception("sync_progress_to_s3: error writing merged local progress")
-            with open(local_path, 'rb') as pf:
-                body = pf.read()
-            client.put_object(Bucket=cfg['bucket'], Key=s3_key, Body=body, ContentLength=len(body))
+            if book.format == 'epub':
+                body = json.dumps(local_data, ensure_ascii=False).encode('utf-8')
+                from .epub import write_cache
+                write_cache(local_path, local_data)
+            else:
+                with open(local_path, 'rb') as pf:
+                    body = pf.read()
+            conditions = {}
+            if book.format == 'epub':
+                if remote_data is None:
+                    conditions['IfNoneMatch'] = '*'
+                elif resp.get('ETag'):
+                    conditions['IfMatch'] = resp['ETag']
+            client.put_object(Bucket=cfg['bucket'], Key=s3_key, Body=body, ContentLength=len(body), **conditions)
     except Exception:
         logger.exception("sync_progress_to_s3 upload error")

@@ -61,6 +61,27 @@ def book_view(request):
             chapter = Chapter.objects.get(id=_chapter_id, book_id=book_id)
         except (Chapter.DoesNotExist, ValueError):
             return HttpResponse('invalid chapter_id')
+        if _book.format == 'epub':
+            from ..services.epub import text_units
+            content = read_book_text(_book)[chapter.start:chapter.end]
+            words_read = max(0, min(int(words_read), text_units(content.replace('\n', ''))))
+        location = None
+        if _book.format == 'epub' and 'epub_location' in request.POST:
+            from ..services.epub_render import render_metadata
+            try:
+                location = json.loads(request.POST['epub_location'])
+                sections = render_metadata(_book)['sections']
+                section = location['section']
+                fraction = location.get('fraction', 0)
+                if (type(section) is not int or not 0 <= section < len(sections)
+                        or type(fraction) not in (int, float) or not 0 <= fraction <= 1):
+                    raise ValueError
+                location = {'section': section, 'fraction': fraction,
+                            'anchor': str(location.get('anchor', ''))[:512],
+                            **{key: location[key] for key in ('width', 'height')
+                               if type(location.get(key)) is int and 0 < location[key] <= 20000}}
+            except (ValueError, KeyError, TypeError):
+                return JsonResponse({'success': False, 'error': '无效的 EPUB 页面位置'}, status=400)
         progress_raw = calculate_read_progress(_book, chapter, words_read)
         progress_val = progress_raw / 100.0
         UserBookRecord.objects.update_or_create(
@@ -71,11 +92,18 @@ def book_view(request):
                 'words_read': int(words_read),
                 'progress': progress_val,
                 'read_time': timezone.now(),
+                **({'epub_location': location or {}} if _book.format == 'epub' else {}),
             },
         )
 
+        if location is not None:
+            if sections[section].get('fixed') or not sections[section]['paragraphs']:
+                progress_raw = int((section + fraction) / len(sections) * 10000)
+                progress_val = progress_raw / 100
+                UserBookRecord.objects.filter(user_id=request.user.id, book_id=book_id).update(progress=progress_val)
+
         try:
-            save_progress_json(_book, chapter, words_read, request.user.id)
+            save_progress_json(_book, chapter, words_read, request.user.id, epub_location=location)
             sync_progress_to_s3(request, _book)
         except Exception:
             logger.exception("Failed to save progress JSON")
@@ -87,10 +115,15 @@ def book_view(request):
             is_beacon = False
         if is_beacon:
             return HttpResponse('success')
+        if _book.format == 'epub':
+            from ..services.epub import characters_at_progress
+            read_words = characters_at_progress(_book, progress_raw)
+        else:
+            read_words = int(progress_raw / 10000.0 * _book.word_count)
         return JsonResponse({
             'success': True,
             'progress': round(progress_val, 2),
-            'words_read': int(progress_raw / 10000.0 * _book.word_count),
+            'words_read': read_words,
             'total_words': _book.word_count,
         })
 
@@ -109,6 +142,7 @@ def book_view(request):
 
     # ---- 确定 chapter_id / offset：POST 表单 or GET 参数 ----
     chapter_id = None
+    progress_approximate = False
     offset = 0
     if request.method == 'POST' and 'book_id' in request.POST:
         _ch = request.POST.get('chapter_id')
@@ -138,7 +172,10 @@ def book_view(request):
                 pass
 
     # POST: chapter_id 已在上面从表单获取；未指定则使用阅读记录或第一章
-    if not chapter_id and request.user.is_authenticated and 0 == offset:
+    if not chapter_id and _book.format == 'epub' and offset == 0:
+        from ..services.epub_progress import restore_epub_progress
+        chapter_id, offset, progress_approximate = restore_epub_progress(request, _book)
+    elif not chapter_id and request.user.is_authenticated and 0 == offset:
         db_record = None
         last = UserBookRecord.objects.filter(
             user_id=request.user.id, book_id=book_id
@@ -267,15 +304,15 @@ def book_view(request):
         chapter_id = _book.first_chapter_id
 
     # ---- 渲染书籍阅读页面 ----
-    chapter_ids = list(Chapter.objects.filter(book_id=book_id).values_list('id', flat=True))
-    cur_chpt = get_object_or_404(Chapter, pk=chapter_id)
+    chapter_ids = list(Chapter.objects.filter(book_id=book_id).order_by('index').values_list('id', flat=True))
+    cur_chpt = get_object_or_404(Chapter, pk=chapter_id, book_id=book_id)
 
     content = read_book_text(_book)[cur_chpt.start:cur_chpt.end]
     content = content.split('\n')
 
     # 跳过内容中与章节标题重复的第一行（标题已由 <h3> 显示）
     display_lines = content
-    if display_lines and display_lines[0].strip() == cur_chpt.title.strip():
+    if _book.format != 'epub' and display_lines and display_lines[0].strip() == cur_chpt.title.strip():
         display_lines = display_lines[1:]
 
     chapter_view = render_to_string('_chapter_view.html', {
@@ -284,23 +321,43 @@ def book_view(request):
     })
 
     initial_progress = calculate_read_progress(_book, cur_chpt, offset)
+    if _book.format == 'epub':
+        from ..services.epub import characters_at_progress
+        initial_words_read = characters_at_progress(_book, initial_progress)
+    else:
+        initial_words_read = int(initial_progress / 10000.0 * _book.word_count)
     context = {
         'chapter_title': cur_chpt.title,
         'chapter_ids': chapter_ids,
         'content_lines': display_lines,
         'book_id': book_id,
         'chapter_id': cur_chpt.id,
+        'book_format': _book.format,
         'chapter_view': chapter_view,
         'last_words': offset,
         'word_count': _book.word_count,
         'initial_progress': round(initial_progress / 100.0, 2),
-        'initial_words_read': int(initial_progress / 10000.0 * _book.word_count),
+        'progress_approximate': progress_approximate,
+        'initial_words_read': initial_words_read,
     }
     if request.user.is_authenticated:
         context['user_setting'] = get_or_create_user_setting(request.user)
 
     context['local_fonts'] = get_local_fonts(request.user.id) if request.user.is_authenticated else []
 
+    if _book.format == 'epub':
+        from .epub import reader_context
+        from django.urls import reverse
+        rich = request.GET.get('display') != 'plain' and request.GET.get('plain') != '1'
+        has_text = bool(read_book_text(_book).strip())
+        rich = rich or not has_text
+        context.update({'epub_rich': rich, 'epub_has_text': has_text,
+                        'epub_switch_config': {'bookId': _book.id, 'display': 'rich' if rich else 'plain',
+                                               'url': reverse('reader:book_view')}})
+        context.update(reader_context(request, _book, cur_chpt, offset,
+                                      explicit=bool(request.GET.get('chapter_id') or request.POST.get('chapter_id'))))
+        if rich:
+            return render(request, 'epub_view.html', context)
     return render(request, 'book_view.html', context)
 
 
@@ -313,7 +370,7 @@ def chapter_content(request, chapter_id):
     content = read_book_text(_book)[chapter.start:chapter.end]
     content = content.split('\n')
     display_lines = content
-    if display_lines and display_lines[0].strip() == chapter.title.strip():
+    if _book.format != 'epub' and display_lines and display_lines[0].strip() == chapter.title.strip():
         display_lines = display_lines[1:]
     chapter_view = render_to_string('_chapter_view.html', {
         'chapter_title': chapter.title,
@@ -348,7 +405,11 @@ def keyword_search(request, book_pk, chapter_pk, kwd):
         cnt = 0
         content_cnt = [0, ]
         for i in content_lines:
-            cnt += len(i)
+            if _book.format == 'epub':
+                from ..services.epub import text_units
+                cnt += text_units(i)
+            else:
+                cnt += len(i)
             content_cnt.append(cnt)
 
         for i in range(len(content_lines)):
@@ -362,7 +423,7 @@ def chapter_list(request, book_id):
     _book = get_object_or_404(Book, id=book_id)
     if not can_access_book(_book, request.user):
         return JsonResponse({'success': False, 'error': 'no permission'})
-    chapter_list = Chapter.objects.filter(book_id=book_id)
+    chapter_list = Chapter.objects.filter(book_id=book_id).order_by('index')
     chapter_ids = list(chapter_list.values_list('id', flat=True))
     chapter_id_param = request.GET.get('chapter_id')
     try:

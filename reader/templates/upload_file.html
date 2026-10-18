@@ -15,7 +15,7 @@
             <h2 class="text-2xl font-bold tracking-tight flex items-center gap-2.5 mb-1">
               上传书籍
             </h2>
-            <p class="text-sm text-base-content/55">仅支持 .txt 文本文件，单文件最大 100MB。支持多选、拖拽或 Ctrl+V 粘贴，自动分章保存。</p>
+            <p class="text-sm text-base-content/55">支持 .txt 和 .epub，单文件最大 100MB。EPUB 支持图文、原书样式、表格、脚注与固定版式，也可切换纯文本阅读。不支持 DRM。</p>
           </div>
           <a href="{% url 'reader:book_admin' %}" class="btn btn-sm btn-ghost shrink-0">
             <iconify-icon icon="bi:arrow-left"></iconify-icon> 返回书籍管理
@@ -155,7 +155,7 @@
     url: "{% url 'reader:upload_file' %}",
     method: 'post',
     paramName: 'file',
-    acceptedFiles: '.txt',
+    acceptedFiles: '.txt,.epub',
     maxFilesize: 100,
     parallelUploads: 1,
     autoProcessQueue: true,
@@ -167,7 +167,7 @@
     clickable: true,
     headers: { 'X-CSRFToken': '{{ csrf_token }}' },
     dictFileTooBig: '文件超过 100MB 限制',
-    dictInvalidFileType: '仅支持 .txt 文件',
+    dictInvalidFileType: '仅支持 .txt 和 .epub 文件',
 
     init: function() {
       this.on('addedfile', function(file) {

@@ -15,6 +15,23 @@
 
 from django.shortcuts import redirect
 from django.db.utils import OperationalError, ProgrammingError
+from django.contrib.sessions.middleware import SessionMiddleware
+from django.utils.cache import patch_vary_headers
+
+
+class ReaderSessionMiddleware(SessionMiddleware):
+    """Read-only EPUB assets don't each need a sliding-expiry database write.
+
+    Session authentication still loads normally. If authentication actually changes
+    the session (logout/key rotation), preserve Django's normal saving behavior.
+    """
+    def process_response(self, request, response):
+        match = getattr(request, 'resolver_match', None)
+        if (match and match.view_name == 'reader:epub_resource'
+                and hasattr(request, 'session') and not request.session.modified):
+            patch_vary_headers(response, ('Cookie',))
+            return response
+        return super().process_response(request, response)
 
 # 缓存：None=未知/无超管（不缓存），True=已存在超管
 _users_exist = None

@@ -12,7 +12,8 @@ from django.utils.text import get_valid_filename
 from ..models import Book, Chapter, UserBookRecord, UserBookMark, BookListItem, ReadStat
 from ..utils import (
     get_file_md5, get_local_books_dir, get_upload_dir, get_progress_dir,
-    can_admin_book, fmt_file_size, link_external_book_list_items,
+    can_admin_book, can_access_book, fmt_file_size, link_external_book_list_items,
+    is_supported_book, resolve_book_path,
 )
 from ..services.progress import (
     get_books_progress, _parse_progress_time,
@@ -72,7 +73,7 @@ class BookshelfRemoteView(generic.ListView):
                 if 'Contents' in response:
                     local_books_set = set(Book.objects.values_list('file_name', flat=True))
                     for obj in response['Contents']:
-                        if obj['Key'] != target_prefix:
+                        if obj['Key'] != target_prefix and is_supported_book(obj['Key']):
                             filename = obj['Key'][len(target_prefix):]
                             last_modified = obj.get('LastModified')
                             remote_files.append({
@@ -122,11 +123,13 @@ def open_remote_book(request):
     book_name = request.POST.get('name', '')
     # 路径穿越防护：仅保留文件名，剥离任何目录部分
     book_name = os.path.basename(book_name)
-    if not book_name or book_name in ('.', '..'):
+    if not is_supported_book(book_name):
         return redirect('reader:bookshelf_remote')
 
     existing = Book.objects.filter(file_name=book_name).first()
     if existing:
+        if not can_access_book(existing, request.user):
+            return HttpResponse('无权限访问该书', status=403)
         return redirect(f"{reverse('reader:book_view')}?book_id={existing.id}")
 
     cfg = get_s3_config(request.user)
@@ -143,10 +146,20 @@ def open_remote_book(request):
         s3_client.download_file(bucket, s3_key, local_path)
     except Exception as e:
         logger.exception("Error downloading book from S3")
+        if os.path.exists(local_path):
+            os.remove(local_path)
         return HttpResponse(f'远程书籍下载失败: {e}')
 
-    result = book_parser.handle_local_book(request, local_path)
+    try:
+        result = book_parser.handle_local_book(request, local_path)
+    except Exception as exc:
+        logger.exception('open_remote_book: import failed')
+        if os.path.exists(local_path):
+            os.remove(local_path)
+        return HttpResponse(f'导入失败: {exc}', status=400)
     if not result:
+        if os.path.exists(local_path):
+            os.remove(local_path)
         return HttpResponse('分章失败')
 
     book = Book.objects.filter(file_name=book_name).first()
@@ -155,6 +168,10 @@ def open_remote_book(request):
 
     # 仅关联当前用户书单中匹配的外部条目
     link_external_book_list_items(request.user, book)
+
+    if book.format == 'epub':
+        # EPUB restores in book_view without publishing progress on import/open.
+        return redirect(f"{reverse('reader:book_view')}?book_id={book.id}")
 
     try:
         md5_val = book.md5 or get_file_md5(local_path)
@@ -231,6 +248,14 @@ def book_local_del(request, pk):
     except Exception:
         logger.exception("Error deleting local book file")
 
+    if _book.content_path:
+        try:
+            os.remove(resolve_book_path(_book.content_path))
+        except FileNotFoundError:
+            pass
+        except OSError:
+            logger.exception('Error deleting EPUB content cache')
+
     if md5_val:
         # 收集所有读过此书的用户（阅读记录 + 书签 + 上传者），逐一删除各自目录下的进度文件
         user_ids = set(
@@ -284,6 +309,9 @@ def book_rechapter(request, pk):
         return JsonResponse({'success': False, 'error': '无权限'})
 
     # 1. 在 rechapter 删除旧章节之前，捕获旧章节元数据
+    if _book.format == 'epub':
+        return JsonResponse({'success': False, 'error': 'EPUB 使用原书目录，不支持 TXT 正则分章'})
+
     old_chapters = list(Chapter.objects.filter(book_id=pk).order_by('index'))
     old_meta = {}  # chapter_id -> {start, raw, text_len}
     try:
@@ -422,15 +450,15 @@ def upload_file(request):
         f = request.FILES['file']
         if f.size > 100 * 1024 * 1024:
             return JsonResponse({'success': False, 'name': f.name, 'error': '文件大小超过 100MB 限制'})
-        if not f.name.endswith('.txt'):
-            return JsonResponse({'success': False, 'name': f.name, 'error': '仅支持 .txt 文件'})
+        if not is_supported_book(f.name):
+            return JsonResponse({'success': False, 'name': f.name, 'error': '仅支持 .txt 和 .epub 文件'})
         # 路径穿越防护：剥离目录部分并清洗危险字符
         try:
             safe_name = get_valid_filename(os.path.basename(f.name))
         except Exception:
             return JsonResponse({'success': False, 'name': f.name, 'error': '文件名非法'})
-        if not safe_name or not safe_name.endswith('.txt') or safe_name == '.txt':
-            return JsonResponse({'success': False, 'name': f.name, 'error': '仅支持 .txt 文件'})
+        if not is_supported_book(safe_name):
+            return JsonResponse({'success': False, 'name': f.name, 'error': '仅支持 .txt 和 .epub 文件'})
         # 防止同名覆盖：已存在同名书籍则拒绝，避免覆盖文件并产生悬挂引用
         if Book.objects.filter(file_name=safe_name).exists():
             return JsonResponse({'success': False, 'name': safe_name, 'error': '同名书籍已存在，请先删除原书再上传'})
@@ -461,4 +489,3 @@ def upload_file(request):
                 pass
         return JsonResponse({'success': False, 'name': safe_name, 'error': '分章失败'})
     return render(request, 'upload_file.html')
-

@@ -1,0 +1,40 @@
+{% extends 'book_view.html' %}
+{% load static %}
+{% block title %}{{ book.name }} - EPUB{% endblock %}
+
+{% block reading_content %}
+<div class="article-container flex-1" id="epub-stage" aria-busy="true">
+  <div id="epub-canvas"><iframe id="epub-frame" sandbox="allow-same-origin" title="EPUB 正文" referrerpolicy="no-referrer"></iframe></div>
+</div>
+<p id="epub-status" role="status" class="epub-status"></p>
+{% endblock %}
+
+{% block epub_settings %}
+<label class="setting-row flex items-center justify-between gap-3">
+  <span class="text-sm shrink-0 w-16">排版样式</span>
+  <select id="epub-style" class="select select-sm flex-1" aria-label="排版样式"><option value="original">原书样式</option><option value="custom">自定义样式</option></select>
+</label>
+<label class="setting-row flex items-center justify-between gap-3">
+  <span class="text-sm shrink-0 w-16">页面缩放</span>
+  <select id="epub-zoom" class="select select-sm flex-1" aria-label="固定版式缩放"><option value="fit">适应页面</option><option value="1">100%</option><option value="1.5">150%</option><option value="2">200%</option></select>
+</label>
+<select id="epub-mode" hidden aria-hidden="true"><option value="page">翻页</option><option value="slide">滑动</option></select>
+<input id="epub-font" type="number" hidden aria-hidden="true">
+{% endblock %}
+
+{% block body-bottom %}
+<dialog id="epub-note" class="modal"><div class="modal-box max-w-3xl">
+  <form method="dialog"><button class="btn btn-sm btn-circle absolute right-2 top-2" aria-label="关闭脚注">×</button></form>
+  <h2 class="text-lg font-bold mb-4">脚注 / 注释</h2>
+  <iframe id="epub-note-frame" sandbox="allow-same-origin" title="脚注内容" referrerpolicy="no-referrer"></iframe>
+  <button type="button" class="btn btn-sm mt-3" id="epub-note-jump">跳到原文位置</button>
+</div><form method="dialog" class="modal-backdrop"><button>返回正文</button></form></dialog>
+<dialog id="epub-image" class="modal"><div class="modal-box max-w-5xl">
+  <form method="dialog"><button class="btn btn-sm btn-circle absolute right-2 top-2" aria-label="关闭图片">×</button></form>
+  <div id="epub-image-body"></div>
+</div><form method="dialog" class="modal-backdrop"><button>关闭</button></form></dialog>
+{{ epub_config|json_script:'epub-config' }}
+{{ epub_switch_config|json_script:'epub-switch-config' }}
+<script src="{% static 'epub_reader.js' %}" defer></script>
+<script src="{% static 'epub_switch.js' %}" defer></script>
+{% endblock %}

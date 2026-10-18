@@ -593,6 +593,9 @@ function currentWordsRead() {
 }
 
 function save_record(callback) {
+    // A restored EPUB position may be rounded to a page/paragraph by layout.
+    // Don't replace cloud progress until the user actually navigates.
+    if (epub_progress_readonly) { if (callback) callback(); return; }
     $.ajax({
         url: url_book_reader,
         type: 'post',
@@ -613,6 +616,14 @@ function save_record(callback) {
 }
 
 // ===== 初始化 =====
+document.addEventListener('wheel', function() { epub_progress_readonly = false; }, { capture: true, passive: true });
+document.addEventListener('touchmove', function() { epub_progress_readonly = false; }, { capture: true, passive: true });
+document.addEventListener('keydown', function(e) {
+    if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', ' ', 'PageDown', 'PageUp'].indexOf(e.key) !== -1) epub_progress_readonly = false;
+}, true);
+document.addEventListener('click', function(e) {
+    if (e.target.closest('.page-item, .prev-chapter, .next-chapter, .chapter_list_container button, .bookmark_list_container button, .search-res button, #auto-read-toggle')) epub_progress_readonly = false;
+}, true);
 applyReadMode();
 updateModeButtons();
 if (read_mode === 'slide') initSlideMode();
@@ -1051,6 +1062,7 @@ $('.mode-setting').click(function() {
     
     read_mode = newMode;
     saveSettings(function() {
+        if (epub_progress_readonly) { applyAfterModeSwitch(newMode, slideOffset); return; }
         if (is_anon_reader) { applyAfterModeSwitch(newMode, slideOffset); return; }
         // 用捕获的偏移直接上报进度，再按目标模式恢复
         $.ajax({
@@ -1433,6 +1445,7 @@ setTimeout(function() {
 }, 2000);
 
 window.addEventListener('beforeunload', function() {
+    if (epub_progress_readonly) return;
     var data = new URLSearchParams();
     data.append('book_id', book_id);
     data.append('chapter_id', chapter_id);
@@ -1459,4 +1472,3 @@ $('#auto-read-speed').on('input', function() {
     localStorage.setItem('auto_read_speed', autoReadSpeed);
     $('#auto-read-speed-val').text(autoReadSpeed);
 });
-

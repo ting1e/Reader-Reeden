@@ -37,14 +37,18 @@ def calculate_read_progress(book, chapter, words_read):
     为保证单位一致，读取当前章节内容统计换行符数，
     将 text-only 偏移按比例换算为原始字符偏移。
     """
-    all_chars = book.word_count
-    if all_chars <= 0:
-        return 0
-
     try:
         current_words = int(words_read)
     except (TypeError, ValueError):
         current_words = 0
+
+    if book.format == 'epub':
+        from .epub import calculate_progress
+        return calculate_progress(book, chapter, current_words)
+
+    all_chars = book.word_count
+    if all_chars <= 0:
+        return 0
 
     chapter_raw = chapter.end - chapter.start
     if chapter_raw <= 0:
@@ -148,7 +152,11 @@ def _record_readstat_local_only(book, chapter, words_read, user_id, now_utc, cur
             if 0 < gap <= 600:
                 delta_seconds = gap
     if progress_val > old_progress and book.word_count > 0:
-        delta_words = int((progress_val - old_progress) / 10000.0 * book.word_count)
+        if book.format == 'epub':
+            from .epub import characters_at_progress
+            delta_words = max(0, characters_at_progress(book, progress_val) - characters_at_progress(book, old_progress))
+        else:
+            delta_words = int((progress_val - old_progress) / 10000.0 * book.word_count)
         if delta_words > 5000:
             delta_words = 0
 
@@ -174,7 +182,7 @@ def _record_readstat(book, user_id, current_date_str, now_utc, delta_seconds, de
         logger.exception("Error writing ReadStat")
 
 
-def save_progress_json(book, chapter, words_read, user_id):
+def save_progress_json(book, chapter, words_read, user_id, epub_location=None):
     """保存进度 JSON + 写入 ReadStat（非 local_only）。"""
     now_utc = datetime.datetime.now(datetime.timezone.utc)
 
@@ -233,6 +241,8 @@ def save_progress_json(book, chapter, words_read, user_id):
         try:
             with open(json_path, 'r', encoding='utf-8') as f:
                 old_data = json.load(f)
+            if not isinstance(old_data, dict):
+                old_data = None
         except Exception:
             logger.warning("Error loading old progress JSON", exc_info=True)
 
@@ -248,8 +258,15 @@ def save_progress_json(book, chapter, words_read, user_id):
             if 0 < gap <= 600:
                 delta_seconds = gap
         old_progress = old_data.get('readProgress', 0)
+        if book.format == 'epub':
+            own = old_data.get('readerEpub', {})
+            old_progress = own.get('displayProgress', old_progress) if isinstance(own, dict) else old_progress
         if progress_val > old_progress and book.word_count > 0:
-            delta_words = int((progress_val - old_progress) / 10000.0 * book.word_count)
+            if book.format == 'epub':
+                from .epub import characters_at_progress
+                delta_words = max(0, characters_at_progress(book, progress_val) - characters_at_progress(book, old_progress))
+            else:
+                delta_words = int((progress_val - old_progress) / 10000.0 * book.word_count)
             if delta_words > 5000:
                 delta_words = 0
 
@@ -270,7 +287,8 @@ def save_progress_json(book, chapter, words_read, user_id):
     h['readSeconds'] = h.get('readSeconds', 0) + delta_seconds
     h['wordCount'] = h.get('wordCount', 0) + delta_words
 
-    new_data = {
+    new_data = dict(old_data) if isinstance(old_data, dict) else {}
+    new_data.update({
         "schemaVersion": 1,
         "bookId": md5_val,
         "sectionIndex": chapter.index,
@@ -280,11 +298,19 @@ def save_progress_json(book, chapter, words_read, user_id):
         "lastReadTime": now_iso,
         "deviceId": device_id,
         "todayStats": stats,
-    }
+    })
+    if book.format == 'epub':
+        from .epub import export_position
+        new_data.update(export_position(book, chapter, words_read, epub_location))
+        new_data['readerEpub']['displayProgress'] = progress_val
 
     try:
-        with open(json_path, 'w', encoding='utf-8') as f:
-            json.dump(new_data, f, ensure_ascii=False)
+        if book.format == 'epub':
+            from .epub import write_cache
+            write_cache(json_path, new_data)
+        else:
+            with open(json_path, 'w', encoding='utf-8') as f:
+                json.dump(new_data, f, ensure_ascii=False)
     except Exception:
         logger.exception("Error writing progress JSON")
 
@@ -293,7 +319,7 @@ def save_progress_json(book, chapter, words_read, user_id):
 
 def _parse_progress_time(obj):
     """从进度 dict 中解析 lastReadTime 为 naive UTC datetime，失败返回 None。"""
-    if not obj:
+    if not isinstance(obj, dict):
         return None
     t = obj.get("lastReadTime")
     if not t:

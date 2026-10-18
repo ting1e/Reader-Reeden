@@ -1,9 +1,11 @@
+import json
+
 from django.http import HttpResponse, JsonResponse
 from django.views import generic
 from django.shortcuts import get_object_or_404, redirect, render
 from django.contrib.auth.decorators import login_required
 
-from ..models import Book, UserBookMark
+from ..models import Book, Chapter, UserBookMark
 from ..utils import can_access_book
 
 
@@ -61,6 +63,22 @@ def bookmark_save(request):
     _book = get_object_or_404(Book, id=book_id)
     if not can_access_book(_book, request.user):
         return HttpResponse('no permission')
+    get_object_or_404(Chapter, id=chapter_id, book_id=book_id)
+
+    location = {}
+    if _book.format == 'epub' and request.POST.get('epub_location'):
+        from ..services.epub_render import render_metadata
+        try:
+            value = json.loads(request.POST['epub_location'])
+            section, fraction = value['section'], value.get('fraction', 0)
+            if (type(section) is not int or not 0 <= section < len(render_metadata(_book)['sections'])
+                    or type(fraction) not in (float, int) or not 0 <= fraction <= 1):
+                raise ValueError
+            location = {'section': section, 'fraction': fraction, 'anchor': str(value.get('anchor', ''))[:512],
+                        **{key: value[key] for key in ('width', 'height')
+                           if type(value.get(key)) is int and 0 < value[key] <= 20000}}
+        except (KeyError, TypeError, ValueError):
+            return HttpResponse('invalid EPUB location', status=400)
 
     try:
         words_read = int(request.POST.get('words_read', 0) or 0)
@@ -74,6 +92,7 @@ def bookmark_save(request):
         chapter_title=request.POST.get('chapter_title', ''),
         words_read=words_read,
         content=request.POST.get('content', ''),
+        epub_location=location,
     )
     user_bookmark.save()
     return HttpResponse('ok')

@@ -85,6 +85,9 @@
                 <td class="hidden md:table-cell text-sm text-base-content/55 align-middle">{{ book.upload_time|date:"Y-m-d H:i" }}</td>
                 <td class="align-middle">
                   <div class="flex items-center gap-2 whitespace-nowrap">
+                    {% if book.format == 'epub' %}
+                    <span class="text-xs text-base-content/60" title="EPUB 使用原书目录">EPUB 原生目录</span>
+                    {% else %}
                     <form method="POST" action="{% url 'reader:book_rechapter' book.id %}" class="inline-flex items-center gap-1 book-rechapter-form"
                           data-name="{{ book.name|escapejs }}"
                           data-confirm="确定对《{{ book.name|escapejs }}》重新分章？\n\n将删除旧章节并重新解析，阅读进度会根据百分比自动映射到新章节。">
@@ -98,6 +101,7 @@
                         <iconify-icon icon="bi:arrow-repeat"></iconify-icon> 分章
                       </button>
                     </form>
+                    {% endif %}
                     <form method="POST" action="{% url 'reader:book_local_del' book.id %}" class="inline book-del-form"
                           data-name="{{ book.name|escapejs }}"
                           data-confirm="确定删除《{{ book.name|escapejs }}》？\n\n只会删除本地文件和数据库记录，不会影响 S3 云端的书籍和进度。">

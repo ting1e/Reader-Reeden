@@ -31,6 +31,8 @@ class Book(models.Model):
     md5 = models.CharField(max_length=32,default='')
     local = models.BooleanField(default=False)
     local_only = models.BooleanField(default=False)
+    format = models.CharField(max_length=8, default='txt')
+    content_path = models.CharField(max_length=512, default='')
 
     def abs_path(self):
         """返回书籍文件的绝对路径（book_url 存的是项目相对路径）。"""
@@ -57,6 +59,7 @@ class UserBookRecord(models.Model):
     read_time = models.DateTimeField(default = timezone.now)
     words_read = models.IntegerField()
     progress = models.FloatField(default=0)
+    epub_location = models.JSONField(default=dict, blank=True)
 
 class UserSetting(models.Model):
     user_id = models.IntegerField()
@@ -85,6 +88,7 @@ class UserBookMark(models.Model):
     chapter_title = models.CharField(max_length=256, default='')
     words_read = models.IntegerField()
     content = models.TextField()
+    epub_location = models.JSONField(default=dict, blank=True)
     add_time = models.DateTimeField(default = timezone.now)
 
 

@@ -3,7 +3,30 @@
 
 {% block title %}Reader{% endblock %}
 
+{% block header %}
+{% load static %}
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="{% static 'epub_reader.css' %}">
+{% if book_format == 'epub' %}
+<script>
+// The book's presentation preference is local; it never changes cloud progress.
+(function () {
+    var url = new URL(location.href);
+    if (url.searchParams.has('display') || url.searchParams.has('plain')) return;
+    try {
+        if (localStorage.getItem('epub-display-{{ book_id }}') === 'plain') {
+            url.searchParams.set('display', 'plain'); location.replace(url);
+        }
+    } catch (_) {}
+})();
+</script>
+{% endif %}
+{% endblock %}
+
 {% block content %}
+{% if progress_approximate %}
+<div class="alert alert-warning text-sm" role="status">EPUB 原进度位置无法精确匹配，已按百分比近似恢复。继续翻页或滚动后才会保存新进度。</div>
+{% endif %}
 <style>
 
     #offcanvassetting .setting-dropdown .dropdown-content {
@@ -117,14 +140,16 @@ article{ font-weight: {{ user_setting.font_weight }}; }
   <input id="drawer-left" type="checkbox" class="drawer-toggle" />
 
   <div class="drawer-content">
-    <main class="h-screen flex flex-col overflow-hidden">
+    <main class="reader-shell h-screen flex flex-col overflow-hidden" {% if book_format == 'epub' %}id="epub-reader"{% endif %}>
 
         {% include '_header.html' %}
 
         <div class="container mx-auto px-4 flex-1 flex flex-col min-h-0">
+            {% block reading_content %}
             <div class="article-container flex-1">
                 {{chapter_view|safe}}
             </div>
+            {% endblock %}
 
             <div class="page-nav pt-1 pb-3">
                 <nav aria-label="Page navigation">
@@ -167,6 +192,18 @@ article{ font-weight: {{ user_setting.font_weight }}; }
 
                 <!-- 背景 + 字体下拉（不滚动，避免 dropdown 被裁切） -->
                 <div class="flex flex-col gap-3 w-full shrink-0">
+                    {% if book_format == 'epub' %}
+                    <div class="setting-row flex items-center justify-between gap-3">
+                        <span class="text-sm shrink-0 w-16">正文显示</span>
+                        <select id="epub-display" class="select select-sm flex-1" aria-label="正文显示">
+                            <option value="rich" {% if epub_rich %}selected{% endif %}>原书排版</option>
+                            <option value="plain" {% if not epub_rich %}selected{% endif %} {% if not epub_has_text %}disabled{% endif %}>纯文本</option>
+                        </select>
+                    </div>
+                    {% if not epub_has_text %}<p class="text-xs text-base-content/60">此书没有可提取正文，仅支持原书排版阅读。</p>{% endif %}
+                    {% block epub_settings %}{% endblock %}
+                    <div class="divider my-0"></div>
+                    {% endif %}
                     <!-- 背景 -->
                     <div class="flex flex-col gap-2">
                         <div class="setting-row flex items-center justify-between gap-3">
@@ -439,6 +476,7 @@ article{ font-weight: {{ user_setting.font_weight }}; }
 
     // 未登录用户：从 localStorage 恢复阅读设置（在 reader.js 初始化前应用，确保分页/排版正确）
     var is_anon_reader = {% if user.is_authenticated %}false{% else %}true{% endif %};
+    var epub_progress_readonly = {% if book_format == 'epub' %}true{% else %}false{% endif %};
     if (is_anon_reader) {
         try {
             var raw = localStorage.getItem('reader_setting');
@@ -496,6 +534,10 @@ article{ font-weight: {{ user_setting.font_weight }}; }
     </script>
 
     <script src="{% static 'reader.js' %}"></script>
+    {% if book_format == 'epub' %}
+    {{ epub_switch_config|json_script:'epub-switch-config' }}
+    <script src="{% static 'epub_switch.js' %}"></script>
+    {% endif %}
     
 
     <script>

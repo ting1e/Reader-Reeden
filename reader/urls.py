@@ -2,6 +2,7 @@ from django.urls import path
 from django.views.generic import RedirectView
 
 from . import views
+from .views.epub import epub_resource
 
 app_name = 'reader'
 urlpatterns = [
@@ -41,6 +42,7 @@ urlpatterns = [
     path('font_file/<str:name>/', views.font_file, name='font_file'),
 
     path('view/', views.book_view, name='book_view'),
+    path('epub/<int:pk>/resource/', epub_resource, name='epub_resource'),
     path('chapter_content/<int:chapter_id>/', views.chapter_content, name='chapter_content'),
     path('chapter_list_ajax/<int:book_id>/', views.chapter_list, name='chapter_list'),
 

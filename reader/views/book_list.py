@@ -9,7 +9,7 @@ from django.db.models import Q as models_Q
 from ..models import BookList, BookListItem, Book
 from ..utils import (
     get_accessible_books, can_admin_book_list, can_view_book_list, can_access_book,
-    fmt_file_size, get_local_books_dir, link_external_book_list_items,
+    fmt_file_size, get_local_books_dir, link_external_book_list_items, is_supported_book,
 )
 from ..services.s3 import get_s3_config, _get_s3_client
 from ..services import book_parser
@@ -343,7 +343,7 @@ def book_list_remove_item(request, pk, item_id):
 
 @login_required(login_url='reader:index')
 def book_list_remote_books(request):
-    """AJAX：列出 S3 远程书库中的 .txt 文件（已下载的带 book_id 供直接加入书单）"""
+    """AJAX：列出 S3 远程书库中的 TXT/EPUB（已下载的带 book_id）。"""
     cfg = get_s3_config(request.user)
     if not cfg:
         return JsonResponse({'success': False, 'error': '未配置 S3'})
@@ -351,14 +351,14 @@ def book_list_remote_books(request):
         client = _get_s3_client(cfg)
         target_prefix = cfg['prefix'] + 'books/'
         response = client.list_objects_v2(Bucket=cfg['bucket'], Prefix=target_prefix)
-        # 先收集所有远程 .txt 文件（不再排除已在本地的）
+        # 收集支持的远程书籍（不排除已在本地的）
         remote_files = []
         if 'Contents' in response:
             for obj in response['Contents']:
                 if obj['Key'] == target_prefix:
                     continue
                 filename = obj['Key'][len(target_prefix):]
-                if not filename.endswith('.txt'):
+                if not is_supported_book(filename):
                     continue
                 remote_files.append((filename, obj.get('Size', 0)))
         # 批量查本地书并按访问权限过滤，构建 filename -> book_id 映射
@@ -410,7 +410,7 @@ def book_list_download_remote(request, pk, item_id):
 
     # 路径穿越防护：仅保留文件名
     book_name = os.path.basename(item.remote_file_name)
-    if not book_name or book_name in ('.', '..'):
+    if not is_supported_book(book_name):
         return JsonResponse({'success': False, 'error': '无效的文件名'})
 
     # 已在本地书库：直接关联，无需重复下载
@@ -444,7 +444,13 @@ def book_list_download_remote(request, pk, item_id):
             pass
         return JsonResponse({'success': False, 'error': f'远程书籍下载失败: {e}'})
 
-    result = book_parser.handle_local_book(request, local_path)
+    try:
+        result = book_parser.handle_local_book(request, local_path)
+    except Exception as exc:
+        logger.exception('book_list_download_remote: import failed')
+        if os.path.exists(local_path):
+            os.remove(local_path)
+        return JsonResponse({'success': False, 'error': f'导入失败: {exc}'})
     if not result:
         try:
             if os.path.exists(local_path):

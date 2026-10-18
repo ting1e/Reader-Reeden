@@ -55,6 +55,11 @@ FONT_EXTENSIONS = {
 }
 
 
+def is_supported_book(filename):
+    stem, extension = os.path.splitext(filename)
+    return bool(stem) and extension.lower() in ('.txt', '.epub')
+
+
 def fmt_file_size(n):
     if n < 1024:
         return f'{n} B'
@@ -116,6 +121,9 @@ def read_book_text(book, _cache={}):
     热路径（同本书连续翻章）命中缓存不进锁；仅 miss 串行化读盘。
     读成功后再 clear+写，避免读取失败清空上一本有效缓存。
     """
+    if book.format == 'epub':
+        from .services.epub import read_cache
+        return read_cache(book)['text']
     path = book.abs_path()
     key = (book.id, os.path.getmtime(path))
     text = _cache.get(key)
