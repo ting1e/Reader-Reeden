@@ -11,3 +11,5 @@ local/
 /static/
 docker_test/
 node_modules/
+# 阅读器导入/调试用的临时数据（含凭证，绝不能入库）
+temp/
