@@ -14,6 +14,8 @@
 .epub-warning { margin: 0; padding: .4rem 1rem; color: #854d0e; background: #fef9c3; font-size: .85rem; }
 /* 页码条的省略号占位，与文本阅读模式一致且不可点击 */
 .page-ellipsis { border: 0; background: transparent; color: inherit; pointer-events: none; }
+/* 关闭自定义字体时，字体样式下拉置灰且点不动 */
+.epub-font-off { opacity: .45; pointer-events: none; }
 /* 注释弹窗：只渲染目标那一条注释，高度随内容自适应，超过 70dvh 由弹窗内部滚动 */
 .epub-note-box { width: calc(100vw - 1.5rem); max-width: 640px; max-height: 70dvh; padding: 0; display: flex; flex-direction: column; overflow: hidden; }
 .epub-note-head, .epub-note-foot { display: flex; align-items: center; gap: .5rem; flex: none; padding: .55rem .9rem; }

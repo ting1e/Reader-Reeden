@@ -29,6 +29,8 @@
   $('epub-mode').value = config.settings.mode;
   $('epub-style').value = prefs.style || 'original';
   $('epub-font').value = config.settings.fontSize;
+  // 自定义字体开关：默认开启 = 沿用既有行为（选了字体就生效，没选则用内置默认字体）
+  $('epub-custom-font').checked = prefs.customFont !== false;
   let section = config.section, doc = null, page = 0, pageCount = 1, loading = false;
   let dirty = false, saveTimer, resizeTimer, nodes = [], currentRaw = config.raw, generation = 0;
   let pending = { raw: config.raw, location: config.location }, noteTarget = null;
@@ -56,7 +58,7 @@
 
   function notifyError(message) { $('epub-status').textContent = message; }
   function remember() {
-    localStorage.setItem(key, JSON.stringify({ mode: $('epub-mode').value, style: $('epub-style').value, fontSize: Number($('epub-font').value) }));
+    localStorage.setItem(key, JSON.stringify({ mode: $('epub-mode').value, style: $('epub-style').value, fontSize: Number($('epub-font').value), customFont: $('epub-custom-font').checked }));
   }
   function collectNodes(targetDoc, index) {
     // Match the stable plain-text blocks without putting wrappers into book markup.
@@ -283,6 +285,10 @@
     clearTimeout(saveTimer); saveTimer = setTimeout(() => save(), 600);
   }
   const readerBackground = () => getComputedStyle(document.querySelector('main')).backgroundColor;
+  // 内置默认字体 / 读者选中的自定义字体（开关关掉或没选字体时用默认）
+  const readerFontFamily = () => ($('epub-custom-font').checked && config.settings.fontFamily)
+    ? JSON.stringify(config.settings.fontFamily)
+    : (config.language.startsWith('zh') ? 'system-ui,sans-serif' : 'Georgia,"Times New Roman",serif');
   // Single source of truth for the reader's injected CSS. It is used both when
   // pre-rendering a chapter into the iframe (first paint) and for live updates.
   function readerCss(index = section, width = frame.clientWidth || stage.clientWidth, height = frame.clientHeight || stage.clientHeight) {
@@ -293,7 +299,7 @@
     css += 'img,svg{max-width:100%;height:auto;max-height:85vh;object-fit:contain;cursor:zoom-in} table{display:block;overflow:auto;break-inside:avoid;max-width:100%;max-height:85vh}';
     if (current === 'page') css += `html{overflow:hidden!important}body{height:${height}px!important;column-width:${Math.max(100, width - 40)}px!important;column-gap:40px!important;column-fill:auto!important;overflow:visible!important;}`;
     if (current === 'slide') css += 'html{overflow:auto!important}body{height:auto!important;columns:auto!important}';
-    if ($('epub-style').value === 'custom') css += `body{font-family:${config.settings.fontFamily ? JSON.stringify(config.settings.fontFamily) : (config.language.startsWith('zh') ? 'system-ui,sans-serif' : 'Georgia,"Times New Roman",serif')}!important;font-size:${Math.max(12, Math.min(40, Number($('epub-font').value)))}px!important;line-height:${config.settings.lineHeight}!important;letter-spacing:${config.settings.letterSpacing}px!important;font-weight:${config.settings.fontWeight || 'normal'}!important;color:${config.settings.color || '#222'}!important;background:${readerBackground()}!important}p{font-size:inherit!important;line-height:inherit!important}`;
+    if ($('epub-style').value === 'custom') css += `body{font-family:${readerFontFamily()}!important;font-size:${Math.max(12, Math.min(40, Number($('epub-font').value)))}px!important;line-height:${config.settings.lineHeight}!important;letter-spacing:${config.settings.letterSpacing}px!important;font-weight:${config.settings.fontWeight || 'normal'}!important;color:${config.settings.color || '#222'}!important;background:${readerBackground()}!important}p{font-size:inherit!important;line-height:inherit!important}`;
     return css;
   }
   const customStyle = (index = section) => !sectionFixed(index) && $('epub-style').value === 'custom';
@@ -342,6 +348,12 @@
     page = Math.min(page, pageCount - 1);
     $('epub-mode').disabled = fixed(); $('epub-style').disabled = fixed(); $('epub-zoom').disabled = !fixed();
     $('epub-font').disabled = fixed() || $('epub-style').value === 'original';
+    // 自定义字体开关与字号同理：固定版式/原书样式下不生效；关掉时置灰字体样式下拉
+    const useCustomFont = $('epub-custom-font').checked;
+    $('epub-custom-font').disabled = fixed() || $('epub-style').value === 'original';
+    $('epub-custom-font-state').textContent = useCustomFont ? '开启' : '关闭';
+    document.querySelector('.font-setting-label')?.closest('[role="button"]')
+      ?.classList.toggle('epub-font-off', !useCustomFont || $('epub-style').value === 'original');
     $('auto-read-toggle').disabled = fixed();
     document.querySelectorAll('.mode-setting').forEach(button => {
       button.disabled = fixed(); button.classList.toggle('bg-base-300', button.dataset.mode === mode());
@@ -909,9 +921,7 @@
     }
     const root = getComputedStyle(document.documentElement);
     const accent = (root.getPropertyValue('--color-primary') || '').trim() || text;
-    const family = config.settings.fontFamily
-      ? JSON.stringify(config.settings.fontFamily) + ', sans-serif'
-      : (config.language.startsWith('zh') ? 'system-ui, sans-serif' : 'Georgia, "Times New Roman", serif');
+    const family = readerFontFamily();
     const size = Math.max(13, Math.min(20, Number($('epub-font').value) || 16));
     const line = Math.max(1.4, Math.min(2.2, Number(config.settings.lineHeight) || 1.7));
     const faint = 'color-mix(in oklab, currentColor 28%, transparent)';
@@ -984,7 +994,7 @@ code,pre{font-size:.9em}`;
     if (!block) { status.textContent = target.fragment ? '未找到该注释' : '该链接没有可显示的注释'; return; }
     frame.srcdoc = '<!doctype html><html><head><meta charset="utf-8"><style>' + noteCss() + '</style></head><body>' + block + '</body></html>';
   }
-  for (const id of ['epub-mode','epub-font','epub-zoom']) $(id).onchange = async () => {
+  for (const id of ['epub-mode','epub-font','epub-zoom','epub-custom-font']) $(id).onchange = async () => {
     const p = lastLocation || position(), token = generation;
     remember(); invalidateShadow(); layout();
     await doc.fonts.ready.catch(() => {});
