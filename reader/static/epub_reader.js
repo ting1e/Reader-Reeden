@@ -291,6 +291,7 @@
     if (signature === savedSignature) return;
     const data = new URLSearchParams({ book_id: config.bookId, chapter_id: chapter.id, words, csrfmiddlewaretoken: csrf,
       epub_location: JSON.stringify(location) });
+    if (beacon) data.set('final', '1');
     if (beacon && navigator.sendBeacon) { navigator.sendBeacon(config.saveUrl, data); return; }
     saving = true;
     fetch(config.saveUrl, { method: 'POST', body: data, credentials: 'same-origin' })

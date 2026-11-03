@@ -11,11 +11,13 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 
-from .models import Book, BookList, BookListItem, Chapter, UserBookRecord
+from .models import Book, BookList, BookListItem, Chapter, KosyncProgress, SystemSetting, UserBookRecord
+from .services import kosync
 from .services.epub import EpubError, export_position, import_position, parse_epub, read_cache
+from .services.kosync_position import epub_to_koreader_progress
 from .services.progress import save_progress_json
 from .services.s3 import sync_progress_to_s3
-from .utils import read_book_text
+from .utils import get_or_create_user_setting, read_book_text
 
 
 def sample_epub(version=3, unsafe=False, nested=False):
@@ -149,6 +151,46 @@ class EpubTests(TestCase):
         self.assertFalse(response.json()['success'])
         self.assertFalse(Book.objects.exists())
         self.assertEqual(list(self.folder.iterdir()), [])
+
+    def test_kosync_epub_save_and_restore(self):
+        book = self.upload()
+        setting = get_or_create_user_setting(self.user)
+        setting.progress_sync_mode = 'kosync'
+        setting.save(update_fields=['progress_sync_mode'])
+        SystemSetting.objects.update_or_create(pk=1, defaults={'kosync_enabled': True})
+        chapters = list(Chapter.objects.filter(book_id=book.id).order_by('index'))
+        response = self.client.post(reverse('reader:book_view'), {
+            'book_id': book.id, 'chapter_id': chapters[0].id, 'words': 3,
+        })
+        self.assertTrue(response.json()['success'])
+        record = KosyncProgress.objects.get(user=self.user)
+        self.assertTrue(record.progress.startswith('/body/DocFragment['))
+
+        UserBookRecord.objects.filter(user_id=self.user.id, book_id=book.id).delete()
+        progress_path = self.folder / (book.md5 + '.json')
+        if progress_path.exists():
+            progress_path.unlink()
+        remote = epub_to_koreader_progress(book, chapters[1], 4)
+        record.progress = remote['progress']
+        record.percentage = remote['percentage']
+        record.save(update_fields=['progress', 'percentage', 'updated_at'])
+
+        response = self.client.get(reverse('reader:book_view'), {'book_id': book.id})
+        self.assertEqual(response.context['chapter_id'], chapters[1].id)
+        self.assertEqual(response.context['last_words'], 4)
+
+    def test_kosync_epub_position_roundtrip(self):
+        from .services.kosync_position import epub_to_koreader_progress, koreader_progress_to_epub
+        book = self.upload()
+        chapter = Chapter.objects.filter(book_id=book.id).order_by('index').first()
+        for words in (0, 3, 5):
+            position = epub_to_koreader_progress(book, chapter, words)
+            self.assertIn('/DocFragment[', position['progress'])
+            restored, restored_words, exact, _position = koreader_progress_to_epub(
+                book, position['progress'], position['percentage'])
+            self.assertTrue(exact)
+            self.assertEqual(restored.id, chapter.id)
+            self.assertEqual(restored_words, words)
 
     def test_plain_restore_keeps_book_id_after_post(self):
         book = self.upload()

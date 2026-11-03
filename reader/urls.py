@@ -6,6 +6,13 @@ from .views.epub import epub_resource
 
 app_name = 'reader'
 urlpatterns = [
+    # KOReader KoSync API is mounted at the site root.
+    path('healthcheck', views.kosync_healthcheck, name='kosync_healthcheck'),
+    path('users/auth', views.kosync_auth, name='kosync_auth'),
+    path('users/create', views.kosync_create_user, name='kosync_create_user'),
+    path('syncs/progress', views.kosync_progress, name='kosync_progress'),
+    path('syncs/progress/<str:document>', views.kosync_get_progress, name='kosync_get_progress'),
+
     path('', RedirectView.as_view(pattern_name='reader:bookshelf'), name='index'),
     path('bookshelf/', views.BookshelfView.as_view(), name='bookshelf'),
     path('bookshelf_remote/', views.BookshelfRemoteView.as_view(), name='bookshelf_remote'),
@@ -31,6 +38,8 @@ urlpatterns = [
     path('user_settings/', views.user_settings, name='user_settings'),
     path('user_settings/s3/', views.user_settings_s3, name='user_settings_s3'),
     path('user_settings/rule/', views.user_settings_rule, name='user_settings_rule'),
+    path('user_settings/progress_sync/', views.user_settings_progress_sync, name='user_settings_progress_sync'),
+    path('user_settings/kosync_auth/', views.user_settings_kosync_auth, name='user_settings_kosync_auth'),
     path('user_settings/password/', views.user_settings_password, name='user_settings_password'),
     path('reading_stats/', views.reading_stats, name='reading_stats'),
     path('reading_stats/admin/', views.reading_stats_admin, name='reading_stats_admin'),

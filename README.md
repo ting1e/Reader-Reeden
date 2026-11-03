@@ -44,6 +44,7 @@
 - 重新分章时进度按百分比自动映射，并同时按当前分章规则及配套分卷规则重建卷信息
 - 分卷只影响目录与同步索引，内部章节索引保持不变；EPUB 不使用 TXT 分卷规则
 - 纯本地上传书籍仅存 DB，不同步 S3
+- **内置 KOReader KoSync Server**：外部 KOReader 设备与 Reader-Reeden 可共用同一套阅读进度；支持 Binary / Filename 两种书籍匹配方式
 - EPUB 保留原文件 MD5、原始阅读顺序及段落位置映射，支持 S3 进度恢复/保存；打开书籍本身不回写云端进度
 
 ### EPUB 支持范围
@@ -73,7 +74,7 @@
 ### 用户系统
 
 - 首次运行引导创建超级管理员
-- 个人设置：云端存储配置、分章规则（主规则 + 2 条备用，每条可配套分卷规则）、修改密码
+- 个人设置：云端存储配置、分章规则（主规则 + 2 条备用，每条可配套分卷规则）、阅读进度同步方式、KoSync 认证、修改密码
 
 ### 字体管理
 
@@ -180,6 +181,24 @@ CSRF_TRUSTED_ORIGINS = ['https://your-domain.com']
 - 远程书库：`{prefix}/books/`
 - 字体库：`{prefix}/fonts/`
 - 进度同步：`{prefix}/book_progress/{md5}.json`
+
+## KOReader KoSync Server
+
+Reader-Reeden 内置兼容 KOReader KoSync v1 的同步服务，路由直接挂载在站点根路径：
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/healthcheck` | 服务状态 |
+| GET | `/users/auth` | 账号认证（`x-auth-user` + `x-auth-key`） |
+| POST | `/users/create` | 注册关闭，返回 402 |
+| PUT | `/syncs/progress` | 上传进度 |
+| GET | `/syncs/progress/{document}` | 获取进度 |
+
+- 在 Django Admin 的「系统设置」中开启 `kosync_enabled`，默认关闭。
+- 个人设置中先用当前账号密码初始化 KoSync 认证，再选择「KoSync 同步」。
+- KOReader 的服务器地址填写站点根地址，例如 `https://reader.example.com/`。
+- `x-auth-key` 为账号密码的 MD5；服务端只保存该值的 Django 安全哈希。
+- 书籍匹配方式需与 KOReader 设备保持一致：Binary（默认）或 Filename。
 
 ## 进度文件格式
 

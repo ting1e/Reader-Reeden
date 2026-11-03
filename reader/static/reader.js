@@ -1501,6 +1501,7 @@ window.addEventListener('beforeunload', function() {
     data.append('book_id', book_id);
     data.append('chapter_id', chapter_id);
     data.append('words', currentWordsRead());
+    data.append('final', '1');
     data.append('csrfmiddlewaretoken', csrf_token);
     if (navigator.sendBeacon) {
         navigator.sendBeacon(url_book_reader, data);

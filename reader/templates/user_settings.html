@@ -56,7 +56,63 @@
           </form>
         </div>
 
-        <!-- 分章规则 -->
+        <!-- 阅读进度同步 -->
+        <div class="px-5 sm:px-6 py-4 border-t border-base-200/60">
+          <h3 class="text-base font-bold mb-1.5 flex items-center gap-2">
+            <iconify-icon icon="bi:arrow-left-right"></iconify-icon>阅读进度同步
+          </h3>
+          <p class="text-sm text-base-content/55 mb-3">
+            JSON 使用现有 S3 进度；KoSync 与 KOReader 设备共用内置同步服务。
+            <span class="badge badge-sm {% if kosync_enabled %}badge-success{% else %}badge-ghost{% endif %}">
+              KoSync Server：{% if kosync_enabled %}已开启{% else %}未开启{% endif %}
+            </span>
+          </p>
+
+          <form method="POST" action="{% url 'reader:user_settings_progress_sync' %}" class="settings-form">
+            {% csrf_token %}
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="text-sm font-semibold mb-1.5 block">同步方式</label>
+                <select name="progress_sync_mode" class="select select-bordered w-full">
+                  <option value="json" {% if setting.progress_sync_mode != 'kosync' %}selected{% endif %}>JSON 数据同步</option>
+                  <option value="kosync" {% if setting.progress_sync_mode == 'kosync' %}selected{% endif %} {% if not kosync_enabled %}disabled{% endif %}>KoSync 同步</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-sm font-semibold mb-1.5 block">书籍匹配方式</label>
+                <select name="kosync_checksum_method" class="select select-bordered w-full">
+                  <option value="binary" {% if setting.kosync_checksum_method != 'filename' %}selected{% endif %}>Binary（KOReader 默认）</option>
+                  <option value="filename" {% if setting.kosync_checksum_method == 'filename' %}selected{% endif %}>Filename</option>
+                </select>
+                <p class="text-xs text-base-content/50 mt-1">需与所有 KOReader 设备保持一致。</p>
+              </div>
+            </div>
+            <div class="mt-3 text-xs text-base-content/60">
+              KoSync 服务器地址：<code class="break-all">{{ kosync_server_url }}</code>
+            </div>
+            <div class="flex justify-between items-center mt-3 gap-2 flex-wrap">
+              <span class="text-xs {% if kosync_auth_ready %}text-success{% else %}text-warning{% endif %}">
+                认证：{% if kosync_auth_ready %}已初始化{% else %}未初始化{% endif %}
+              </span>
+              <button type="submit" class="btn btn-sm btn-outline btn-primary gap-1 h-8 min-h-8">
+                <iconify-icon icon="bi:check-lg"></iconify-icon>保存同步设置
+              </button>
+            </div>
+          </form>
+
+          <form method="POST" action="{% url 'reader:user_settings_kosync_auth' %}" class="settings-form mt-4">
+            {% csrf_token %}
+            <label class="text-sm font-semibold mb-1.5 block">初始化 / 更新 KoSync 认证</label>
+            <div class="flex flex-col sm:flex-row gap-2">
+              <input type="password" name="password" class="input input-bordered w-full" placeholder="输入当前账号密码" required>
+              <button type="submit" class="btn btn-sm btn-outline gap-1 h-10 min-h-10 shrink-0">
+                <iconify-icon icon="bi:key"></iconify-icon>初始化认证
+              </button>
+            </div>
+            <p class="text-xs text-base-content/50 mt-1">只保存密码 MD5 的安全哈希，不保存明文密码。账号密码修改后会自动更新。</p>
+          </form>
+        </div>
+
         <div class="px-5 sm:px-6 py-4 border-t border-base-200/60">
           <h3 class="text-base font-bold mb-1.5 flex items-center gap-2">
             <iconify-icon icon="bi:list-task"></iconify-icon>分章规则

@@ -16,10 +16,30 @@ from .s3 import get_s3_config, _get_s3_client
 logger = logging.getLogger('reader')
 
 
+def _kosync_record(request, book):
+    from . import kosync
+    if not kosync.kosync_active(request.user):
+        return None
+    try:
+        record = kosync.book_record(request.user, book)
+        if record is None:
+            return None
+        chapter, words, exact, position = kosync.restore_epub_progress(
+            request.user, book, record)
+        record.restored = (chapter, words, exact, position)
+        return record
+    except Exception:
+        logger.exception('KoSync EPUB progress restore failed')
+        return None
+
+
 def restore_epub_progress(request, book):
     default = (book.first_chapter_id, 0, False)
     if not request.user.is_authenticated:
         return default
+    from . import kosync
+    kosync_mode = kosync.user_sync_mode(request.user) == 'kosync'
+    kosync_enabled = kosync.server_enabled()
     record = UserBookRecord.objects.filter(user_id=request.user.id, book_id=book.id).order_by('-read_time').first()
     candidates = []
     if record:
@@ -36,6 +56,13 @@ def restore_epub_progress(request, book):
                 candidates.append((timestamp, 'file', local))
         except (OSError, ValueError, TypeError):
             pass
+    kosync_added = False
+    if kosync_mode and kosync_enabled:
+        remote = _kosync_record(request, book)
+        if remote is not None:
+            candidates.append((make_naive_utc(remote.updated_at), 'kosync', remote))
+            kosync_added = True
+    if not book.local_only and (not kosync_mode or not kosync_added):
         cfg = get_s3_config(request.user)
         if cfg:
             try:
@@ -55,12 +82,29 @@ def restore_epub_progress(request, book):
         return default
     timestamp, source, selected = max(candidates, key=lambda entry: entry[0])
     if source == 'db':
+        chapter = Chapter.objects.filter(id=selected.chapter_id, book_id=book.id).first()
+        if chapter is None:
+            return default
+        if kosync_mode and kosync_enabled:
+            kosync.update_book_progress(request.user, book, chapter, selected.words_read, force=True)
         return selected.chapter_id, selected.words_read, False
-    chapter, words, exact = import_position(book, selected)
-    if not exact:
-        # Never upgrade an approximate restoration into a newer exact/cloud record.
-        return chapter.id, words, True
-    if source == 'remote':
+    if source == 'kosync':
+        chapter, words, exact, position = selected.restored
+        if not exact:
+            # Never upgrade an approximate restoration into a newer exact/cloud record.
+            return chapter.id, words, True
+        selected = {
+            'schemaVersion': 1, 'bookId': book.md5, **position,
+            'lastReadTime': timestamp.replace(tzinfo=datetime_timezone.utc).isoformat().replace('+00:00', 'Z'),
+        }
+    else:
+        chapter, words, exact = import_position(book, selected)
+        if not exact:
+            # Never upgrade an approximate restoration into a newer exact/cloud record.
+            return chapter.id, words, True
+        if kosync_mode and kosync_enabled:
+            kosync.update_book_progress(request.user, book, chapter, words, force=True)
+    if source in ('remote', 'kosync'):
         from .epub import write_cache
         write_cache(path, selected)
     location = selected.get('readerEpub', {}).get('location', {}) if isinstance(selected.get('readerEpub'), dict) else {}

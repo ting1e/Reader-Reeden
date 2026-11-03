@@ -13,7 +13,7 @@ from ..services.progress import (
     calculate_read_progress, save_progress_json,
     _parse_progress_time, make_naive_utc,
 )
-from ..services import book_parser, volume
+from ..services import book_parser, kosync, volume
 from ..services.s3 import get_s3_config, _get_s3_client, sync_progress_to_s3
 
 logger = logging.getLogger('reader')
@@ -105,7 +105,14 @@ def book_view(request):
 
         try:
             save_progress_json(_book, chapter, words_read, request.user.id, epub_location=location)
-            sync_progress_to_s3(request, _book)
+            if kosync.user_sync_mode(request.user) == 'kosync':
+                if kosync.server_enabled():
+                    kosync.update_book_progress(
+                        request.user, _book, chapter, int(words_read), location=location,
+                        force=request.POST.get('final') == '1',
+                    )
+            else:
+                sync_progress_to_s3(request, _book)
         except Exception:
             logger.exception("Failed to save progress JSON")
 
@@ -196,9 +203,25 @@ def book_view(request):
             except Exception:
                 logger.exception("Error reading progress file on open")
 
-        # 从 S3 获取远程进度
+        # KoSync 模式下使用 KoSync 记录代替 S3 远程进度。
+        kosync_mode = kosync.user_sync_mode(request.user) == 'kosync'
+        kosync_enabled = kosync.server_enabled()
+        kosync_record = None
+        if kosync_mode and kosync_enabled:
+            try:
+                kosync_record = kosync.book_record(request.user, _book)
+                if kosync_record is not None:
+                    k_chapter, k_words, _k_exact = kosync.restore_txt_progress(
+                        request.user, _book, kosync_record)
+                    kosync_record.restored_chapter_id = k_chapter.id
+                    kosync_record.restored_words = k_words
+            except Exception:
+                logger.exception("KoSync progress restore failed")
+                kosync_record = None
+
+        # 从 S3 获取远程进度（JSON 模式，或 KoSync 首次启用时用于初始化）
         remote_record = None
-        if not getattr(_book, 'local_only', False):
+        if not getattr(_book, 'local_only', False) and (not kosync_mode or kosync_record is None):
             cfg = get_s3_config(request.user)
             if cfg and md5_val:
                 s3_key = f"{cfg['prefix']}book_progress/{md5_val}.json"
@@ -216,10 +239,11 @@ def book_view(request):
                     logger.debug("S3 remote progress fetch error", exc_info=True)
                     remote_record = None
 
-        # 比较三个来源的时间：本地文件、数据库、S3 远程
+        # 比较来源时间：本地文件、数据库、S3 远程或 KoSync
         file_time = _parse_progress_time(file_record)
         db_time = make_naive_utc(db_record.read_time) if db_record else None
         remote_time = _parse_progress_time(remote_record)
+        kosync_time = make_naive_utc(kosync_record.updated_at) if kosync_record is not None else None
 
         # 选出最新的来源
         best_record = None
@@ -228,6 +252,7 @@ def book_view(request):
             (file_time, 'file', file_record),
             (db_time, 'db', db_record),
             (remote_time, 'remote', remote_record),
+            (kosync_time, 'kosync', kosync_record),
         ]
         for t, source, rec in times:
             if t is None or rec is None:
@@ -244,6 +269,9 @@ def book_view(request):
             if best_source == 'db':
                 chapter_id = best_record[2].chapter_id
                 offset = best_record[2].words_read
+            elif best_source == 'kosync':
+                chapter_id = best_record[2].restored_chapter_id
+                offset = best_record[2].restored_words
             else:
                 # file 或 remote：使用 sectionIndex/paragraphIndex/elementIndex
                 rec = best_record[2]
@@ -278,21 +306,22 @@ def book_view(request):
                     chapter_id = _book.first_chapter_id
                     offset = 0
 
-            # 同步到本地文件、数据库、S3（确保三者一致）
+            # 同步到本地文件、数据库、远程（确保一致）
             try:
                 ch_obj = Chapter.objects.get(id=chapter_id) if chapter_id else None
             except (Chapter.DoesNotExist, ValueError):
                 ch_obj = None
                 chapter_id = _book.first_chapter_id
                 offset = 0
-            if ch_obj:
+            if ch_obj and best_source != 'kosync':
                 save_progress_json(_book, ch_obj, offset, request.user.id)
             sync_progress_val = calculate_read_progress(_book, ch_obj, offset) / 100.0 if ch_obj else 0
+            record_time = kosync_record.updated_at if best_source == 'kosync' else timezone.now()
             if db_record:
                 db_record.chapter_id = chapter_id
                 db_record.words_read = offset
                 db_record.progress = sync_progress_val
-                db_record.read_time = timezone.now()
+                db_record.read_time = record_time
                 db_record.save()
             else:
                 UserBookRecord(
@@ -301,10 +330,16 @@ def book_view(request):
                     chapter_id=chapter_id,
                     words_read=offset,
                     progress=sync_progress_val,
-                    read_time=timezone.now()
+                    read_time=record_time
                 ).save()
-            # 如果选中的不是 remote，则上传到 S3；如果选中 remote，本地和 DB 已经同步
-            if best_source != 'remote':
+            if best_source == 'kosync':
+                # 恢复 KoSync 位置不产生新的阅读时间或云端写入。
+                pass
+            elif kosync_mode:
+                if kosync_enabled:
+                    kosync.update_book_progress(
+                        request.user, _book, ch_obj, offset, force=True)
+            elif best_source != 'remote':
                 sync_progress_to_s3(request, _book)
 
     if not chapter_id:

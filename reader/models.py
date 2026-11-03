@@ -1,3 +1,4 @@
+from django.conf import settings as django_settings
 from django.db import models
 import django.utils.timezone as timezone
 
@@ -86,6 +87,9 @@ class UserSetting(models.Model):
     volume_rule_3 = models.CharField(max_length=1024, default='')
     chapter_min_len = models.IntegerField(default=100)
     chapter_max_len = models.IntegerField(default=100000)
+    progress_sync_mode = models.CharField(max_length=16, default='json')
+    kosync_checksum_method = models.CharField(max_length=16, default='binary')
+    kosync_auth_hash = models.CharField(max_length=128, default='', blank=True)
 
 class UserBookMark(models.Model):
     user_id = models.IntegerField()
@@ -139,4 +143,33 @@ class ReadStat(models.Model):
     word_count = models.IntegerField(default=0)
     last_save_time = models.DateTimeField(null=True, blank=True)
     last_progress = models.IntegerField(default=0)
+
+
+class KosyncProgress(models.Model):
+    """Latest KOReader-KoSync position for one user/document pair."""
+    user = models.ForeignKey(django_settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    document = models.CharField(max_length=128)
+    progress = models.TextField()
+    percentage = models.FloatField(default=0)
+    device = models.CharField(max_length=128, default='', blank=True)
+    device_id = models.CharField(max_length=128, default='', blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'document'], name='unique_kosync_progress'),
+        ]
+
+
+class SystemSetting(models.Model):
+    """Global site settings; only the first row is used."""
+    kosync_enabled = models.BooleanField(default=False)
+
+    @classmethod
+    def load(cls):
+        obj = cls.objects.order_by('pk').first()
+        if obj is None:
+            obj = cls.objects.create(pk=1)
+        return obj
 

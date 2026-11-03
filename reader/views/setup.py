@@ -16,6 +16,7 @@ from django.views.decorators.csrf import csrf_protect
 
 from ..utils import get_or_create_user_setting
 from ..middleware import reset_first_run_cache
+from ..services.kosync import set_auth_hash
 
 User = get_user_model()
 
@@ -66,6 +67,7 @@ def setup_admin(request):
 
         if not errors:
             get_or_create_user_setting(user)
+            set_auth_hash(user, password)
             reset_first_run_cache()
             # 不自动登录，跳转到首页让用户用新账号手动登录
             return redirect('reader:index')

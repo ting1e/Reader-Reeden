@@ -8,6 +8,7 @@ from django.contrib.auth.decorators import login_required
 
 from ..models import UserSetting
 from ..utils import get_or_create_user_setting, parse_s3_json
+from ..services import kosync
 
 logger = logging.getLogger('reader')
 
@@ -31,6 +32,9 @@ def user_settings(request):
     return render(request, 'user_settings.html', {
         'setting': setting,
         's3_setting_display': s3_display,
+        'kosync_enabled': kosync.server_enabled(),
+        'kosync_server_url': request.build_absolute_uri('/'),
+        'kosync_auth_ready': bool(setting.kosync_auth_hash),
     })
 
 
@@ -107,6 +111,41 @@ def user_settings_rule(request):
 
 
 @login_required(login_url='reader:index')
+def user_settings_progress_sync(request):
+    """保存阅读进度同步方式与 KoSync 匹配方式（AJAX）。"""
+    if request.method != 'POST':
+        return redirect('reader:user_settings')
+    mode = (request.POST.get('progress_sync_mode') or 'json').strip()
+    method = (request.POST.get('kosync_checksum_method') or 'binary').strip()
+    if mode not in kosync.VALID_SYNC_MODES:
+        return JsonResponse({'success': False, 'error': '无效的同步方式'})
+    if method not in kosync.VALID_CHECKSUM_METHODS:
+        return JsonResponse({'success': False, 'error': '无效的书籍匹配方式'})
+    setting = get_or_create_user_setting(request.user)
+    if mode == 'kosync':
+        if not kosync.server_enabled():
+            return JsonResponse({'success': False, 'error': 'KoSync Server 当前未开启'})
+        if not setting.kosync_auth_hash:
+            return JsonResponse({'success': False, 'error': '请先初始化 KoSync 认证'})
+    setting.progress_sync_mode = mode
+    setting.kosync_checksum_method = method
+    setting.save(update_fields=['progress_sync_mode', 'kosync_checksum_method'])
+    return JsonResponse({'success': True, 'msg': '阅读进度同步设置已保存'})
+
+
+@login_required(login_url='reader:index')
+def user_settings_kosync_auth(request):
+    """用现有账号密码初始化 KoSync 认证值（AJAX）。"""
+    if request.method != 'POST':
+        return redirect('reader:user_settings')
+    password = request.POST.get('password') or ''
+    if not request.user.check_password(password):
+        return JsonResponse({'success': False, 'error': '账号密码不正确'})
+    kosync.set_auth_hash(request.user, password)
+    return JsonResponse({'success': True, 'msg': 'KoSync 认证已初始化'})
+
+
+@login_required(login_url='reader:index')
 def user_settings_password(request):
     """修改密码（AJAX，返回 JSON）"""
     if request.method != 'POST':
@@ -122,6 +161,9 @@ def user_settings_password(request):
         return JsonResponse({'success': False, 'error': '两次输入的新密码不一致'})
     request.user.set_password(new_pwd)
     request.user.save()
+    setting = UserSetting.objects.filter(user_id=request.user.id).first()
+    if setting and (setting.kosync_auth_hash or setting.progress_sync_mode == 'kosync'):
+        kosync.set_auth_hash(request.user, new_pwd)
     update_session_auth_hash(request, request.user)
     return JsonResponse({'success': True, 'msg': '密码已修改'})
 
