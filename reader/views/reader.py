@@ -13,7 +13,7 @@ from ..services.progress import (
     calculate_read_progress, save_progress_json,
     _parse_progress_time, make_naive_utc,
 )
-from ..services import volume
+from ..services import book_parser, volume
 from ..services.s3 import get_s3_config, _get_s3_client, sync_progress_to_s3
 
 logger = logging.getLogger('reader')
@@ -430,6 +430,8 @@ def chapter_list(request, book_id):
     _book = get_object_or_404(Book, id=book_id)
     if not can_access_book(_book, request.user):
         return JsonResponse({'success': False, 'error': 'no permission'})
+    if _book.format == 'epub':
+        book_parser.ensure_epub_volumes(_book)
     chapter_list = list(Chapter.objects.filter(book_id=book_id).order_by('index'))
     chapter_ids = [c.id for c in chapter_list]
     volume_groups = volume.group_chapters(chapter_list)

@@ -48,7 +48,7 @@ def _metadata(path, modified):
 def render_metadata(book):
     """Upgrade metadata in memory only, never reindex old chapters/bookmarks."""
     data = read_cache(book)
-    if 'resources' in data:
+    if 'resources' in data and 'tocTree' in data:
         return data
     rich = _metadata(book.abs_path(), os.stat(book.abs_path()).st_mtime_ns)
     sections = [{**new, **old} for old, new in zip(data['sections'], rich['sections'])]

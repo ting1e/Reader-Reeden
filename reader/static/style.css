@@ -69,3 +69,8 @@ article{
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background-color: rgba(156, 163, 175, 0.8); /* hover 时加深 */
 }
+
+/* 分卷目录：只把卷内章节文字右移，目录项框保持原位、宽度不变 */
+.volume-chapters .list-group-item {
+    padding-left: 2.25rem;
+}

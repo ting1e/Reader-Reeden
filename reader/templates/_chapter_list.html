@@ -8,7 +8,7 @@
                 <iconify-icon icon="bi:chevron-down" class="volume-chevron shrink-0 transition-transform duration-150"></iconify-icon>
                 <span class="volume-title truncate" title="{{ group.title }}">{{ group.title }}</span>
             </button>
-            <div class="volume-chapters flex flex-col gap-1 pl-3">
+            <div class="volume-chapters flex flex-col gap-1">
                 {% for c in group.chapters %}
                 <div>
                     <form method="POST" action="{% url 'reader:book_view' %}">

@@ -18,12 +18,28 @@ from .services.s3 import sync_progress_to_s3
 from .utils import read_book_text
 
 
-def sample_epub(version=3, unsafe=False):
+def sample_epub(version=3, unsafe=False, nested=False):
     output = io.BytesIO()
+    nav_item = '<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>' if version == 3 else ''
+    if nested:
+        nav_toc = '''<nav epub:type="toc"><ol>
+          <li><span>第一卷</span><ol><li><a href="body.xhtml#one">第一章</a></li></ol></li>
+          <li><span>第二卷</span><ol><li><a href="body.xhtml#two">第二章</a></li></ol></li>
+        </ol></nav>'''
+        ncx_map = '''<navMap>
+          <navPoint><navLabel><text>第一卷</text></navLabel><content src="body.xhtml#one"/>
+            <navPoint><navLabel><text>第一章</text></navLabel><content src="body.xhtml#one"/></navPoint>
+          </navPoint>
+          <navPoint><navLabel><text>第二卷</text></navLabel><content src="body.xhtml#two"/>
+            <navPoint><navLabel><text>第二章</text></navLabel><content src="body.xhtml#two"/></navPoint>
+          </navPoint>
+        </navMap>'''
+    else:
+        nav_toc = '<nav epub:type="toc"><ol><li><a href="body.xhtml#one">第一章</a></li><li><a href="body.xhtml#two">第二章</a></li></ol></nav>'
+        ncx_map = '<navMap><navPoint><navLabel><text>第一章</text></navLabel><content src="body.xhtml#one"/></navPoint><navPoint><navLabel><text>第二章</text></navLabel><content src="body.xhtml#two"/></navPoint></navMap>'
     with zipfile.ZipFile(output, 'w') as archive:
         archive.writestr('mimetype', 'application/epub+zip')
         archive.writestr('META-INF/container.xml', '''<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/book.opf"/></rootfiles></container>''')
-        nav_item = '<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>' if version == 3 else ''
         archive.writestr('OEBPS/book.opf', '''<package xmlns="http://www.idpf.org/2007/opf" version="%s.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>测试 EPUB</dc:title><dc:creator>作者</dc:creator></metadata><manifest>
           <item id="cover" href="cover.xhtml" media-type="application/xhtml+xml"/>
           <item id="body" href="body.xhtml" media-type="application/xhtml+xml"/>
@@ -32,8 +48,8 @@ def sample_epub(version=3, unsafe=False):
           </manifest><spine toc="ncx"><itemref idref="cover"/><itemref idref="body"/></spine></package>''' % (version, nav_item))
         archive.writestr('OEBPS/cover.xhtml', '<html><body><img src="remote.png"/></body></html>')
         archive.writestr('OEBPS/body.xhtml', '''<!DOCTYPE html><html><head><title>不要读这个</title></head><body><h1 id="one">第一章</h1><p>中文 English 😀 &amp; 正文。</p><script>不执行脚本</script><h2 id="two">第二章</h2><p>第二段正文。</p></body></html>''')
-        archive.writestr('OEBPS/nav.xhtml', '''<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><a href="body.xhtml#one">第一章</a><a href="body.xhtml#two">第二章</a></nav></body></html>''')
-        archive.writestr('OEBPS/toc.ncx', '''<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/"><navMap><navPoint><navLabel><text>第一章</text></navLabel><content src="body.xhtml#one"/></navPoint><navPoint><navLabel><text>第二章</text></navLabel><content src="body.xhtml#two"/></navPoint></navMap></ncx>''')
+        archive.writestr('OEBPS/nav.xhtml', '''<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body>%s</body></html>''' % nav_toc)
+        archive.writestr('OEBPS/toc.ncx', '''<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/">%s</ncx>''' % ncx_map)
         if unsafe:
             archive.writestr('../escape.txt', 'unsafe')
     return output.getvalue()
@@ -133,6 +149,75 @@ class EpubTests(TestCase):
         self.assertFalse(response.json()['success'])
         self.assertFalse(Book.objects.exists())
         self.assertEqual(list(self.folder.iterdir()), [])
+
+    def test_plain_restore_keeps_book_id_after_post(self):
+        book = self.upload()
+        chapter = Chapter.objects.filter(book_id=book.id).order_by('index').first()
+        response = self.client.post(reverse('reader:book_view'), {
+            'book_id': book.id, 'chapter_id': chapter.id,
+        })
+        self.assertContains(response, "url.searchParams.set('book_id', '%d')" % book.id)
+
+    def test_epub3_nested_toc_volumes(self):
+        path = self.folder / 'nested3.epub'
+        path.write_bytes(sample_epub(nested=True))
+        data = parse_epub(path)
+        self.assertEqual([n['title'] for n in data['tocTree']], ['第一卷', '第二卷'])
+        self.assertEqual([len(n['children']) for n in data['tocTree']], [1, 1])
+        self.assertTrue(all(n.get('start') is not None for n in data['tocTree']))
+
+        book = self.upload(sample_epub(nested=True), 'nested3.epub')
+        chapters = list(Chapter.objects.filter(book_id=book.id).order_by('index'))
+        self.assertEqual([c.title for c in chapters], ['第一章', '第二章'])
+        self.assertEqual([(c.volume_index, c.volume_title) for c in chapters],
+                         [(0, '第一卷'), (1, '第二卷')])
+        response = self.client.get(reverse('reader:book_view'), {'book_id': book.id})
+        self.assertEqual(response.context['epub_config']['tocTree'][0]['title'], '第一卷')
+        listing = self.client.get(reverse('reader:chapter_list', args=[book.id])).json()
+        self.assertIn('volume-group', listing['html'])
+        self.assertIn('第一卷', listing['html'])
+
+    def test_epub2_nested_ncx_volumes(self):
+        path = self.folder / 'nested2.epub'
+        path.write_bytes(sample_epub(version=2, nested=True))
+        data = parse_epub(path)
+        self.assertEqual([n['title'] for n in data['tocTree']], ['第一卷', '第二卷'])
+        self.assertEqual([len(n['children']) for n in data['tocTree']], [1, 1])
+
+        book = self.upload(sample_epub(version=2, nested=True), 'nested2.epub')
+        chapters = list(Chapter.objects.filter(book_id=book.id).order_by('index'))
+        self.assertEqual([c.title for c in chapters], ['第一章', '第二章'])
+        self.assertEqual([(c.volume_index, c.volume_title) for c in chapters],
+                         [(0, '第一卷'), (1, '第二卷')])
+
+    def test_flat_toc_keeps_flat_chapters(self):
+        book = self.upload()
+        chapters = list(Chapter.objects.filter(book_id=book.id).order_by('index'))
+        self.assertTrue(all(c.volume_index is None and c.volume_title == '' for c in chapters))
+        tree = read_cache(book)['tocTree']
+        self.assertEqual([n['title'] for n in tree], ['第一章', '第二章'])
+        self.assertTrue(all(not n['children'] for n in tree))
+        listing = self.client.get(reverse('reader:chapter_list', args=[book.id])).json()
+        self.assertNotIn('volume-group', listing['html'])
+
+    def test_old_epub_cache_backfills_volumes(self):
+        book = self.upload(sample_epub(nested=True), 'old-nested.epub')
+        chapters = list(Chapter.objects.filter(book_id=book.id).order_by('index'))
+        UserBookRecord.objects.create(user_id=self.user.id, book_id=book.id,
+                                      chapter_id=chapters[1].id, words_read=2, progress=50)
+        cache_path = Path(book.content_path) if Path(book.content_path).is_absolute() else Path.cwd() / book.content_path
+        cached = json.loads(cache_path.read_text())
+        cached.pop('tocTree', None)
+        cache_path.write_text(json.dumps(cached))
+        Chapter.objects.filter(book_id=book.id).update(volume_index=None, volume_title='')
+        response = self.client.get(reverse('reader:book_view'), {'book_id': book.id})
+        self.assertEqual(response.context['epub_config']['tocTree'][0]['title'], '第一卷')
+        chapters = list(Chapter.objects.filter(book_id=book.id).order_by('index'))
+        self.assertEqual([(c.volume_index, c.volume_title) for c in chapters],
+                         [(0, '第一卷'), (1, '第二卷')])
+        self.assertEqual(response.context['chapter_id'], chapters[1].id)
+        self.assertEqual(response.context['last_words'], 2)
+        self.assertIn('tocTree', json.loads(cache_path.read_text()))
 
     def test_positions_roundtrip_and_chinese_element_units(self):
         book = self.upload()

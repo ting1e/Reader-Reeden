@@ -6,6 +6,7 @@ from django.views.decorators.clickjacking import xframe_options_sameorigin
 from ..models import Book, Chapter, UserBookRecord, UserBookMark
 from ..utils import can_access_book, get_or_create_user_setting, get_local_fonts
 from ..services.epub import EpubError, read_cache
+from ..services.book_parser import ensure_epub_volumes
 from ..services.epub_render import (
     RESOURCE_TYPES, chapter_location, clean_css, read_resource, render_document,
     render_metadata, resource_url,
@@ -52,6 +53,7 @@ def epub_resource(request, pk):
 
 
 def reader_context(request, book, chapter, words, explicit=False):
+    ensure_epub_volumes(book)
     metadata = render_metadata(book)
     data = read_cache(book)
     section_index, raw = chapter_location(book, chapter, words)
@@ -83,6 +85,7 @@ def reader_context(request, book, chapter, words, explicit=False):
     config = {
         'bookId': book.id, 'title': book.name, 'section': section_index, 'raw': raw,
         'location': location, 'sections': sections, 'toc': metadata.get('toc', []),
+        'tocTree': metadata.get('tocTree', []),
         'chapters': [{'id': ch.id, 'title': ch.title, 'start': ch.start, 'end': ch.end,
                       'section': data['chapters'][ch.index].get('section')} for ch in chapters],
         'bookmarks': marks, 'language': metadata.get('language', ''),

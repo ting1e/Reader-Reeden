@@ -185,6 +185,21 @@
   const TOC_ITEM = 'epub-entry block w-full text-start text-sm leading-normal px-3 py-2 rounded-lg select-none list-none border-0 m-0 transition-colors duration-150 cursor-pointer [-webkit-tap-highlight-color:transparent]';
   const TOC_ACTIVE = ' active bg-base-content text-base-100 font-medium';
   const TOC_IDLE = ' text-base-content hover:bg-base-300';
+  function setTocVolumeCollapsed(group, collapsed) {
+    group.classList.toggle('is-collapsed', collapsed);
+    const toggle = group.querySelector(':scope > .epub-volume-toggle');
+    if (toggle) toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+  }
+  function expandTocVolumeFor(element) {
+    let group = element.closest('.epub-volume');
+    while (group) {
+      setTocVolumeCollapsed(group, false);
+      group = group.parentElement ? group.parentElement.closest('.epub-volume') : null;
+    }
+  }
+  function hasNestedToc(nodes) {
+    return (nodes || []).some(node => node.children && node.children.length);
+  }
   // EPUB 一节可能包含多个目录项，所以先按当前 section 的 href 圈定范围，
   // 再优先选中标题与当前章节一致的条目，找不到时退回该节第一个条目。
   function highlightToc() {
@@ -202,6 +217,7 @@
     });
     const active = match || fallback;
     items.forEach(el => { el.className = TOC_ITEM + (el === active ? TOC_ACTIVE : TOC_IDLE); });
+    if (active) expandTocVolumeFor(active);
     active?.scrollIntoView({ block: 'nearest' });
   }
   // 页码条：与文本阅读模式相同的「首页 + 窗口 + 末页 + 省略号」结构。
@@ -803,6 +819,35 @@
     const button = document.createElement('button'); button.type = 'button'; button.className = TOC_ITEM + TOC_IDLE; button.textContent = label;
     if (href !== undefined) button.dataset.href = href;
     button.onclick = () => { if (searchModal.open) searchModal.close(); $('drawer-left').checked = false; action(); }; body.appendChild(button);
+    return button;
+  }
+  function renderTocNodes(body, nodes) {
+    for (const node of nodes || []) {
+      const children = node.children || [];
+      if (children.length) {
+        const group = document.createElement('div');
+        group.className = 'epub-volume';
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'epub-volume-toggle';
+        toggle.setAttribute('aria-expanded', 'true');
+        const icon = document.createElement('iconify-icon');
+        icon.setAttribute('icon', 'bi:chevron-down');
+        icon.className = 'epub-volume-chevron';
+        const title = document.createElement('span');
+        title.className = 'epub-volume-title';
+        title.textContent = node.title || '未命名卷';
+        toggle.append(icon, title);
+        const box = document.createElement('div');
+        box.className = 'epub-volume-children';
+        toggle.onclick = () => setTocVolumeCollapsed(group, !group.classList.contains('is-collapsed'));
+        group.append(toggle, box);
+        body.appendChild(group);
+        renderTocNodes(box, children);
+      } else if (node.href) {
+        entry(body, node.title, () => navigateLink({ path: node.href, fragment: node.fragment }, false), node.href);
+      }
+    }
   }
   function openSidebar(tab) {
     $('drawer-left').checked = true;
@@ -813,8 +858,13 @@
   $('epub-toc').onclick = event => {
     event.preventDefault(); openSidebar('chapters');
     const body = document.querySelector('.chapter_list_container'); body.replaceChildren();
-    const items = config.toc.length ? config.toc : config.sections.map(s => ({ href: s.href, title: `第 ${s.index + 1} 节` }));
-    for (const item of items) entry(body, item.title, () => navigateLink({ path: item.href, fragment: item.fragment }, false), item.href);
+    const tree = config.tocTree || [];
+    if (hasNestedToc(tree)) {
+      renderTocNodes(body, tree);
+    } else {
+      const items = config.toc.length ? config.toc : config.sections.map(s => ({ href: s.href, title: `第 ${s.index + 1} 节` }));
+      for (const item of items) entry(body, item.title, () => navigateLink({ path: item.href, fragment: item.fragment }, false), item.href);
+    }
     highlightedHref = null; highlightToc();
   };
   // 全文搜索：结果结构与高亮复用 TXT 模式（_search.html + reader.js），样式保持一致。

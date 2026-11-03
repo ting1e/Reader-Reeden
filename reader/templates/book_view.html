@@ -15,6 +15,8 @@
     if (url.searchParams.has('display') || url.searchParams.has('plain')) return;
     try {
         if (localStorage.getItem('epub-display-{{ book_id }}') === 'plain') {
+            // POST 打开的阅读页地址可能没有 book_id，补上后再切换，避免 404。
+            if (!url.searchParams.has('book_id')) url.searchParams.set('book_id', '{{ book_id }}');
             url.searchParams.set('display', 'plain'); location.replace(url);
         }
     } catch (_) {}

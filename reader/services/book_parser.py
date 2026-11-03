@@ -206,10 +206,56 @@ def handle_local_book(request, url, local_only=False):
     return False
 
 
+def _epub_volume_nodes(toc_tree):
+    """Collect TOC nodes that contain children as volumes, ordered by text offset."""
+    volumes = []
+
+    def walk(nodes):
+        for node in nodes or []:
+            children = node.get('children') or []
+            if children:
+                start = node.get('start')
+                if start is None:
+                    start = next((child.get('start') for child in children
+                                  if child.get('start') is not None), None)
+                title = (node.get('title') or '').strip()
+                if start is not None and title:
+                    volumes.append((start, title[:CHAPTER_TITLE_MAX_LEN]))
+                walk(children)
+
+    walk(toc_tree)
+    volumes.sort(key=lambda item: item[0])
+    return volumes
+
+
+def _assign_epub_volumes(chapters, toc_tree):
+    """Return (volume_index, volume_title) for each chapter in reading order."""
+    volumes = _epub_volume_nodes(toc_tree)
+    if not volumes:
+        return [(None, '') for _ in chapters]
+    result = []
+    current = None
+    position = 0
+    sequence = {}
+    for chapter in chapters:
+        start = chapter.get('start') if isinstance(chapter, dict) else chapter.start
+        while position < len(volumes) and volumes[position][0] <= start:
+            current = volumes[position]
+            position += 1
+        if current is None:
+            result.append((None, ''))
+        else:
+            if current not in sequence:
+                sequence[current] = len(sequence)
+            result.append((sequence[current], current[1]))
+    return result
+
+
 def _handle_epub(request, url, local_only):
     from .epub import parse_epub, write_cache
     import uuid
     data = parse_epub(url)
+    volume_info = _assign_epub_volumes(data['chapters'], data.get('tocTree') or [])
     cache_path = str(Path(url).parent / (uuid.uuid4().hex + '.reader.json'))
     book = Book(
         book_url=to_rel_path(url), file_name=os.path.basename(url),
@@ -225,7 +271,9 @@ def _handle_epub(request, url, local_only):
             book.save()
             Chapter.objects.bulk_create([
                 Chapter(book_id=book.id, book_url=book.book_url, index=index,
-                        title=ch['title'], start=ch['start'], end=ch['end'])
+                        title=ch['title'], start=ch['start'], end=ch['end'],
+                        volume_index=volume_info[index][0],
+                        volume_title=volume_info[index][1])
                 for index, ch in enumerate(data['chapters'])
             ])
             chapters = list(Chapter.objects.filter(book_id=book.id).order_by('index'))
@@ -238,6 +286,44 @@ def _handle_epub(request, url, local_only):
             os.remove(cache_path)
         raise
     return True
+
+
+def ensure_epub_volumes(book):
+    """Backfill volume info for EPUBs imported before TOC tree support.
+
+    The EPUB is reparsed once and its cache gains ``tocTree``; later calls only
+    sync chapter rows if needed. Existing chapter indexes and progress stay intact.
+    """
+    if book.format != 'epub' or not book.content_path:
+        return
+    from .epub import parse_epub, read_cache, write_cache
+    from ..utils import resolve_book_path
+    try:
+        data = read_cache(book)
+    except Exception:
+        return
+    if 'tocTree' not in data:
+        try:
+            parsed = parse_epub(book.abs_path())
+        except Exception:
+            return
+        data['tocTree'] = parsed.get('tocTree', [])
+        try:
+            write_cache(resolve_book_path(book.content_path), data)
+        except Exception:
+            pass
+    chapters = list(Chapter.objects.filter(book_id=book.id).order_by('index'))
+    if not chapters:
+        return
+    assignments = _assign_epub_volumes(chapters, data.get('tocTree') or [])
+    changed = []
+    for chapter, (volume_index, volume_title) in zip(chapters, assignments):
+        if chapter.volume_index != volume_index or chapter.volume_title != volume_title:
+            chapter.volume_index = volume_index
+            chapter.volume_title = volume_title
+            changed.append(chapter)
+    if changed:
+        Chapter.objects.bulk_update(changed, ['volume_index', 'volume_title'])
 
 
 def rechapter_book(book, user=None, rule_choice='main'):

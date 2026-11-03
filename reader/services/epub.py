@@ -198,33 +198,31 @@ def parse_epub(path):
                 raise EpubError('EPUB 缺少阅读顺序')
 
             # EPUB 3 nav or EPUB 2 NCX. Ignore remote links, never fetch them.
-            toc = []
+            toc_tree = []
             nav = next((e for e in manifest.values() if 'nav' in e.get('properties', '').split()), None)
             if nav is not None:
                 nav_path, _ = _member_path(package, nav.get('href', ''))
                 nav_root = xml(nav_path)
-                nav_element = next((e for e in nav_root.iter() if e.tag.rsplit('}', 1)[-1] == 'nav'
+                nav_element = next((e for e in nav_root.iter() if _local_name(e.tag) == 'nav'
                                     and 'toc' in e.get('{http://www.idpf.org/2007/ops}type', '').split()), None)
                 if nav_element is not None:
-                    for e in nav_element.iter():
-                        if e.tag.rsplit('}', 1)[-1] == 'a' and e.get('href'):
-                            toc.append((nav_path, e.get('href'), ' '.join(''.join(e.itertext()).split())))
-            if not toc and spine.get('toc') in manifest:
+                    nav_list = next((e for e in nav_element.iter() if _local_name(e.tag) == 'ol'), None)
+                    if nav_list is not None:
+                        toc_tree = _resolve_toc(_parse_nav_list(nav_list), nav_path)
+            flat_toc = list(_flatten_toc(toc_tree))
+            if not flat_toc and spine.get('toc') in manifest:
                 ncx_path, _ = _member_path(package, manifest[spine.get('toc')].get('href', ''))
-                for point in xml(ncx_path).iter():
-                    if point.tag.rsplit('}', 1)[-1] == 'navPoint':
-                        label = next((' '.join(''.join(e.itertext()).split()) for e in point
-                                      if e.tag.rsplit('}', 1)[-1] == 'navLabel'), '')
-                        href = next((e.get('src') for e in point if e.tag.rsplit('}', 1)[-1] == 'content'), '')
-                        toc.append((ncx_path, href, label))
+                ncx_root = xml(ncx_path)
+                nav_map = next((e for e in ncx_root.iter() if _local_name(e.tag) == 'navMap'), None)
+                if nav_map is not None:
+                    toc_tree = _resolve_toc(_parse_ncx_points(nav_map), ncx_path)
+                    flat_toc = list(_flatten_toc(toc_tree))
             toc_by_path = {}
-            for base, href, label in toc:
-                if urlsplit(href).scheme or urlsplit(href).netloc:
-                    continue
-                target, fragment = _member_path(base, href)
-                toc_by_path.setdefault(target, []).append((fragment, label))
+            for node in flat_toc:
+                toc_by_path.setdefault(node['href'], []).append((node['fragment'], node['title']))
 
             sections, chapters, chunks = [], [], []
+            section_anchors = {}
             offset = 0
             for section_index, ref in enumerate(spine.findall(OPF + 'itemref')):
                 item = manifest.get(ref.get('idref'))
@@ -232,6 +230,7 @@ def parse_epub(path):
                     raise EpubError('EPUB 阅读顺序引用了不支持的正文资源')
                 source, _ = _member_path(package, item.get('href', ''))
                 parsed = html(source)
+                section_anchors[source] = parsed.anchors
                 starts = []
                 for block in parsed.blocks:
                     starts.append(offset)
@@ -254,7 +253,8 @@ def parse_epub(path):
                 for fragment, label in toc_by_path.get(source, []):
                     block_index = parsed.anchors.get(fragment) if fragment else 0
                     if block_index is not None and block_index < len(starts):
-                        cuts.setdefault(starts[block_index], label)
+                        # 同一位置优先使用更深层的目录项（子章节）标题。
+                        cuts[starts[block_index]] = label
                 cuts.setdefault(section_start, parsed.heading or '第 %d 节' % (section_index + 1))
                 points = sorted(cuts)
                 for index, start in enumerate(points):
@@ -264,6 +264,10 @@ def parse_epub(path):
             text = ''.join(chunks)
             if not text.strip() and not any(s['fixed'] for s in sections):
                 raise EpubError('EPUB 没有可阅读的文字正文')
+            section_by_path = {}
+            for section in sections:
+                section_by_path.setdefault(section['href'], section)
+            _assign_toc_starts(toc_tree, section_by_path, section_anchors)
             return {'version': 1, 'title': metadata.findtext(DC + 'title', '').strip(),
                     'author': metadata.findtext(DC + 'creator', '').strip(), 'text': text,
                     'textHash': hashlib.sha256(text.encode('utf-8')).hexdigest(),
@@ -274,11 +278,100 @@ def parse_epub(path):
                                    for item in manifest.values()
                                    if not urlsplit(item.get('href', '')).scheme and not urlsplit(item.get('href', '')).netloc },
                     'toc': [{'href': path, 'fragment': fragment, 'title': label}
-                            for path, entries in toc_by_path.items() for fragment, label in entries]}
+                            for path, entries in toc_by_path.items() for fragment, label in entries],
+                    'tocTree': toc_tree}
     except EpubError:
         raise
     except Exception as exc:
         raise EpubError('EPUB 文件损坏或结构不受支持') from exc
+
+
+def _local_name(tag):
+    return tag.rsplit('}', 1)[-1]
+
+
+def _node_label(element):
+    return ' '.join(''.join(element.itertext()).split()) if element is not None else ''
+
+
+def _parse_nav_list(ol):
+    """Parse an EPUB 3 nav <ol> into a nested [{title, href, children}] tree."""
+    nodes = []
+    for li in list(ol):
+        if _local_name(li.tag) != 'li':
+            continue
+        link = next((child for child in li if _local_name(child.tag) == 'a' and child.get('href')), None)
+        span = next((child for child in li if _local_name(child.tag) == 'span'), None)
+        title = _node_label(link if link is not None else span)
+        sub = next((child for child in li if _local_name(child.tag) == 'ol'), None)
+        children = _parse_nav_list(sub) if sub is not None else []
+        if title or children:
+            nodes.append({'title': title, 'href': link.get('href') if link is not None else None,
+                          'children': children})
+    return nodes
+
+
+def _parse_ncx_points(parent):
+    """Parse EPUB 2 NCX navPoints into the same nested TOC tree shape."""
+    nodes = []
+    for point in list(parent):
+        if _local_name(point.tag) != 'navPoint':
+            continue
+        title = next((_node_label(child) for child in point if _local_name(child.tag) == 'navLabel'), '')
+        href = next((child.get('src') for child in point if _local_name(child.tag) == 'content'), '')
+        children = _parse_ncx_points(point)
+        if title or href or children:
+            nodes.append({'title': title, 'href': href, 'children': children})
+    return nodes
+
+
+def _resolve_toc(nodes, base):
+    """Resolve relative TOC links and drop external ones."""
+    result = []
+    for node in nodes:
+        href = node.get('href')
+        path, fragment = '', ''
+        if href:
+            try:
+                if not urlsplit(href).scheme and not urlsplit(href).netloc:
+                    path, fragment = _member_path(base, href)
+            except ValueError:
+                path, fragment = '', ''
+        result.append({
+            'title': node.get('title', ''),
+            'href': path,
+            'fragment': fragment or '',
+            'children': _resolve_toc(node.get('children') or [], base),
+        })
+    return result
+
+
+def _flatten_toc(nodes):
+    for node in nodes:
+        if node['href']:
+            yield node
+        yield from _flatten_toc(node['children'])
+
+
+def _assign_toc_starts(nodes, section_by_path, section_anchors):
+    """Attach the global text offset of each TOC entry for volume matching."""
+    for node in nodes:
+        children = node.get('children') or []
+        _assign_toc_starts(children, section_by_path, section_anchors)
+        start = None
+        path = node.get('href')
+        section = section_by_path.get(path) if path else None
+        if section is not None:
+            anchors = section_anchors.get(path) or {}
+            fragment = node.get('fragment') or ''
+            block = anchors.get(fragment) if fragment else 0
+            if block is not None and 0 <= block < len(section['paragraphs']):
+                start = section['paragraphs'][block]
+            else:
+                start = section['start']
+        if start is None:
+            start = next((child.get('start') for child in children if child.get('start') is not None), None)
+        node['start'] = start
 
 
 def write_cache(path, data):
