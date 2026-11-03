@@ -1,17 +1,49 @@
 <div class="flex flex-col gap-1">
-    {% for c in chapter_list %}
-    <div>
-        <form method="POST" action="{% url 'reader:book_view' %}">
-            {% csrf_token %}
-            <input type="hidden" name="book_id" value="{{ c.book_id }}">
-            <input type="hidden" name="chapter_id" value="{{ c.id }}">
-            <button
-                class="list-group-item block w-full text-start text-sm leading-normal px-3 py-2 rounded-lg select-none list-none border-0 m-0 transition-colors duration-150 cursor-pointer [-webkit-tap-highlight-color:transparent]
-                                {% if chapter_id == c.id %} active bg-base-content text-base-100 font-medium{% else %} text-base-content hover:bg-base-300{% endif %}"
-                type="submit" data-chapter-id="{{ c.id }}">
-                {{ c.title }}
+    {% for group in volume_groups %}
+        {% if group.title %}
+        <div class="volume-group" data-volume-index="{{ group.volume_index }}">
+            <button type="button"
+                    class="volume-toggle flex w-full items-center gap-1 rounded-lg px-1 py-1.5 text-start text-sm font-semibold leading-normal select-none border-0 m-0 bg-transparent transition-colors duration-150 cursor-pointer [-webkit-tap-highlight-color:transparent] text-base-content/80 hover:bg-base-200/60"
+                    aria-expanded="true" aria-label="展开或折叠 {{ group.title }}">
+                <iconify-icon icon="bi:chevron-down" class="volume-chevron shrink-0 transition-transform duration-150"></iconify-icon>
+                <span class="volume-title truncate" title="{{ group.title }}">{{ group.title }}</span>
             </button>
-        </form>
-    </div>
+            <div class="volume-chapters flex flex-col gap-1 pl-3">
+                {% for c in group.chapters %}
+                <div>
+                    <form method="POST" action="{% url 'reader:book_view' %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="book_id" value="{{ c.book_id }}">
+                        <input type="hidden" name="chapter_id" value="{{ c.id }}">
+                        <button
+                            class="list-group-item block w-full text-start text-sm leading-normal px-3 py-2 rounded-lg select-none list-none border-0 m-0 transition-colors duration-150 cursor-pointer [-webkit-tap-highlight-color:transparent]
+                                            {% if chapter_id == c.id %} active bg-base-content text-base-100 font-medium{% else %} text-base-content hover:bg-base-300{% endif %}"
+                            type="submit" data-chapter-id="{{ c.id }}">
+                            {{ c.title }}
+                        </button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% else %}
+        <div class="volume-flat flex flex-col gap-1">
+            {% for c in group.chapters %}
+            <div>
+                <form method="POST" action="{% url 'reader:book_view' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="book_id" value="{{ c.book_id }}">
+                    <input type="hidden" name="chapter_id" value="{{ c.id }}">
+                    <button
+                        class="list-group-item block w-full text-start text-sm leading-normal px-3 py-2 rounded-lg select-none list-none border-0 m-0 transition-colors duration-150 cursor-pointer [-webkit-tap-highlight-color:transparent]
+                                        {% if chapter_id == c.id %} active bg-base-content text-base-100 font-medium{% else %} text-base-content hover:bg-base-300{% endif %}"
+                        type="submit" data-chapter-id="{{ c.id }}">
+                        {{ c.title }}
+                    </button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
     {% endfor %}
 </div>

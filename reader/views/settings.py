@@ -65,6 +65,9 @@ def user_settings_rule(request):
     rule = request.POST.get('chapter_rule', '').strip()
     rule_2 = request.POST.get('chapter_rule_2', '').strip()
     rule_3 = request.POST.get('chapter_rule_3', '').strip()
+    volume_rule = request.POST.get('volume_rule', '').strip()
+    volume_rule_2 = request.POST.get('volume_rule_2', '').strip()
+    volume_rule_3 = request.POST.get('volume_rule_3', '').strip()
     if not rule:
         return JsonResponse({'success': False, 'error': '主分章规则不能为空'})
     try:
@@ -81,7 +84,10 @@ def user_settings_rule(request):
         return JsonResponse({'success': False, 'error': '单章最大字数需为 0（不启用）或 1000 ~ 10000000 之间'})
     if min_len and max_len and min_len >= max_len:
         return JsonResponse({'success': False, 'error': '单章最小字数需小于最大字数'})
-    for label, r in [('主规则', rule), ('备用规则1', rule_2), ('备用规则2', rule_3)]:
+    for label, r in [
+        ('主规则', rule), ('备用规则1', rule_2), ('备用规则2', rule_3),
+        ('主分卷规则', volume_rule), ('备用分卷规则1', volume_rule_2), ('备用分卷规则2', volume_rule_3),
+    ]:
         if r:
             try:
                 re.compile(r)
@@ -91,6 +97,9 @@ def user_settings_rule(request):
     setting.chapter_rule = rule
     setting.chapter_rule_2 = rule_2
     setting.chapter_rule_3 = rule_3
+    setting.volume_rule = volume_rule
+    setting.volume_rule_2 = volume_rule_2
+    setting.volume_rule_3 = volume_rule_3
     setting.chapter_min_len = min_len
     setting.chapter_max_len = max_len
     setting.save()

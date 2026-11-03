@@ -27,6 +27,26 @@ function getChapterUrl(chapterId) {
 function chapterIdx(id) { return chapter_ids.indexOf(id); }
 function isLastChapter(id) { var i = chapterIdx(id); return i === -1 || i >= chapter_ids.length - 1; }
 
+// ===== 分卷目录 =====
+function setVolumeCollapsed($group, collapsed) {
+    $group.toggleClass('volume-collapsed', collapsed);
+    $group.children('.volume-chapters').toggleClass('hidden', collapsed);
+    $group.find('.volume-chevron').css('transform', collapsed ? 'rotate(-90deg)' : '');
+    $group.find('.volume-toggle').attr('aria-expanded', collapsed ? 'false' : 'true');
+}
+
+function expandVolumeForChapter(id) {
+    var $item = $('.chapter_list_container .list-group-item[data-chapter-id="' + id + '"]');
+    var $group = $item.closest('.volume-group');
+    if ($group.length && $group.hasClass('volume-collapsed')) setVolumeCollapsed($group, false);
+}
+
+$('.chapter_list_container').on('click', '.volume-toggle', function(e) {
+    e.preventDefault();
+    var $group = $(this).closest('.volume-group');
+    setVolumeCollapsed($group, !$group.hasClass('volume-collapsed'));
+});
+
 // ===== 排版应用 =====
 function applyTypographyToArticle($el) {
     var $target = $el || $('article');
@@ -72,6 +92,7 @@ var CHAPTER_ACTIVE_CLASSES = 'active bg-base-content text-base-100 font-medium';
 function highlightChapter(id) {
     $('.list-group-item').removeClass(CHAPTER_ACTIVE_CLASSES).addClass('text-base-content');
     $('.list-group-item[data-chapter-id="' + id + '"]').addClass(CHAPTER_ACTIVE_CLASSES).removeClass('text-base-content');
+    expandVolumeForChapter(id);
     updateChapterNav(id);
 }
 
@@ -1215,6 +1236,24 @@ $('#sidebar-search').on('input', function() {
         var $wrap = bookmarkActive ? $(this).closest('form') : $(this).closest('div');
         $wrap.toggle(!keyword || text.indexOf(keyword) !== -1);
     });
+    if (!bookmarkActive) {
+        // 搜索时展开全部卷，并隐藏没有匹配章节的卷。
+        if (keyword) {
+            $('.chapter_list_container .volume-group').each(function() {
+                setVolumeCollapsed($(this), false);
+            });
+        }
+        $('.chapter_list_container .volume-group').each(function() {
+            var $group = $(this);
+            var titleMatch = keyword &&
+                $group.find('.volume-title').first().text().toLowerCase().indexOf(keyword) !== -1;
+            if (titleMatch) $group.children('.volume-chapters').children('div').show();
+            var anyVisible = $group.children('.volume-chapters').children('div').filter(function() {
+                return $(this).css('display') !== 'none';
+            }).length > 0;
+            $group.toggle(!keyword || titleMatch || anyVisible);
+        });
+    }
     // 目录激活且搜索框清空时：跳回当前激活章节位置
     if (!bookmarkActive && !keyword) scrollToActiveChapter();
 });
@@ -1224,7 +1263,7 @@ $('.chapter-list-show, .bookmark-show').on('click', function() { $('#sidebar-sea
 
 // ===== 章节列表 =====
 var chapterListLoaded = false;
-var chapterListCacheVersion = 'v8';
+var chapterListCacheVersion = 'v9';
 var chapterListCacheKey = 'chapterList_' + book_id + '_' + chapterListCacheVersion;
 
 function loadChapterList() {
@@ -1268,6 +1307,7 @@ function loadChapterList() {
             } catch (e) {
                 console.warn('目录缓存写入失败:', e);
             }
+            expandVolumeForChapter(chapter_id);
             scrollToActiveChapter();
         }
     });
@@ -1279,6 +1319,7 @@ function highlightChapterInContainer(containerSelector, id) {
         .removeClass(CHAPTER_ACTIVE_CLASSES).addClass('text-base-content');
     $(containerSelector + ' .list-group-item[data-chapter-id="' + id + '"]')
         .addClass(CHAPTER_ACTIVE_CLASSES).removeClass('text-base-content');
+    expandVolumeForChapter(id);
 }
 
 function scrollToActiveChapter() {
@@ -1410,8 +1451,8 @@ function loadChapterFromCache(chapterId, offset) {
 // 章节列表 / 书签列表表单：原地跳转
 $('.chapter_list_container').on('submit', 'form', function(e) {
     e.preventDefault();
-    var targetId = parseInt($(this).find('button.list-group-item').attr('data-chapter-id'));
-    if (targetId === chapter_id) return;
+    var targetId = parseInt($(this).find('[data-chapter-id]').attr('data-chapter-id'));
+    if (!targetId || targetId === chapter_id) return;
     if (chapterCache.has(targetId)) loadChapterFromCache(targetId);
     else preloadChapter(targetId).then(function() { loadChapterFromCache(targetId); });
 });

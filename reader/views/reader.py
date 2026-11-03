@@ -13,6 +13,7 @@ from ..services.progress import (
     calculate_read_progress, save_progress_json,
     _parse_progress_time, make_naive_utc,
 )
+from ..services import volume
 from ..services.s3 import get_s3_config, _get_s3_client, sync_progress_to_s3
 
 logger = logging.getLogger('reader')
@@ -205,6 +206,12 @@ def book_view(request):
                     client = _get_s3_client(cfg)
                     resp = client.get_object(Bucket=cfg['bucket'], Key=s3_key)
                     remote_record = json.load(resp['Body'])
+                    if _book.format != 'epub':
+                        # 云端同步索引可能包含卷标题，恢复为内部章节索引。
+                        remote_record = volume.progress_from_sync(
+                            remote_record,
+                            list(Chapter.objects.filter(book_id=book_id).order_by('index')),
+                        )
                 except Exception:
                     logger.debug("S3 remote progress fetch error", exc_info=True)
                     remote_record = None
@@ -423,8 +430,9 @@ def chapter_list(request, book_id):
     _book = get_object_or_404(Book, id=book_id)
     if not can_access_book(_book, request.user):
         return JsonResponse({'success': False, 'error': 'no permission'})
-    chapter_list = Chapter.objects.filter(book_id=book_id).order_by('index')
-    chapter_ids = list(chapter_list.values_list('id', flat=True))
+    chapter_list = list(Chapter.objects.filter(book_id=book_id).order_by('index'))
+    chapter_ids = [c.id for c in chapter_list]
+    volume_groups = volume.group_chapters(chapter_list)
     chapter_id_param = request.GET.get('chapter_id')
     try:
         chapter_id_param = int(chapter_id_param)
@@ -432,6 +440,7 @@ def chapter_list(request, book_id):
         chapter_id_param = None
     html = render_to_string('_chapter_list.html', {
         'chapter_list': chapter_list,
+        'volume_groups': volume_groups,
         'chapter_id': chapter_id_param,
     }, request=request)
     return JsonResponse({

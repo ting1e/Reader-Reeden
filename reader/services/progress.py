@@ -10,6 +10,7 @@ from django.utils import timezone
 
 from ..models import UserBookRecord, ReadStat
 from ..utils import get_progress_dir, get_file_md5, get_element_index, get_device_id, read_book_text
+from .volume import VOLUME_SYNC_KEY
 
 logger = logging.getLogger('reader')
 
@@ -299,6 +300,8 @@ def save_progress_json(book, chapter, words_read, user_id, epub_location=None):
         "deviceId": device_id,
         "todayStats": stats,
     })
+    # 本地进度始终保存内部章节索引；卷索引只在同步上传时生成。
+    new_data.pop(VOLUME_SYNC_KEY, None)
     if book.format == 'epub':
         from .epub import export_position
         new_data.update(export_position(book, chapter, words_read, epub_location))

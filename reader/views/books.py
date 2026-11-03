@@ -19,7 +19,7 @@ from ..services.progress import (
     get_books_progress, _parse_progress_time,
 )
 from ..services.s3 import get_s3_config, _get_s3_client
-from ..services import book_parser
+from ..services import book_parser, volume
 
 logger = logging.getLogger('reader')
 
@@ -177,6 +177,7 @@ def open_remote_book(request):
         md5_val = book.md5 or get_file_md5(local_path)
         progress_key = f'{prefix}book_progress/{md5_val}.json'
         local_progress_path = os.path.join(get_progress_dir(request.user.id), f'{md5_val}.json')
+        chapters = list(Chapter.objects.filter(book_id=book.id).order_by('index'))
 
         # 先把远端进度读到临时内存，与本地进度按时间对比，保留较新的版本
         try:
@@ -199,13 +200,14 @@ def open_remote_book(request):
 
         # 本地较新：把本地进度回传到 S3；远端较新或本地无：使用远端覆盖本地
         if remote_time is None and local_time is not None:
-            with open(local_progress_path, 'rb') as pf:
-                body = pf.read()
+            sync_data = volume.progress_to_sync(local_data, chapters)
+            body = json.dumps(sync_data, ensure_ascii=False).encode('utf-8')
             s3_client.put_object(Bucket=bucket, Key=progress_key, Body=body, ContentLength=len(body))
         elif remote_time is not None and (local_time is None or remote_time > local_time):
             try:
+                local_to_write = volume.progress_from_sync(remote_data, chapters)
                 with open(local_progress_path, 'w', encoding='utf-8') as lf:
-                    json.dump(remote_data, lf, ensure_ascii=False)
+                    json.dump(local_to_write, lf, ensure_ascii=False)
             except Exception:
                 logger.exception("Error writing remote progress to local")
     except Exception:

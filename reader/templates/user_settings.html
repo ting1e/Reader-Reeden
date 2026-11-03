@@ -61,7 +61,7 @@
           <h3 class="text-base font-bold mb-1.5 flex items-center gap-2">
             <iconify-icon icon="bi:list-task"></iconify-icon>分章规则
           </h3>
-          <p class="text-sm text-base-content/55 mb-3">正则表达式，用于匹配章节标题行。主规则不能为空，备用规则留空表示不使用。可设置单章字数上下限（对之后入库或重新分章的书籍生效）。</p>
+          <p class="text-sm text-base-content/55 mb-3">正则表达式，用于匹配章节标题行。主规则不能为空，备用规则留空表示不使用。每条分章规则都有配套的分卷规则，留空表示该规则不启用分卷。规则修改只对之后导入或手动重新分章的书籍生效。</p>
           <details class="mb-3 group">
             <summary class="text-sm text-base-content/60 cursor-pointer hover:text-primary transition-colors select-none flex items-center gap-1 w-fit">
               <iconify-icon icon="bi:chevron-right" class="transition-transform group-open:rotate-90"></iconify-icon>
@@ -72,20 +72,32 @@
           <form method="POST" action="{% url 'reader:user_settings_rule' %}" class="settings-form">
             {% csrf_token %}
             <div class="flex flex-col gap-3">
-              <div>
+              <div class="p-3 rounded-lg bg-base-200/40 border border-base-200">
                 <label class="text-sm font-semibold mb-1.5 block">主规则</label>
                 <textarea name="chapter_rule" class="textarea textarea-bordered w-full font-mono text-sm leading-relaxed"
                           rows="4" placeholder="输入主正则表达式">{{ setting.chapter_rule|default:'' }}</textarea>
+                <label class="text-sm font-semibold mt-3 mb-1.5 block">分卷规则（选填）</label>
+                <textarea name="volume_rule" class="textarea textarea-bordered w-full font-mono text-sm leading-relaxed"
+                          rows="3" placeholder="留空表示主规则不启用分卷，例如：^第[一二三四五六七八九十百千万0-9]+卷.{0,30}$">{{ setting.volume_rule|default:'' }}</textarea>
+                <p class="text-xs text-base-content/50 mt-1">与主规则配套使用，匹配卷标题所在的整行。</p>
               </div>
-              <div>
+              <div class="p-3 rounded-lg bg-base-200/40 border border-base-200">
                 <label class="text-sm font-semibold mb-1.5 block">备用规则 1</label>
                 <textarea name="chapter_rule_2" class="textarea textarea-bordered w-full font-mono text-sm leading-relaxed"
                           rows="3" placeholder="留空表示不使用">{{ setting.chapter_rule_2|default:'' }}</textarea>
+                <label class="text-sm font-semibold mt-3 mb-1.5 block">分卷规则（选填）</label>
+                <textarea name="volume_rule_2" class="textarea textarea-bordered w-full font-mono text-sm leading-relaxed"
+                          rows="3" placeholder="留空表示备用规则 1 不启用分卷">{{ setting.volume_rule_2|default:'' }}</textarea>
+                <p class="text-xs text-base-content/50 mt-1">仅在使用备用规则 1 时生效。</p>
               </div>
-              <div>
+              <div class="p-3 rounded-lg bg-base-200/40 border border-base-200">
                 <label class="text-sm font-semibold mb-1.5 block">备用规则 2</label>
                 <textarea name="chapter_rule_3" class="textarea textarea-bordered w-full font-mono text-sm leading-relaxed"
                           rows="3" placeholder="留空表示不使用">{{ setting.chapter_rule_3|default:'' }}</textarea>
+                <label class="text-sm font-semibold mt-3 mb-1.5 block">分卷规则（选填）</label>
+                <textarea name="volume_rule_3" class="textarea textarea-bordered w-full font-mono text-sm leading-relaxed"
+                          rows="3" placeholder="留空表示备用规则 2 不启用分卷">{{ setting.volume_rule_3|default:'' }}</textarea>
+                <p class="text-xs text-base-content/50 mt-1">仅在使用备用规则 2 时生效。</p>
               </div>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>

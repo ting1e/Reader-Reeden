@@ -50,6 +50,9 @@ class Chapter(models.Model):
     index = models.IntegerField()
     start = models.IntegerField()
     end = models.IntegerField()
+    # 分卷信息：index 保持内部连续章节索引，卷信息只用于目录分组和同步索引映射。
+    volume_index = models.IntegerField(null=True, blank=True, default=None)
+    volume_title = models.CharField(max_length=256, default='', blank=True)
 
 
 class UserBookRecord(models.Model):
@@ -78,6 +81,9 @@ class UserSetting(models.Model):
     chapter_rule = models.CharField(max_length=1024, default=DEFAULT_CHAPTER_RULE)
     chapter_rule_2 = models.CharField(max_length=1024, default='')
     chapter_rule_3 = models.CharField(max_length=1024, default='')
+    volume_rule = models.CharField(max_length=1024, default='')
+    volume_rule_2 = models.CharField(max_length=1024, default='')
+    volume_rule_3 = models.CharField(max_length=1024, default='')
     chapter_min_len = models.IntegerField(default=100)
     chapter_max_len = models.IntegerField(default=100000)
 

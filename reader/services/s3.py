@@ -2,8 +2,9 @@ import json
 import logging
 import os
 
-from ..models import UserSetting
+from ..models import Chapter, UserSetting
 from ..utils import get_file_md5, get_progress_dir, parse_s3_json
+from . import volume
 from .progress import _parse_progress_time
 
 logger = logging.getLogger('reader')
@@ -127,8 +128,10 @@ def sync_progress_to_s3(request, book):
                 from .epub import write_cache
                 write_cache(local_path, local_data)
             else:
-                with open(local_path, 'rb') as pf:
-                    body = pf.read()
+                # 本地进度保持内部章节索引；上传时再转换为含卷标题的同步索引。
+                chapters = list(Chapter.objects.filter(book_id=book.id).order_by('index'))
+                sync_data = volume.progress_to_sync(local_data, chapters)
+                body = json.dumps(sync_data, ensure_ascii=False).encode('utf-8')
             conditions = {}
             if book.format == 'epub':
                 if remote_data is None:
