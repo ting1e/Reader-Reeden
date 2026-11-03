@@ -4,14 +4,13 @@ import logging
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import check_password, make_password
-from django.utils import timezone
+from django.db import IntegrityError, transaction
 
 from ..models import KosyncProgress, SystemSetting, UserSetting
 from .kosync_document import book_document_id
 
 logger = logging.getLogger('reader')
 
-KOSYNC_THROTTLE_SECONDS = 25
 VALID_SYNC_MODES = ('json', 'kosync')
 VALID_CHECKSUM_METHODS = ('binary', 'filename')
 
@@ -20,16 +19,22 @@ def md5_hex(password):
     return hashlib.md5(password.encode('utf-8')).hexdigest()
 
 
+def password_version(user):
+    return hashlib.sha256((user.password or '').encode('utf-8')).hexdigest()
+
+
 def set_auth_hash(user, password):
     """Store make_password(MD5(password)); never keep the plain password."""
     setting, _ = UserSetting.objects.get_or_create(user_id=user.id)
     setting.kosync_auth_hash = make_password(md5_hex(password))
-    setting.save(update_fields=['kosync_auth_hash'])
+    setting.kosync_password_version = password_version(user)
+    setting.save(update_fields=['kosync_auth_hash', 'kosync_password_version'])
     return setting
 
 
 def clear_auth_hash(user):
-    UserSetting.objects.filter(user_id=user.id).update(kosync_auth_hash='')
+    UserSetting.objects.filter(user_id=user.id).update(
+        kosync_auth_hash='', kosync_password_version='')
 
 
 def get_user_setting(user):
@@ -48,6 +53,9 @@ def verified_user(request):
     if setting is None or not setting.kosync_auth_hash:
         return None
     if not check_password(key, setting.kosync_auth_hash):
+        return None
+    current = password_version(user)
+    if not setting.kosync_password_version or setting.kosync_password_version != current:
         return None
     return user
 
@@ -92,15 +100,7 @@ def get_progress(user, document):
 
 def update_api_progress(user, document, progress, percentage, device='', device_id='',
                         metadata=None):
-    record, created = KosyncProgress.objects.get_or_create(
-        user=user, document=document,
-        defaults={
-            'progress': progress, 'percentage': percentage,
-            'device': device, 'device_id': device_id,
-            'metadata': metadata or {},
-        },
-    )
-    if not created:
+    def apply(record):
         record.progress = progress
         record.percentage = percentage
         record.device = device
@@ -108,7 +108,24 @@ def update_api_progress(user, document, progress, percentage, device='', device_
         if metadata is not None:
             record.metadata = metadata
         record.save()
-    return record
+        return record
+
+    try:
+        with transaction.atomic():
+            record = (KosyncProgress.objects.select_for_update()
+                      .filter(user=user, document=document).first())
+            if record is not None:
+                return apply(record)
+            return KosyncProgress.objects.create(
+                user=user, document=document, progress=progress, percentage=percentage,
+                device=device, device_id=device_id, metadata=metadata or {},
+            )
+    except IntegrityError:
+        # Another device created the row between SELECT and INSERT.
+        record = KosyncProgress.objects.filter(user=user, document=document).first()
+        if record is None:
+            raise
+        return apply(record)
 
 
 def book_record(user, book):
@@ -123,8 +140,12 @@ def _position_for_book(book, chapter, words, location=None):
     return txt_to_koreader_progress(book, chapter, words)
 
 
-def update_book_progress(user, book, chapter, words, location=None, force=False):
-    """Push the current internal reader position to KoSync (best effort)."""
+def update_book_progress(user, book, chapter, words, location=None):
+    """Push the current internal reader position to KoSync (best effort).
+
+    No server-side time throttle: local DB/cache already uses its own debounce,
+    and dropping an update could lose the final position on page close.
+    """
     if not kosync_active(user):
         return None
     try:
@@ -134,13 +155,10 @@ def update_book_progress(user, book, chapter, words, location=None, force=False)
         logger.exception('KoSync position conversion failed')
         return None
     record = KosyncProgress.objects.filter(user=user, document=document).first()
-    now = timezone.now()
     if record is not None:
         same = (record.progress == position['progress']
                 and abs(record.percentage - position['percentage']) < 1e-9)
         if same:
-            return record
-        if not force and (now - record.updated_at).total_seconds() < KOSYNC_THROTTLE_SECONDS:
             return record
     metadata = {'title': book.name, 'author': book.author}
     return update_api_progress(

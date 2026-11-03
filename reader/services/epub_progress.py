@@ -56,13 +56,11 @@ def restore_epub_progress(request, book):
                 candidates.append((timestamp, 'file', local))
         except (OSError, ValueError, TypeError):
             pass
-    kosync_added = False
     if kosync_mode and kosync_enabled:
         remote = _kosync_record(request, book)
         if remote is not None:
             candidates.append((make_naive_utc(remote.updated_at), 'kosync', remote))
-            kosync_added = True
-    if not book.local_only and (not kosync_mode or not kosync_added):
+    if not kosync_mode and not book.local_only:
         cfg = get_s3_config(request.user)
         if cfg:
             try:
@@ -85,8 +83,6 @@ def restore_epub_progress(request, book):
         chapter = Chapter.objects.filter(id=selected.chapter_id, book_id=book.id).first()
         if chapter is None:
             return default
-        if kosync_mode and kosync_enabled:
-            kosync.update_book_progress(request.user, book, chapter, selected.words_read, force=True)
         return selected.chapter_id, selected.words_read, False
     if source == 'kosync':
         chapter, words, exact, position = selected.restored
@@ -102,8 +98,6 @@ def restore_epub_progress(request, book):
         if not exact:
             # Never upgrade an approximate restoration into a newer exact/cloud record.
             return chapter.id, words, True
-        if kosync_mode and kosync_enabled:
-            kosync.update_book_progress(request.user, book, chapter, words, force=True)
     if source in ('remote', 'kosync'):
         from .epub import write_cache
         write_cache(path, selected)

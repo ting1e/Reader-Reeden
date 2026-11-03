@@ -6,9 +6,24 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
+from ..ratelimit import (
+    check_login_allowed, get_client_ip, record_login_failure, reset_login_failures,
+)
 from ..services import kosync
 
 logger = logging.getLogger('reader')
+
+
+def _authenticate(request):
+    ip = 'kosync:' + get_client_ip(request)
+    if not check_login_allowed(ip):
+        return None, True
+    user = kosync.verified_user(request)
+    if user is None:
+        record_login_failure(ip)
+        return None, False
+    reset_login_failures(ip)
+    return user, False
 
 
 def _json(data, status=200):
@@ -34,7 +49,10 @@ def healthcheck(request):
 def auth(request):
     if not kosync.server_enabled():
         return _disabled()
-    if kosync.verified_user(request) is None:
+    user, limited = _authenticate(request)
+    if limited:
+        return _json({'message': 'Too many attempts', 'code': 2001}, status=429)
+    if user is None:
         return _unauthorized()
     return _json({'authorized': 'OK'})
 
@@ -51,7 +69,9 @@ def create_user(request):
 def progress(request):
     if not kosync.server_enabled():
         return _disabled()
-    user = kosync.verified_user(request)
+    user, limited = _authenticate(request)
+    if limited:
+        return _json({'message': 'Too many attempts', 'code': 2001}, status=429)
     if user is None:
         return _unauthorized()
     try:
@@ -68,6 +88,8 @@ def progress(request):
     if (not isinstance(document, str) or not document
             or not isinstance(position, str) or not position):
         return _json({'message': 'Invalid progress', 'code': 2003}, status=400)
+    if len(document) > 128:
+        return _json({'message': 'Document id too long', 'code': 2003}, status=400)
     if isinstance(percentage, bool) or not isinstance(percentage, (int, float)):
         return _json({'message': 'Invalid percentage', 'code': 2003}, status=400)
     percentage = float(percentage)
@@ -82,7 +104,7 @@ def progress(request):
         metadata = None
     try:
         record = kosync.update_api_progress(
-            user, document[:128], position, percentage,
+            user, document, position, percentage,
             device[:128], device_id[:128], metadata,
         )
     except Exception:
@@ -99,7 +121,9 @@ def progress(request):
 def get_progress(request, document):
     if not kosync.server_enabled():
         return _disabled()
-    user = kosync.verified_user(request)
+    user, limited = _authenticate(request)
+    if limited:
+        return _json({'message': 'Too many attempts', 'code': 2001}, status=429)
     if user is None:
         return _unauthorized()
     record = kosync.get_progress(user, document)

@@ -7,7 +7,34 @@ from ..utils import read_book_text
 TXT_DOCFRAGMENT = '/body/DocFragment[1]'
 P_INDEX = re.compile(r'/p\[(\d+)\]')
 DOCFRAGMENT_INDEX = re.compile(r'/DocFragment\[(\d+)\]')
-TEXT_OFFSET = re.compile(r'text\(\)\.(\d+)')
+TEXT_OFFSET = re.compile(r'text\(\)(?:\[\d+\])?\.(\d+)')
+ELEMENT_INDEX = re.compile(r'/([A-Za-z][A-Za-z0-9_-]*)\[(\d+)\]/text\((?:\[\d+\])?\)')
+
+
+def _last_p_index(progress):
+    matches = P_INDEX.findall(progress or '')
+    return int(matches[-1]) if matches else None
+
+
+def _epub_section(data, section_index):
+    try:
+        return data['sections'][section_index]
+    except (KeyError, IndexError, TypeError):
+        return None
+
+
+def _epub_block_index(section, tag, tag_index):
+    """Map a tag-specific XPointer index back to the section's block index."""
+    tags = section.get('blockTags') or []
+    if not tags:
+        return tag_index - 1 if tag == 'p' else None
+    count = 0
+    for index, value in enumerate(tags):
+        if (value or 'p') == tag:
+            count += 1
+            if count == tag_index:
+                return index
+    return None
 
 
 def _chapter_raw_offset(text, words):
@@ -67,11 +94,11 @@ def koreader_progress_to_txt(book, progress, percentage=None):
         raise ValueError('book has no chapters')
     exact = True
     raw = None
-    p_match = P_INDEX.search(progress or '')
+    p_match = _last_p_index(progress)
     offset_match = TEXT_OFFSET.search(progress or '')
-    if p_match and offset_match:
+    if p_match is not None and offset_match:
         paragraphs = _txt_paragraphs(data)
-        index = int(p_match.group(1)) - 1
+        index = p_match - 1
         if 0 <= index < len(paragraphs):
             start, text = paragraphs[index]
             offset = max(0, int(offset_match.group(1)))
@@ -91,33 +118,52 @@ def koreader_progress_to_txt(book, progress, percentage=None):
 
 
 def epub_to_koreader_progress(book, chapter, words, location=None):
-    from .epub import export_position
+    from .epub import export_position, read_cache
 
     position = export_position(book, chapter, words, location)
-    section = position['sectionIndex']
+    section_index = position['sectionIndex']
     paragraph = position['paragraphIndex']
     element = position['elementIndex']
+    section = _epub_section(read_cache(book), section_index) or {}
+    tags = section.get('blockTags') or []
+    tag = (tags[paragraph] if paragraph < len(tags) else '') or 'p'
+    if tags:
+        tag_index = 1 + sum(1 for value in tags[:paragraph] if (value or 'p') == tag)
+    else:
+        tag_index = paragraph + 1
     return {
-        'progress': '/body/DocFragment[%d]/body/p[%d]/text().%d' % (
-            section + 1, paragraph + 1, element),
+        'progress': '/body/DocFragment[%d]/body/%s[%d]/text().%d' % (
+            section_index + 1, tag, tag_index, element),
         'percentage': _percentage(book, chapter, words),
         'position': position,
     }
 
 
 def koreader_progress_to_epub(book, progress, percentage=None):
-    from .epub import import_position
+    from .epub import import_position, read_cache
 
     section_match = DOCFRAGMENT_INDEX.search(progress or '')
-    p_match = P_INDEX.search(progress or '')
     offset_match = TEXT_OFFSET.search(progress or '')
+    element_match = ELEMENT_INDEX.search(progress or '')
     record = {}
-    if section_match and p_match and offset_match:
-        record = {
-            'sectionIndex': max(0, int(section_match.group(1)) - 1),
-            'paragraphIndex': max(0, int(p_match.group(1)) - 1),
-            'elementIndex': max(0, int(offset_match.group(1))),
-        }
+    if section_match and offset_match:
+        section_index = max(0, int(section_match.group(1)) - 1)
+        paragraph_index = None
+        if element_match:
+            tag, tag_index = element_match.group(1), int(element_match.group(2))
+            section = _epub_section(read_cache(book), section_index)
+            if section is not None:
+                paragraph_index = _epub_block_index(section, tag, tag_index)
+        if paragraph_index is None:
+            p_index = _last_p_index(progress)
+            if p_index is not None:
+                paragraph_index = max(0, p_index - 1)
+        if paragraph_index is not None:
+            record = {
+                'sectionIndex': section_index,
+                'paragraphIndex': paragraph_index,
+                'elementIndex': max(0, int(offset_match.group(1))),
+            }
     try:
         fraction = min(1.0, max(0.0, float(percentage)))
     except (TypeError, ValueError):

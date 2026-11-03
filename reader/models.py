@@ -90,6 +90,7 @@ class UserSetting(models.Model):
     progress_sync_mode = models.CharField(max_length=16, default='json')
     kosync_checksum_method = models.CharField(max_length=16, default='binary')
     kosync_auth_hash = models.CharField(max_length=128, default='', blank=True)
+    kosync_password_version = models.CharField(max_length=64, default='', blank=True)
 
 class UserBookMark(models.Model):
     user_id = models.IntegerField()

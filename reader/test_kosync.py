@@ -113,6 +113,29 @@ class KosyncApiTests(TestCase):
         self.assertEqual(response.status_code, 400)
         response = self.put({'document': 'x', 'progress': 'p', 'percentage': 2})
         self.assertEqual(response.status_code, 400)
+        response = self.put({'document': 'x' * 129, 'progress': 'p', 'percentage': 0})
+        self.assertEqual(response.status_code, 400)
+
+    def test_auth_key_rejected_after_password_change(self):
+        self.user.set_password('new-secret')
+        self.user.save()
+        response = self.client.get(reverse('reader:kosync_auth'), **self.headers)
+        self.assertEqual(response.status_code, 401)
+        kosync.set_auth_hash(self.user, 'new-secret')
+        headers = {
+            'HTTP_X_AUTH_USER': self.user.username,
+            'HTTP_X_AUTH_KEY': kosync.md5_hex('new-secret'),
+        }
+        response = self.client.get(reverse('reader:kosync_auth'), **headers)
+        self.assertEqual(response.status_code, 200)
+
+    def test_auth_failures_are_rate_limited(self):
+        for _ in range(5):
+            self.client.get(reverse('reader:kosync_auth'), REMOTE_ADDR='10.9.9.9',
+                            HTTP_X_AUTH_USER='nobody', HTTP_X_AUTH_KEY='bad')
+        response = self.client.get(reverse('reader:kosync_auth'), REMOTE_ADDR='10.9.9.9',
+                                   **self.headers)
+        self.assertEqual(response.status_code, 429)
 
 
 class KosyncDocumentTests(TestCase):
@@ -156,7 +179,7 @@ class KosyncTxtPositionTests(TestCase):
         except OSError:
             pass
 
-    def test_txt_roundtrip(self):
+    def test_txt_xpointer_text_index_and_roundtrip(self):
         words = len('第一段内容第二段')
         position = txt_to_koreader_progress(self.book, self.chapter, words)
         self.assertIn('/body/p[2]/text().', position['progress'])
@@ -165,6 +188,12 @@ class KosyncTxtPositionTests(TestCase):
         self.assertTrue(exact)
         self.assertEqual(chapter.id, self.chapter.id)
         self.assertEqual(restored, words)
+        # KOReader also emits text()[1].N; accept that form and nested paths.
+        chapter, restored, exact = koreader_progress_to_txt(
+            self.book, '/body/DocFragment[1]/body/div/section/p[2]/text()[1].4', 0)
+        self.assertTrue(exact)
+        self.assertEqual(chapter.id, self.chapter.id)
+        self.assertEqual(restored, len('第一段内容第二段内'))
 
     def test_txt_approximate_fallback(self):
         chapter, words, exact = koreader_progress_to_txt(
@@ -180,7 +209,7 @@ class KosyncTxtPositionTests(TestCase):
         SystemSetting.objects.update_or_create(pk=1, defaults={'kosync_enabled': True})
         words = len('第一段内容第二段')
         with patch('reader.services.kosync.book_document_id', return_value='doc1'):
-            record = kosync.update_book_progress(self.user, self.book, self.chapter, words, force=True)
+            record = kosync.update_book_progress(self.user, self.book, self.chapter, words)
             self.assertEqual(record.document, 'doc1')
             self.assertIn('/body/p[2]/text().', record.progress)
             chapter, restored, exact = kosync.restore_txt_progress(self.user, self.book, record)
@@ -188,8 +217,11 @@ class KosyncTxtPositionTests(TestCase):
             self.assertEqual(chapter.id, self.chapter.id)
             self.assertEqual(restored, words)
             # Same position is not uploaded again.
-            again = kosync.update_book_progress(self.user, self.book, self.chapter, words, force=True)
+            again = kosync.update_book_progress(self.user, self.book, self.chapter, words)
             self.assertEqual(again.updated_at, record.updated_at)
+            # A changed position is uploaded immediately (no 25s drop).
+            later = kosync.update_book_progress(self.user, self.book, self.chapter, words + 1)
+            self.assertNotEqual(later.progress, record.progress)
 
 
 class KosyncReaderIntegrationTests(TestCase):
@@ -264,6 +296,12 @@ class KosyncReaderIntegrationTests(TestCase):
         self.assertEqual(response.context['last_words'], 6)
         self.assertTrue(UserBookRecord.objects.filter(
             user_id=self.user.id, book_id=self.book.id, chapter_id=self.second.id).exists())
+        # Reopening must not rewrite the stored KoSync XPointer.
+        record.refresh_from_db()
+        progress, updated_at = record.progress, record.updated_at
+        self.client.get(reverse('reader:book_view'), {'book_id': self.book.id})
+        record.refresh_from_db()
+        self.assertEqual((record.progress, record.updated_at), (progress, updated_at))
 
 
 class KosyncSettingsTests(TestCase):

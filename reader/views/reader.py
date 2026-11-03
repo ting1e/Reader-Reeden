@@ -109,7 +109,6 @@ def book_view(request):
                 if kosync.server_enabled():
                     kosync.update_book_progress(
                         request.user, _book, chapter, int(words_read), location=location,
-                        force=request.POST.get('final') == '1',
                     )
             else:
                 sync_progress_to_s3(request, _book)
@@ -219,9 +218,9 @@ def book_view(request):
                 logger.exception("KoSync progress restore failed")
                 kosync_record = None
 
-        # 从 S3 获取远程进度（JSON 模式，或 KoSync 首次启用时用于初始化）
+        # 从 S3 获取远程进度（仅 JSON 模式）
         remote_record = None
-        if not getattr(_book, 'local_only', False) and (not kosync_mode or kosync_record is None):
+        if not getattr(_book, 'local_only', False) and not kosync_mode:
             cfg = get_s3_config(request.user)
             if cfg and md5_val:
                 s3_key = f"{cfg['prefix']}book_progress/{md5_val}.json"
@@ -313,10 +312,12 @@ def book_view(request):
                 ch_obj = None
                 chapter_id = _book.first_chapter_id
                 offset = 0
-            if ch_obj and best_source != 'kosync':
+            if ch_obj and not kosync_mode:
                 save_progress_json(_book, ch_obj, offset, request.user.id)
             sync_progress_val = calculate_read_progress(_book, ch_obj, offset) / 100.0 if ch_obj else 0
-            record_time = kosync_record.updated_at if best_source == 'kosync' else timezone.now()
+            record_time = best_record[0] if best_record is not None else timezone.now()
+            if kosync_mode and best_source == 'kosync':
+                record_time = kosync_record.updated_at
             if db_record:
                 db_record.chapter_id = chapter_id
                 db_record.words_read = offset
@@ -335,11 +336,7 @@ def book_view(request):
             if best_source == 'kosync':
                 # 恢复 KoSync 位置不产生新的阅读时间或云端写入。
                 pass
-            elif kosync_mode:
-                if kosync_enabled:
-                    kosync.update_book_progress(
-                        request.user, _book, ch_obj, offset, force=True)
-            elif best_source != 'remote':
+            elif not kosync_mode and best_source != 'remote':
                 sync_progress_to_s3(request, _book)
 
     if not chapter_id:

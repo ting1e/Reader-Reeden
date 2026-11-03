@@ -74,6 +74,8 @@ class _TextBlocks(HTMLParser):
         self.heading = ''
         self.heading_parts = None
         self.pending_anchors = []
+        self.block_stack = []
+        self.block_tags = []
 
     def flush(self):
         # Only HTML collapsible whitespace; full-width spaces and NBSP are book
@@ -83,6 +85,7 @@ class _TextBlocks(HTMLParser):
             for anchor in self.pending_anchors:
                 self.anchors[anchor] = len(self.blocks)
             self.blocks.append(text)
+            self.block_tags.append(self.block_stack[-1] if self.block_stack else '')
         self.parts = []
         self.pending_anchors = []
 
@@ -97,6 +100,8 @@ class _TextBlocks(HTMLParser):
             return
         if tag in self.BLOCKS or tag == 'br':
             self.flush()
+        if tag in self.BLOCKS and tag != 'br':
+            self.block_stack.append(tag)
         anchor = attrs.get('id') or attrs.get('name')
         if anchor:
             self.anchors[anchor] = len(self.blocks)
@@ -117,6 +122,10 @@ class _TextBlocks(HTMLParser):
             return
         if tag in self.BLOCKS:
             self.flush()
+            if self.block_stack and self.block_stack[-1] == tag:
+                self.block_stack.pop()
+            elif tag in self.block_stack:
+                self.block_stack.remove(tag)
         if tag in {'h1', 'h2', 'h3', 'h4', 'h5', 'h6'} and self.heading_parts is not None:
             if not self.heading:
                 self.heading = ' '.join(''.join(self.heading_parts).split())
@@ -241,6 +250,7 @@ def parse_epub(path):
                 section_start = starts[0] if starts else offset
                 sections.append({'index': section_index, 'href': source, 'start': section_start,
                                  'end': offset, 'paragraphs': starts,
+                                 'blockTags': parsed.block_tags,
                                  'fixed': (fixed or 'rendition:layout-pre-paginated' in ref.get('properties', '').split())
                                           and 'rendition:layout-reflowable' not in ref.get('properties', '').split()})
                 if not starts:
