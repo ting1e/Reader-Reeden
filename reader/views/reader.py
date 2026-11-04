@@ -14,7 +14,9 @@ from ..services.progress import (
     _parse_progress_time, make_naive_utc,
 )
 from ..services import book_parser, kosync, volume
-from ..services.s3 import get_s3_config, _get_s3_client, sync_progress_to_s3
+from ..services.s3 import (
+    get_s3_config, _get_s3_client, sync_progress_to_s3, remote_progress_to_local,
+)
 
 logger = logging.getLogger('reader')
 
@@ -228,10 +230,10 @@ def book_view(request):
                     resp = client.get_object(Bucket=cfg['bucket'], Key=s3_key)
                     remote_record = json.load(resp['Body'])
                     if _book.format != 'epub':
-                        # 云端同步索引可能包含卷标题，恢复为内部章节索引。
-                        remote_record = volume.progress_from_sync(
+                        remote_record = remote_progress_to_local(
                             remote_record,
                             list(Chapter.objects.filter(book_id=book_id).order_by('index')),
+                            resp.get('Metadata'),
                         )
                 except Exception:
                     logger.debug("S3 remote progress fetch error", exc_info=True)

@@ -1,14 +1,17 @@
+import json
 import os
 import re
+import shutil
 import tempfile
 from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
 from django.test import RequestFactory, TestCase
 from django.urls import reverse
 
 from .models import Book, Chapter, UserSetting
-from .services import volume
+from .services import s3, volume
 from .services.book_parser import (
     _resolve_volume_rule, _split_into_chapters, handle_local_book, rechapter_book,
 )
@@ -62,32 +65,117 @@ class VolumeMapTests(TestCase):
         data = {'sectionIndex': 3, 'paragraphIndex': 7, 'elementIndex': 3, 'readProgress': 1200}
         synced = volume.progress_to_sync(data, self.chapters)
         self.assertEqual(synced['sectionIndex'], 5)
-        self.assertEqual(synced[volume.VOLUME_SYNC_KEY], volume.VOLUME_SYNC_VERSION)
+        self.assertNotIn('volumeIndexVersion', synced)
+        self.assertEqual(data['sectionIndex'], 3)  # local data is not mutated
         restored = volume.progress_from_sync(synced, self.chapters)
         self.assertEqual(restored['sectionIndex'], 3)
         self.assertEqual(restored['paragraphIndex'], 7)
-        self.assertNotIn(volume.VOLUME_SYNC_KEY, restored)
+        self.assertNotIn('volumeIndexVersion', restored)
 
     def test_progress_from_volume_entry(self):
-        synced = {
-            'sectionIndex': 4, 'paragraphIndex': 9, 'elementIndex': 5,
-            volume.VOLUME_SYNC_KEY: volume.VOLUME_SYNC_VERSION,
-        }
+        synced = {'sectionIndex': 4, 'paragraphIndex': 9, 'elementIndex': 5}
         restored = volume.progress_from_sync(synced, self.chapters)
         self.assertEqual(restored['sectionIndex'], 3)
         self.assertEqual(restored['paragraphIndex'], 0)
         self.assertEqual(restored['elementIndex'], 0)
 
-    def test_legacy_progress_without_marker_is_unchanged(self):
-        data = {'sectionIndex': 3, 'paragraphIndex': 2}
-        self.assertEqual(volume.progress_from_sync(data, self.chapters), data)
+    def test_legacy_mixed_progress_is_not_converted_twice(self):
+        legacy_mixed = {
+            'sectionIndex': 5, 'paragraphIndex': 7, 'elementIndex': 3,
+            'volumeIndexVersion': 1,
+        }
+        internal = volume.progress_from_sync(legacy_mixed, self.chapters)
+        self.assertEqual(internal['sectionIndex'], 3)
+        self.assertNotIn('volumeIndexVersion', internal)
+        remixed = volume.progress_to_sync(internal, self.chapters)
+        self.assertEqual(remixed['sectionIndex'], 5)
+        self.assertNotIn('volumeIndexVersion', remixed)
+
+    def test_remote_progress_conversion(self):
+        internal = {'sectionIndex': 3, 'paragraphIndex': 7}
+        legacy_mixed = {'sectionIndex': 5, 'paragraphIndex': 7, 'volumeIndexVersion': 1}
+        new_mixed = {'sectionIndex': 5, 'paragraphIndex': 7}
+        metadata = {s3.S3_VOLUME_INDEX_META: s3.S3_VOLUME_INDEX_MIXED}
+        local_internal = s3.remote_progress_to_local(internal, self.chapters, None)
+        self.assertEqual(local_internal['sectionIndex'], 3)
+        # A truly old object is migrated only when it is uploaded again.
+        migrated = volume.progress_to_sync(local_internal, self.chapters)
+        self.assertEqual(migrated['sectionIndex'], 5)
+        self.assertNotIn('volumeIndexVersion', migrated)
+
+        converted = s3.remote_progress_to_local(legacy_mixed, self.chapters, None)
+        self.assertEqual(converted['sectionIndex'], 3)
+        self.assertNotIn('volumeIndexVersion', converted)
+        # The old marker is already mixed, so re-uploading does not shift twice.
+        self.assertEqual(volume.progress_to_sync(converted, self.chapters)['sectionIndex'], 5)
+
+        self.assertEqual(s3.remote_progress_to_local(new_mixed, self.chapters, metadata)['sectionIndex'], 3)
 
     def test_no_volumes_uses_original_index(self):
         chapters = [make_chapter(0), make_chapter(1)]
         data = {'sectionIndex': 1}
-        self.assertEqual(volume.progress_to_sync(data, chapters), data)
+        synced = volume.progress_to_sync(data, chapters)
+        self.assertEqual(synced['sectionIndex'], 1)
+        self.assertNotIn('volumeIndexVersion', synced)
+        self.assertEqual(volume.progress_from_sync(synced, chapters)['sectionIndex'], 1)
         self.assertEqual(volume.sync_index_for_chapter(chapters, 1), 1)
         self.assertEqual(volume.chapter_index_for_sync(chapters, 1), 1)
+
+    def test_no_volumes_drops_legacy_marker(self):
+        chapters = [make_chapter(0), make_chapter(1)]
+        data = {'sectionIndex': 1, 'volumeIndexVersion': 1}
+        self.assertNotIn('volumeIndexVersion', volume.progress_to_sync(data, chapters))
+        self.assertNotIn('volumeIndexVersion', volume.progress_from_sync(data, chapters))
+
+
+class VolumeSyncUploadTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username='sync-user')
+        self.book = Book.objects.create(
+            book_url='local/test-sync.txt', name='sync', author='',
+            intro='', rule='', first_chapter_title='', last_chapter_title='',
+            charset='utf-8', uploader=self.user.id, md5='sync-md5', word_count=1000,
+        )
+        volumes = [(0, '第一卷'), (0, '第一卷'), (0, '第一卷'), (1, '第二卷'), (1, '第二卷')]
+        for index, (volume_index, volume_title) in enumerate(volumes):
+            Chapter.objects.create(
+                book_id=self.book.id, book_url=self.book.book_url, index=index,
+                title='第%d章' % (index + 1), start=index * 100, end=(index + 1) * 100,
+                volume_index=volume_index, volume_title=volume_title,
+            )
+        self.folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.folder, True)
+        self.local_path = os.path.join(self.folder, self.book.md5 + '.json')
+        with open(self.local_path, 'w', encoding='utf-8') as stream:
+            json.dump({
+                'schemaVersion': 1, 'bookId': self.book.md5,
+                'sectionIndex': 3, 'paragraphIndex': 7, 'elementIndex': 3,
+                'lastReadTime': '2026-01-01T00:00:00Z',
+            }, stream)
+
+    def test_upload_uses_mixed_index_without_version_marker(self):
+        cloud = Mock()
+        cloud.get_object.side_effect = Exception('missing')
+        cfg = {'bucket': 'test', 'prefix': 'test/'}
+        with patch('reader.services.s3.get_s3_config', return_value=cfg), \
+                patch('reader.services.s3._get_s3_client', return_value=cloud), \
+                patch('reader.services.s3.get_progress_dir', return_value=self.folder):
+            s3.sync_progress_to_s3(Mock(user=self.user), self.book)
+        kwargs = cloud.put_object.call_args.kwargs
+        body = json.loads(kwargs['Body'])
+        self.assertEqual(body['sectionIndex'], 5)
+        self.assertNotIn('volumeIndexVersion', body)
+        self.assertEqual(kwargs['Metadata'],
+                         {s3.S3_VOLUME_INDEX_META: s3.S3_VOLUME_INDEX_MIXED})
+        # Local JSON keeps the internal chapter index.
+        with open(self.local_path, encoding='utf-8') as stream:
+            self.assertEqual(json.load(stream)['sectionIndex'], 3)
+        # Database chapter indexes are untouched.
+        self.assertEqual(
+            list(Chapter.objects.filter(book_id=self.book.id).order_by('index')
+                 .values_list('index', flat=True)),
+            [0, 1, 2, 3, 4],
+        )
 
 
 class VolumeParserTests(TestCase):

@@ -3,13 +3,10 @@
 设计原则：
 - Chapter.index 是内部连续章节索引，分卷不会改变它。
 - 卷标题不创建 Chapter，只记录在章节的 volume_index / volume_title 上。
-- 仅在同步边界，把卷标题当作额外的一个 index；本地进度、数据库、阅读器内部
-  始终使用原始章节索引。
+- 同步 JSON 始终使用「卷 + 章」混合索引；本地进度、数据库、阅读器内部始终
+  使用原始章节索引。
 """
 import re
-
-VOLUME_SYNC_KEY = 'volumeIndexVersion'
-VOLUME_SYNC_VERSION = 1
 
 VOLUME_TITLE_MAX_LEN = 256
 
@@ -142,26 +139,31 @@ def chapter_index_for_sync(chapters, sync_index):
 
 def progress_to_sync(data, chapters):
     """把本地内部进度转换为同步协议进度（卷标题占额外 index）。"""
-    if not isinstance(data, dict) or not has_volumes(chapters):
-        return data
-    try:
-        section_index = int(data.get('sectionIndex'))
-    except (TypeError, ValueError):
+    if not isinstance(data, dict):
         return data
     result = dict(data)
+    # 旧版本可能残留同步标记，统一清掉。
+    result.pop('volumeIndexVersion', None)
+    if not has_volumes(chapters):
+        return result
+    try:
+        section_index = int(result.get('sectionIndex'))
+    except (TypeError, ValueError):
+        return result
     result['sectionIndex'] = sync_index_for_chapter(chapters, section_index)
-    result[VOLUME_SYNC_KEY] = VOLUME_SYNC_VERSION
     return result
 
 
 def progress_from_sync(data, chapters):
-    """把同步协议进度恢复为内部章节索引。旧数据无标记时按原索引处理。"""
+    """把同步协议进度恢复为内部章节索引。
+
+    传入的 sectionIndex 始终视为「卷 + 章」混合索引；旧版无标记的内部索引
+    数据不要调用此函数。
+    """
     if not isinstance(data, dict):
         return data
-    if not data.get(VOLUME_SYNC_KEY):
-        return data
     result = dict(data)
-    result.pop(VOLUME_SYNC_KEY, None)
+    result.pop('volumeIndexVersion', None)
     if not has_volumes(chapters):
         return result
     try:
