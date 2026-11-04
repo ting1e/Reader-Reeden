@@ -38,7 +38,9 @@ class SystemSettingAdmin(admin.ModelAdmin):
 @admin.register(KosyncProgress)
 class KosyncProgressAdmin(admin.ModelAdmin):
     list_display = ('user', 'document', 'percentage', 'device', 'updated_at')
+    list_editable = ('percentage', 'device', 'updated_at')
     search_fields = ('user__username', 'document')
+    ordering = ('-updated_at',)
 
 
 class KosyncUserAdmin(BaseUserAdmin):

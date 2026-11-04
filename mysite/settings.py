@@ -28,9 +28,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # 优先读环境变量 DJANGO_DEBUG，未设置时默认 True（保持本地开发行为）
 DEBUG = os.environ.get('DJANGO_DEBUG', 'True').lower() in ('1', 'true', 'yes', 'on')
 
-# 允许的主机：优先读环境变量 DJANGO_ALLOWED_HOSTS（逗号分隔），未设置时默认 ['127.0.0.1']
+# 允许的主机：优先读环境变量 DJANGO_ALLOWED_HOSTS（逗号分隔），未设置时使用下列默认值
+DEFAULT_ALLOWED_HOSTS = ['127.0.0.1', 'localhost', 'a.mortal.live']
 _allowed_hosts_env = os.environ.get('DJANGO_ALLOWED_HOSTS', '')
-ALLOWED_HOSTS = [h.strip() for h in _allowed_hosts_env.split(',') if h.strip()] or ['127.0.0.1','localhost']
+ALLOWED_HOSTS = [h.strip() for h in _allowed_hosts_env.split(',') if h.strip()] or list(DEFAULT_ALLOWED_HOSTS)
+for _host in DEFAULT_ALLOWED_HOSTS:
+    if _host not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(_host)
 
 # CSRF 信任来源：读环境变量 DJANGO_CSRF_TRUSTED_ORIGINS（逗号分隔），未设置时为空
 _csrf_origins_env = os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', '')
@@ -50,6 +54,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'reader.middleware.RequestLogMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'reader.middleware.ReaderSessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -162,7 +167,7 @@ LOGGING = {
     },
     'handlers': {
         'reader_file': {
-            'level': 'WARNING',
+            'level': 'INFO',
             'class': 'logging.handlers.RotatingFileHandler',
             'filename': str(LOG_DIR / 'reader.log'),
             'maxBytes': 10 * 1024 * 1024,
@@ -175,6 +180,11 @@ LOGGING = {
         'reader': {
             'handlers': ['reader_file'],
             'level': 'WARNING',
+            'propagate': False,
+        },
+        'reader.requests': {
+            'handlers': ['reader_file'],
+            'level': 'INFO',
             'propagate': False,
         },
     },

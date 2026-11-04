@@ -4,6 +4,7 @@ from django.shortcuts import redirect
 from django.views.decorators.csrf import csrf_protect
 
 from ..utils import get_or_create_user_setting
+from ..services import kosync
 from ..ratelimit import (
     check_login_allowed, record_login_failure, reset_login_failures, get_client_ip,
 )
@@ -30,7 +31,10 @@ def login_auth(request):
         return HttpResponse('请输入正确的用户名或密码')
 
     reset_login_failures(ip)
-    get_or_create_user_setting(user)
+    setting = get_or_create_user_setting(user)
+    if not kosync.auth_ready(user, setting):
+        # Plaintext is only available during login; initialize/refresh KoSync here.
+        kosync.set_auth_hash(user, password)
     login(request, user)
     return HttpResponse('success')
 

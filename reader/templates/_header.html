@@ -215,6 +215,15 @@
         }
       })
     });
+
+    // 从设置页“重新登录并初始化”跳转过来时自动打开登录框
+    if (new URLSearchParams(window.location.search).get('login') === '1') {
+      var modal = document.getElementById('login_modal');
+      if (modal) modal.showModal();
+      if (window.history.replaceState) {
+        window.history.replaceState(null, '', window.location.pathname);
+      }
+    }
     {% endif %}
 
     {% if url_name == 'bookshelf' or url_name == 'bookshelf_remote' %}

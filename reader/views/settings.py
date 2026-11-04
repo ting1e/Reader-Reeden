@@ -6,7 +6,7 @@ from django.shortcuts import redirect, render
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 
-from ..models import UserSetting
+from ..models import SystemSetting, UserSetting
 from ..utils import get_or_create_user_setting, parse_s3_json
 from ..services import kosync
 
@@ -34,7 +34,7 @@ def user_settings(request):
         's3_setting_display': s3_display,
         'kosync_enabled': kosync.server_enabled(),
         'kosync_server_url': request.build_absolute_uri('/'),
-        'kosync_auth_ready': bool(setting.kosync_auth_hash),
+        'kosync_auth_ready': kosync.auth_ready(request.user, setting),
     })
 
 
@@ -125,8 +125,8 @@ def user_settings_progress_sync(request):
     if mode == 'kosync':
         if not kosync.server_enabled():
             return JsonResponse({'success': False, 'error': 'KoSync Server 当前未开启'})
-        if not setting.kosync_auth_hash:
-            return JsonResponse({'success': False, 'error': '请先初始化 KoSync 认证'})
+        if not kosync.auth_ready(request.user, setting):
+            return JsonResponse({'success': False, 'error': 'KoSync 认证尚未初始化或已过期，请重新登录后再试'})
     setting.progress_sync_mode = mode
     setting.kosync_checksum_method = method
     setting.save(update_fields=['progress_sync_mode', 'kosync_checksum_method'])
@@ -134,15 +134,17 @@ def user_settings_progress_sync(request):
 
 
 @login_required(login_url='reader:index')
-def user_settings_kosync_auth(request):
-    """用现有账号密码初始化 KoSync 认证值（AJAX）。"""
+def user_settings_kosync_server(request):
+    """超级管理员在个人设置中开启 / 关闭 KoSync Server。"""
     if request.method != 'POST':
         return redirect('reader:user_settings')
-    password = request.POST.get('password') or ''
-    if not request.user.check_password(password):
-        return JsonResponse({'success': False, 'error': '账号密码不正确'})
-    kosync.set_auth_hash(request.user, password)
-    return JsonResponse({'success': True, 'msg': 'KoSync 认证已初始化'})
+    if not request.user.is_superuser:
+        return JsonResponse({'success': False, 'error': '仅超级管理员可修改'}, status=403)
+    enabled = request.POST.get('kosync_enabled') in ('1', 'true', 'on')
+    setting = SystemSetting.load()
+    setting.kosync_enabled = enabled
+    setting.save(update_fields=['kosync_enabled'])
+    return JsonResponse({'success': True, 'msg': 'KoSync Server 已开启' if enabled else 'KoSync Server 已关闭'})
 
 
 @login_required(login_url='reader:index')

@@ -155,7 +155,7 @@ class KosyncProgress(models.Model):
     device = models.CharField(max_length=128, default='', blank=True)
     device_id = models.CharField(max_length=128, default='', blank=True)
     metadata = models.JSONField(default=dict, blank=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    updated_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
         constraints = [

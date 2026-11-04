@@ -5,8 +5,10 @@ import logging
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import check_password, make_password
 from django.db import IntegrityError, transaction
+from django.utils import timezone
 
 from ..models import KosyncProgress, SystemSetting, UserSetting
+from ..utils import get_device_id
 from .kosync_document import book_document_id
 
 logger = logging.getLogger('reader')
@@ -30,6 +32,17 @@ def set_auth_hash(user, password):
     setting.kosync_password_version = password_version(user)
     setting.save(update_fields=['kosync_auth_hash', 'kosync_password_version'])
     return setting
+
+
+def auth_ready(user, setting=None):
+    """True when the stored KoSync auth exists and matches the current password."""
+    if setting is None:
+        setting = get_user_setting(user)
+    return bool(
+        setting
+        and setting.kosync_auth_hash
+        and setting.kosync_password_version == password_version(user)
+    )
 
 
 def clear_auth_hash(user):
@@ -107,6 +120,7 @@ def update_api_progress(user, document, progress, percentage, device='', device_
         record.device_id = device_id
         if metadata is not None:
             record.metadata = metadata
+        record.updated_at = timezone.now()
         record.save()
         return record
 
@@ -163,7 +177,7 @@ def update_book_progress(user, book, chapter, words, location=None):
     metadata = {'title': book.name, 'author': book.author}
     return update_api_progress(
         user, document, position['progress'], position['percentage'],
-        device='Reader-Reeden', device_id='reader-reeden', metadata=metadata,
+        device='Reader-Reeden', device_id=get_device_id(), metadata=metadata,
     )
 
 

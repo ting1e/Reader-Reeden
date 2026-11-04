@@ -45,6 +45,14 @@ class KosyncApiTests(TestCase):
 
     def test_healthcheck_and_disabled_server(self):
         self.assertEqual(self.client.get(reverse('reader:kosync_healthcheck')).json(), {'state': 'OK'})
+        self.assertEqual(self.client.get('/health').json(), {'state': 'OK'})
+
+    def test_request_log_contains_client_ip(self):
+        with self.assertLogs('reader.requests', level='INFO') as captured:
+            self.client.get('/health', HTTP_X_FORWARDED_FOR='203.0.113.5, 10.0.0.1',
+                            HTTP_USER_AGENT='probe/1.0')
+        self.assertIn('ip=203.0.113.5', captured.output[-1])
+        self.assertIn('ua=probe/1.0', captured.output[-1])
         SystemSetting.objects.filter(pk=1).update(kosync_enabled=False)
         response = self.client.get(reverse('reader:kosync_auth'), **self.headers)
         self.assertEqual(response.status_code, 503)
@@ -208,9 +216,11 @@ class KosyncTxtPositionTests(TestCase):
         setting.save(update_fields=['progress_sync_mode'])
         SystemSetting.objects.update_or_create(pk=1, defaults={'kosync_enabled': True})
         words = len('第一段内容第二段')
-        with patch('reader.services.kosync.book_document_id', return_value='doc1'):
+        with patch('reader.services.kosync.book_document_id', return_value='doc1'), \
+                patch('reader.services.kosync.get_device_id', return_value='json-device-id'):
             record = kosync.update_book_progress(self.user, self.book, self.chapter, words)
             self.assertEqual(record.document, 'doc1')
+            self.assertEqual(record.device_id, 'json-device-id')
             self.assertIn('/body/p[2]/text().', record.progress)
             chapter, restored, exact = kosync.restore_txt_progress(self.user, self.book, record)
             self.assertTrue(exact)
@@ -313,13 +323,36 @@ class KosyncSettingsTests(TestCase):
         self.client.force_login(self.user)
         SystemSetting.objects.update_or_create(pk=1, defaults={'kosync_enabled': True})
 
-    def test_initialize_auth_and_mode(self):
-        response = self.client.post(reverse('reader:user_settings_kosync_auth'), {
-            'password': 'secret',
+    def test_superuser_can_toggle_server(self):
+        SystemSetting.objects.filter(pk=1).update(kosync_enabled=False)
+        response = self.client.post(reverse('reader:user_settings_kosync_server'), {
+            'kosync_enabled': 'on',
         })
         self.assertTrue(response.json()['success'])
+        self.assertTrue(SystemSetting.load().kosync_enabled)
+        response = self.client.post(reverse('reader:user_settings_kosync_server'), {})
+        self.assertTrue(response.json()['success'])
+        self.assertFalse(SystemSetting.load().kosync_enabled)
+
+    def test_non_superuser_cannot_toggle_server(self):
+        normal = get_user_model().objects.create_user(username='normal-user', password='secret')
+        self.client.force_login(normal)
+        response = self.client.post(reverse('reader:user_settings_kosync_server'), {
+            'kosync_enabled': 'on',
+        })
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(SystemSetting.load().kosync_enabled)
+
+    def test_login_initializes_kosync_auth(self):
+        self.client.logout()
+        response = self.client.post(reverse('reader:login'), {
+            'username': self.user.username,
+            'password': 'secret',
+        })
+        self.assertEqual(response.content, b'success')
         setting = UserSetting.objects.get(user_id=self.user.id)
         self.assertTrue(setting.kosync_auth_hash)
+        self.assertEqual(setting.kosync_password_version, kosync.password_version(self.user))
         from django.test import RequestFactory
         request = RequestFactory().get('/users/auth', **{
             'HTTP_X_AUTH_USER': self.user.username,
@@ -327,14 +360,57 @@ class KosyncSettingsTests(TestCase):
         })
         self.assertTrue(kosync.verified_user(request))
 
+    def test_login_refreshes_kosync_auth_after_password_change(self):
+        kosync.set_auth_hash(self.user, 'secret')
+        self.user.set_password('new-secret')
+        self.user.save()
+        self.client.logout()
+        response = self.client.post(reverse('reader:login'), {
+            'username': self.user.username,
+            'password': 'new-secret',
+        })
+        self.assertEqual(response.content, b'success')
+        from django.test import RequestFactory
+        request = RequestFactory().get('/users/auth', **{
+            'HTTP_X_AUTH_USER': self.user.username,
+            'HTTP_X_AUTH_KEY': kosync.md5_hex('new-secret'),
+        })
+        self.assertTrue(kosync.verified_user(request))
+
+    def test_save_mode_after_auth_initialized(self):
+        kosync.set_auth_hash(self.user, 'secret')
+
         response = self.client.post(reverse('reader:user_settings_progress_sync'), {
             'progress_sync_mode': 'kosync',
             'kosync_checksum_method': 'filename',
         })
         self.assertTrue(response.json()['success'])
-        setting.refresh_from_db()
+        setting = UserSetting.objects.get(user_id=self.user.id)
         self.assertEqual(setting.progress_sync_mode, 'kosync')
         self.assertEqual(setting.kosync_checksum_method, 'filename')
+
+    def test_settings_page_prompts_relogin_when_auth_missing(self):
+        response = self.client.get(reverse('reader:user_settings'))
+        self.assertFalse(response.context['kosync_auth_ready'])
+        self.assertContains(response, '当前登录会话尚未初始化 KoSync 认证')
+
+    def test_auth_ready_rejects_stale_password_version(self):
+        kosync.set_auth_hash(self.user, 'secret')
+        self.assertTrue(kosync.auth_ready(self.user))
+        self.user.set_password('new-secret')
+        self.user.save()
+        self.assertFalse(kosync.auth_ready(self.user))
+        # Password changes invalidate the session hash; restore it to inspect the page.
+        self.client.force_login(self.user)
+        response = self.client.get(reverse('reader:user_settings'))
+        self.assertFalse(response.context['kosync_auth_ready'])
+        self.assertContains(response, '当前登录会话尚未初始化 KoSync 认证')
+
+    def test_settings_page_hides_relogin_prompt_when_ready(self):
+        kosync.set_auth_hash(self.user, 'secret')
+        response = self.client.get(reverse('reader:user_settings'))
+        self.assertTrue(response.context['kosync_auth_ready'])
+        self.assertNotContains(response, '当前登录会话尚未初始化 KoSync 认证')
 
     def test_kosync_mode_requires_server_and_auth(self):
         response = self.client.post(reverse('reader:user_settings_progress_sync'), {
@@ -343,7 +419,7 @@ class KosyncSettingsTests(TestCase):
         })
         self.assertFalse(response.json()['success'])
         self.assertIn('认证', response.json()['error'])
-        _ = self.client.post(reverse('reader:user_settings_kosync_auth'), {'password': 'secret'})
+        kosync.set_auth_hash(self.user, 'secret')
         SystemSetting.objects.filter(pk=1).update(kosync_enabled=False)
         response = self.client.post(reverse('reader:user_settings_progress_sync'), {
             'progress_sync_mode': 'kosync',

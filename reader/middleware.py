@@ -13,10 +13,53 @@
 下一个请求即可感知，无需重启进程。
 """
 
+import logging
+import time
+
 from django.shortcuts import redirect
 from django.db.utils import OperationalError, ProgrammingError
 from django.contrib.sessions.middleware import SessionMiddleware
 from django.utils.cache import patch_vary_headers
+
+logger = logging.getLogger('reader.requests')
+
+
+def client_ip(request):
+    """真实客户端 IP：优先 CDN 头，其次 X-Forwarded-For，最后 REMOTE_ADDR。"""
+    value = request.META.get('HTTP_CF_CONNECTING_IP')
+    if value:
+        return value.strip()
+    value = request.META.get('HTTP_X_REAL_IP')
+    if value:
+        return value.strip()
+    value = request.META.get('HTTP_X_FORWARDED_FOR')
+    if value:
+        return value.split(',')[0].strip()
+    return request.META.get('REMOTE_ADDR', '') or '-'
+
+
+class RequestLogMiddleware:
+    """Write one access-log line per request, including the real client IP."""
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        started = time.monotonic()
+        response = self.get_response(request)
+        try:
+            elapsed = (time.monotonic() - started) * 1000
+            logger.info(
+                '%s %s %s ip=%s ua=%s duration=%.0fms',
+                request.method, request.get_full_path(), response.status_code,
+                client_ip(request), (request.META.get('HTTP_USER_AGENT') or '-')[:200],
+                elapsed,
+            )
+        except Exception:
+            # Logging must never break a response.
+            pass
+        return response
+
 
 
 class ReaderSessionMiddleware(SessionMiddleware):

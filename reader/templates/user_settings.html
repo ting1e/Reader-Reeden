@@ -68,6 +68,22 @@
             </span>
           </p>
 
+          {% if request.user.is_superuser %}
+          <form method="POST" action="{% url 'reader:user_settings_kosync_server' %}" class="settings-form mb-4 p-3 rounded-lg bg-base-200/40 border border-base-200">
+            {% csrf_token %}
+            <div class="flex items-center justify-between gap-3 flex-wrap">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" name="kosync_enabled" class="toggle toggle-sm" {% if kosync_enabled %}checked{% endif %}>
+                <span class="text-sm font-semibold">开启 KoSync Server</span>
+              </label>
+              <button type="submit" class="btn btn-sm btn-outline gap-1 h-8 min-h-8">
+                <iconify-icon icon="bi:check-lg"></iconify-icon>保存服务开关
+              </button>
+            </div>
+            <p class="text-xs text-base-content/50 mt-1">仅超级管理员可见。关闭后不删除已有同步记录，也不影响 JSON 同步和本地阅读。</p>
+          </form>
+          {% endif %}
+
           <form method="POST" action="{% url 'reader:user_settings_progress_sync' %}" class="settings-form">
             {% csrf_token %}
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -92,24 +108,24 @@
             </div>
             <div class="flex justify-between items-center mt-3 gap-2 flex-wrap">
               <span class="text-xs {% if kosync_auth_ready %}text-success{% else %}text-warning{% endif %}">
-                认证：{% if kosync_auth_ready %}已初始化{% else %}未初始化{% endif %}
+                认证：{% if kosync_auth_ready %}已初始化{% else %}登录后自动初始化{% endif %}
               </span>
               <button type="submit" class="btn btn-sm btn-outline btn-primary gap-1 h-8 min-h-8">
                 <iconify-icon icon="bi:check-lg"></iconify-icon>保存同步设置
               </button>
             </div>
-          </form>
-
-          <form method="POST" action="{% url 'reader:user_settings_kosync_auth' %}" class="settings-form mt-4">
-            {% csrf_token %}
-            <label class="text-sm font-semibold mb-1.5 block">初始化 / 更新 KoSync 认证</label>
-            <div class="flex flex-col sm:flex-row gap-2">
-              <input type="password" name="password" class="input input-bordered w-full" placeholder="输入当前账号密码" required>
-              <button type="submit" class="btn btn-sm btn-outline gap-1 h-10 min-h-10 shrink-0">
-                <iconify-icon icon="bi:key"></iconify-icon>初始化认证
-              </button>
+            {% if not kosync_auth_ready %}
+            <div class="alert alert-warning mt-3 py-2 px-3 text-xs items-start gap-2">
+              <iconify-icon icon="bi:exclamation-triangle" class="text-base mt-0.5 shrink-0"></iconify-icon>
+              <div class="flex-1">
+                <p>当前登录会话尚未初始化 KoSync 认证。请重新登录一次，系统会自动使用本次登录密码完成初始化。</p>
+                <button type="button" class="btn btn-xs btn-warning mt-2 gap-1 kosync-relogin-btn">
+                  <iconify-icon icon="bi:box-arrow-right"></iconify-icon>重新登录并初始化
+                </button>
+              </div>
             </div>
-            <p class="text-xs text-base-content/50 mt-1">只保存密码 MD5 的安全哈希，不保存明文密码。账号密码修改后会自动更新。</p>
+            {% endif %}
+            <p class="text-xs text-base-content/50 mt-2">KoSync 认证会在登录时自动使用当前账号密码初始化；修改密码后下次登录自动更新，无需手动填写。</p>
           </form>
         </div>
 
@@ -223,6 +239,19 @@
   $('#s3-fill-example').click(function() {
     $('#s3-setting-input').val(S3_EXAMPLE).focus();
     notify('已填入示例，请替换为真实配置', 'info');
+  });
+
+  $('.kosync-relogin-btn').click(function() {
+    var $btn = $(this);
+    $btn.prop('disabled', true).html('<span class="loading loading-spinner loading-xs"></span>');
+    $.post("{% url 'reader:logout' %}", { csrfmiddlewaretoken: '{{ csrf_token }}' })
+      .done(function() {
+        window.location.href = "{% url 'reader:bookshelf' %}?login=1";
+      })
+      .fail(function() {
+        $btn.prop('disabled', false).html('<iconify-icon icon="bi:box-arrow-right"></iconify-icon>重新登录并初始化');
+        notify('退出登录失败，请手动退出后重新登录', 'error');
+      });
   });
 
   $('.settings-form').on('submit', function(e) {

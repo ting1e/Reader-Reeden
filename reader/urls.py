@@ -7,6 +7,7 @@ from .views.epub import epub_resource
 app_name = 'reader'
 urlpatterns = [
     # KOReader KoSync API is mounted at the site root.
+    path('health', views.kosync_healthcheck, name='health'),
     path('healthcheck', views.kosync_healthcheck, name='kosync_healthcheck'),
     path('users/auth', views.kosync_auth, name='kosync_auth'),
     path('users/create', views.kosync_create_user, name='kosync_create_user'),
@@ -39,7 +40,7 @@ urlpatterns = [
     path('user_settings/s3/', views.user_settings_s3, name='user_settings_s3'),
     path('user_settings/rule/', views.user_settings_rule, name='user_settings_rule'),
     path('user_settings/progress_sync/', views.user_settings_progress_sync, name='user_settings_progress_sync'),
-    path('user_settings/kosync_auth/', views.user_settings_kosync_auth, name='user_settings_kosync_auth'),
+    path('user_settings/kosync_server/', views.user_settings_kosync_server, name='user_settings_kosync_server'),
     path('user_settings/password/', views.user_settings_password, name='user_settings_password'),
     path('reading_stats/', views.reading_stats, name='reading_stats'),
     path('reading_stats/admin/', views.reading_stats_admin, name='reading_stats_admin'),

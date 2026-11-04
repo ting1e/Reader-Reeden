@@ -8,7 +8,8 @@ from .bookmark import (
 )
 from .settings import (
     user_settings, user_settings_s3, user_settings_rule,
-    user_settings_progress_sync, user_settings_kosync_auth,
+    user_settings_progress_sync,
+    user_settings_kosync_server,
     user_settings_password, user_settings_update, user_settings_theme,
 )
 from .stats import reading_stats, reading_stats_admin, reading_stats_del
