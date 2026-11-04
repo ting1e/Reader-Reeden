@@ -334,6 +334,14 @@ class KosyncSettingsTests(TestCase):
         self.assertTrue(response.json()['success'])
         self.assertFalse(SystemSetting.load().kosync_enabled)
 
+    def test_non_superuser_sees_server_status_only(self):
+        normal = get_user_model().objects.create_user(username='plain-user', password='secret')
+        self.client.force_login(normal)
+        response = self.client.get(reverse('reader:user_settings'))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'id="kosync-server-toggle"')
+        self.assertContains(response, '服务由超级管理员管理')
+
     def test_non_superuser_cannot_toggle_server(self):
         normal = get_user_model().objects.create_user(username='normal-user', password='secret')
         self.client.force_login(normal)
