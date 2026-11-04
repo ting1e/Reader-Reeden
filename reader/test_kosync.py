@@ -1,8 +1,9 @@
 import hashlib
+import io
 import json
 import os
 import tempfile
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -312,6 +313,41 @@ class KosyncReaderIntegrationTests(TestCase):
         self.client.get(reverse('reader:book_view'), {'book_id': self.book.id})
         record.refresh_from_db()
         self.assertEqual((record.progress, record.updated_at), (progress, updated_at))
+
+
+    def test_save_falls_back_to_s3_when_server_disabled(self):
+        SystemSetting.objects.filter(pk=1).update(kosync_enabled=False)
+        with patch('reader.views.reader.sync_progress_to_s3') as sync_s3, \
+                patch('reader.views.reader.kosync.update_book_progress') as update_kosync:
+            response = self.client.post(reverse('reader:book_view'), {
+                'book_id': self.book.id, 'chapter_id': self.first.id, 'words': 3,
+            })
+        self.assertTrue(response.json()['success'])
+        sync_s3.assert_called_once()
+        update_kosync.assert_not_called()
+        self.assertFalse(KosyncProgress.objects.filter(user=self.user).exists())
+
+    def test_restore_falls_back_to_s3_when_server_disabled(self):
+        from .models import UserBookRecord
+        SystemSetting.objects.filter(pk=1).update(kosync_enabled=False)
+        UserBookRecord.objects.filter(user_id=self.user.id, book_id=self.book.id).delete()
+        for name in os.listdir(self.folder):
+            os.remove(os.path.join(self.folder, name))
+        remote = {
+            'schemaVersion': 1, 'bookId': self.book.md5,
+            'sectionIndex': 1, 'paragraphIndex': 0, 'elementIndex': 0,
+            'readProgress': 10000, 'lastReadTime': '2099-01-01T00:00:00Z',
+        }
+        cloud = Mock()
+        cloud.get_object.return_value = {'Body': io.BytesIO(json.dumps(remote).encode())}
+        cfg = {'bucket': 'test', 'prefix': 'test/'}
+        with patch('reader.views.reader.get_s3_config', return_value=cfg), \
+                patch('reader.views.reader._get_s3_client', return_value=cloud), \
+                patch('reader.views.reader.kosync.book_record') as book_record:
+            response = self.client.get(reverse('reader:book_view'), {'book_id': self.book.id})
+        book_record.assert_not_called()
+        cloud.get_object.assert_called_once()
+        self.assertEqual(response.context['chapter_id'], self.second.id)
 
 
 class KosyncSettingsTests(TestCase):

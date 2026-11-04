@@ -13,6 +13,18 @@ DEFAULT_MAX_CHAPTER_LEN = 100000
 
 CHAPTER_TITLE_MAX_LEN = 256
 
+# Bump when the EPUB volume recognition rules change so cached books are recalculated.
+EPUB_VOLUME_VERSION = 2
+
+_EPUB_VOLUME_NUMBER = r'[0-9零〇一二三四五六七八九十百千万两]+'
+_EPUB_VOLUME_TITLE_RE = re.compile(
+    r'^\s*(?:'
+    rf'第\s*{_EPUB_VOLUME_NUMBER}\s*[卷部篇册集辑]'
+    rf'|[上中下终末]卷'
+    rf'|卷\s*{_EPUB_VOLUME_NUMBER}'
+    r')(?:\s*[：:、·\-—_]?\s*.*)?$'
+)
+
 
 def _resolve_chapter_rule(book, user):
     """确定分章正则：优先用户自定义规则，其次 book.rule，最后默认规则；并写回 book.rule。"""
@@ -206,22 +218,34 @@ def handle_local_book(request, url, local_only=False):
     return False
 
 
+def _is_epub_volume_title(title):
+    """Only treat explicit volume titles as volumes, not ordinary chapters."""
+    return bool(title and _EPUB_VOLUME_TITLE_RE.match(title))
+
+
 def _epub_volume_nodes(toc_tree):
-    """Collect TOC nodes that contain children as volumes, ordered by text offset."""
+    """Collect explicit volume nodes from the EPUB TOC, ordered by text offset.
+
+    Ordinary chapters can contain child entries (sections). They must not become
+    volumes just because they have children. Once a volume node is found, deeper
+    nodes are ignored so nested "part" titles are not counted again.
+    """
     volumes = []
 
     def walk(nodes):
         for node in nodes or []:
+            title = (node.get('title') or '').strip()
             children = node.get('children') or []
-            if children:
+            if _is_epub_volume_title(title):
                 start = node.get('start')
                 if start is None:
                     start = next((child.get('start') for child in children
                                   if child.get('start') is not None), None)
-                title = (node.get('title') or '').strip()
-                if start is not None and title:
+                if start is not None:
                     volumes.append((start, title[:CHAPTER_TITLE_MAX_LEN]))
-                walk(children)
+                # Prefer the outer volume and skip nested volume-like titles.
+                continue
+            walk(children)
 
     walk(toc_tree)
     volumes.sort(key=lambda item: item[0])
@@ -256,6 +280,7 @@ def _handle_epub(request, url, local_only):
     import uuid
     data = parse_epub(url)
     volume_info = _assign_epub_volumes(data['chapters'], data.get('tocTree') or [])
+    data['volumeVersion'] = EPUB_VOLUME_VERSION
     cache_path = str(Path(url).parent / (uuid.uuid4().hex + '.reader.json'))
     book = Book(
         book_url=to_rel_path(url), file_name=os.path.basename(url),
@@ -289,10 +314,11 @@ def _handle_epub(request, url, local_only):
 
 
 def ensure_epub_volumes(book):
-    """Backfill volume info for EPUBs imported before TOC tree support.
+    """Backfill/refresh EPUB volume info once per recognition-rule version.
 
-    The EPUB is reparsed once and its cache gains ``tocTree``; later calls only
-    sync chapter rows if needed. Existing chapter indexes and progress stay intact.
+    Old caches have no ``volumeVersion`` or an older one, so their volume
+    assignments are recalculated and wrong data from the previous algorithm is
+    replaced. Chapters and reading progress are never changed.
     """
     if book.format != 'epub' or not book.content_path:
         return
@@ -302,28 +328,37 @@ def ensure_epub_volumes(book):
         data = read_cache(book)
     except Exception:
         return
-    if 'tocTree' not in data:
+
+    cache_dirty = False
+    toc_missing = 'tocTree' not in data
+    if toc_missing:
         try:
             parsed = parse_epub(book.abs_path())
         except Exception:
             return
         data['tocTree'] = parsed.get('tocTree', [])
+        cache_dirty = True
+
+    if data.get('volumeVersion') != EPUB_VOLUME_VERSION or toc_missing:
+        chapters = list(Chapter.objects.filter(book_id=book.id).order_by('index'))
+        if chapters:
+            assignments = _assign_epub_volumes(chapters, data.get('tocTree') or [])
+            changed = []
+            for chapter, (volume_index, volume_title) in zip(chapters, assignments):
+                if chapter.volume_index != volume_index or chapter.volume_title != volume_title:
+                    chapter.volume_index = volume_index
+                    chapter.volume_title = volume_title
+                    changed.append(chapter)
+            if changed:
+                Chapter.objects.bulk_update(changed, ['volume_index', 'volume_title'])
+        data['volumeVersion'] = EPUB_VOLUME_VERSION
+        cache_dirty = True
+
+    if cache_dirty:
         try:
             write_cache(resolve_book_path(book.content_path), data)
         except Exception:
             pass
-    chapters = list(Chapter.objects.filter(book_id=book.id).order_by('index'))
-    if not chapters:
-        return
-    assignments = _assign_epub_volumes(chapters, data.get('tocTree') or [])
-    changed = []
-    for chapter, (volume_index, volume_title) in zip(chapters, assignments):
-        if chapter.volume_index != volume_index or chapter.volume_title != volume_title:
-            chapter.volume_index = volume_index
-            chapter.volume_title = volume_title
-            changed.append(chapter)
-    if changed:
-        Chapter.objects.bulk_update(changed, ['volume_index', 'volume_title'])
 
 
 def rechapter_book(book, user=None, rule_choice='main'):

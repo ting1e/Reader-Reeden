@@ -38,8 +38,8 @@ def restore_epub_progress(request, book):
     if not request.user.is_authenticated:
         return default
     from . import kosync
-    kosync_mode = kosync.user_sync_mode(request.user) == 'kosync'
-    kosync_enabled = kosync.server_enabled()
+    # 服务关闭时自动回退到 JSON + S3，而不是停留在不可用的 KoSync 分支。
+    kosync_active = kosync.kosync_active(request.user)
     record = UserBookRecord.objects.filter(user_id=request.user.id, book_id=book.id).order_by('-read_time').first()
     candidates = []
     if record:
@@ -56,11 +56,11 @@ def restore_epub_progress(request, book):
                 candidates.append((timestamp, 'file', local))
         except (OSError, ValueError, TypeError):
             pass
-    if kosync_mode and kosync_enabled:
+    if kosync_active:
         remote = _kosync_record(request, book)
         if remote is not None:
             candidates.append((make_naive_utc(remote.updated_at), 'kosync', remote))
-    if not kosync_mode and not book.local_only:
+    if not kosync_active and not book.local_only:
         cfg = get_s3_config(request.user)
         if cfg:
             try:

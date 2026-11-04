@@ -13,6 +13,9 @@ from django.urls import reverse
 
 from .models import Book, BookList, BookListItem, Chapter, KosyncProgress, SystemSetting, UserBookRecord
 from .services import kosync
+from .services.book_parser import (
+    EPUB_VOLUME_VERSION, _assign_epub_volumes, _epub_volume_nodes, ensure_epub_volumes,
+)
 from .services.epub import EpubError, export_position, import_position, parse_epub, read_cache
 from .services.kosync_position import epub_to_koreader_progress
 from .services.progress import save_progress_json
@@ -55,6 +58,73 @@ def sample_epub(version=3, unsafe=False, nested=False):
         if unsafe:
             archive.writestr('../escape.txt', 'unsafe')
     return output.getvalue()
+
+
+class EpubVolumeRecognitionTests(TestCase):
+    def test_chapters_with_subsections_are_not_volumes(self):
+        tree = [
+            {'title': '第一章', 'start': 0, 'children': [
+                {'title': '第一节', 'start': 0, 'children': []},
+                {'title': '第二节', 'start': 50, 'children': []},
+            ]},
+            {'title': '第二章', 'start': 100, 'children': [
+                {'title': '第一节', 'start': 100, 'children': []},
+            ]},
+        ]
+        self.assertEqual(_epub_volume_nodes(tree), [])
+        self.assertEqual(_assign_epub_volumes(
+            [{'title': '第一章', 'start': 0}, {'title': '第二章', 'start': 100}], tree,
+        ), [(None, ''), (None, '')])
+
+    def test_supported_volume_title_formats(self):
+        titles = [
+            '第一卷', '第1卷', '第2部', '第3篇', '卷一', '卷二',
+            '第一卷 风起', '上卷', '中卷', '下卷', '终卷',
+        ]
+        for title in titles:
+            with self.subTest(title=title):
+                self.assertEqual(_epub_volume_nodes([
+                    {'title': title, 'start': 0, 'children': []},
+                ]), [(0, title)])
+
+    def test_chapter_titles_are_not_volumes(self):
+        for title in ('第一章', '第1章', '第一节', '第1节', '正文', '前言', '楔子'):
+            with self.subTest(title=title):
+                self.assertEqual(_epub_volume_nodes([
+                    {'title': title, 'start': 0, 'children': [
+                        {'title': '第一节', 'start': 0, 'children': []},
+                    ]},
+                ]), [])
+
+    def test_wrapper_node_keeps_inner_volumes(self):
+        tree = [{
+            'title': '正文', 'start': 0, 'children': [
+                {'title': '第一卷', 'start': 0, 'children': [
+                    {'title': '第一章', 'start': 0, 'children': []},
+                ]},
+                {'title': '第二卷', 'start': 100, 'children': [
+                    {'title': '第二章', 'start': 100, 'children': []},
+                ]},
+            ],
+        }]
+        self.assertEqual([title for _, title in _epub_volume_nodes(tree)],
+                         ['第一卷', '第二卷'])
+        chapters = [
+            {'title': '第一章', 'start': 0},
+            {'title': '第二章', 'start': 100},
+        ]
+        self.assertEqual(_assign_epub_volumes(chapters, tree),
+                         [(0, '第一卷'), (1, '第二卷')])
+
+    def test_outer_volume_wins_over_nested_volume(self):
+        tree = [{
+            'title': '第一卷', 'start': 0, 'children': [
+                {'title': '第一篇', 'start': 0, 'children': [
+                    {'title': '第一章', 'start': 0, 'children': []},
+                ]},
+            ],
+        }]
+        self.assertEqual([title for _, title in _epub_volume_nodes(tree)], ['第一卷'])
 
 
 class EpubTests(TestCase):
@@ -179,6 +249,51 @@ class EpubTests(TestCase):
         self.assertEqual(response.context['chapter_id'], chapters[1].id)
         self.assertEqual(response.context['last_words'], 4)
 
+    def test_epub_save_falls_back_to_s3_when_kosync_disabled(self):
+        book = self.upload()
+        setting = get_or_create_user_setting(self.user)
+        setting.progress_sync_mode = 'kosync'
+        setting.save(update_fields=['progress_sync_mode'])
+        SystemSetting.objects.update_or_create(pk=1, defaults={'kosync_enabled': False})
+        chapters = list(Chapter.objects.filter(book_id=book.id).order_by('index'))
+        with patch('reader.views.reader.sync_progress_to_s3') as sync_s3, \
+                patch('reader.views.reader.kosync.update_book_progress') as update_kosync:
+            response = self.client.post(reverse('reader:book_view'), {
+                'book_id': book.id, 'chapter_id': chapters[0].id, 'words': 3,
+            })
+        self.assertTrue(response.json()['success'])
+        sync_s3.assert_called_once()
+        update_kosync.assert_not_called()
+        self.assertFalse(KosyncProgress.objects.filter(user=self.user).exists())
+
+    def test_epub_restore_falls_back_to_s3_when_kosync_disabled(self):
+        book = self.upload()
+        book.local_only = False
+        book.save(update_fields=['local_only'])
+        setting = get_or_create_user_setting(self.user)
+        setting.progress_sync_mode = 'kosync'
+        setting.save(update_fields=['progress_sync_mode'])
+        SystemSetting.objects.update_or_create(pk=1, defaults={'kosync_enabled': False})
+        chapters = list(Chapter.objects.filter(book_id=book.id).order_by('index'))
+        UserBookRecord.objects.filter(user_id=self.user.id, book_id=book.id).delete()
+        progress_path = self.folder / (book.md5 + '.json')
+        if progress_path.exists():
+            progress_path.unlink()
+        remote = {'schemaVersion': 1, 'bookId': book.md5,
+                  **export_position(book, chapters[1], 4),
+                  'lastReadTime': '2099-01-01T00:00:00Z'}
+        cloud = Mock()
+        cloud.get_object.return_value = {'Body': io.BytesIO(json.dumps(remote).encode())}
+        cfg = {'bucket': 'test', 'prefix': 'test/'}
+        with patch('reader.services.epub_progress.get_s3_config', return_value=cfg), \
+                patch('reader.services.epub_progress._get_s3_client', return_value=cloud), \
+                patch('reader.services.epub_progress._kosync_record') as kosync_record:
+            response = self.client.get(reverse('reader:book_view'), {'book_id': book.id})
+        kosync_record.assert_not_called()
+        cloud.get_object.assert_called_once()
+        self.assertEqual(response.context['chapter_id'], chapters[1].id)
+        self.assertEqual(response.context['last_words'], 4)
+
     def test_kosync_epub_position_roundtrip(self):
         from .services.kosync_position import epub_to_koreader_progress, koreader_progress_to_epub
         book = self.upload()
@@ -260,6 +375,29 @@ class EpubTests(TestCase):
         self.assertEqual(response.context['chapter_id'], chapters[1].id)
         self.assertEqual(response.context['last_words'], 2)
         self.assertIn('tocTree', json.loads(cache_path.read_text()))
+
+    def test_epub_import_marks_volume_version(self):
+        book = self.upload()
+        self.assertEqual(read_cache(book).get('volumeVersion'), EPUB_VOLUME_VERSION)
+
+    def test_legacy_wrong_volumes_are_recalculated_once(self):
+        book = self.upload()
+        cache_path = Path(book.content_path) if Path(book.content_path).is_absolute() else Path.cwd() / book.content_path
+        cached = json.loads(cache_path.read_text())
+        cached.pop('volumeVersion', None)
+        cache_path.write_text(json.dumps(cached))
+        # Simulate the old algorithm treating ordinary chapters as volumes.
+        Chapter.objects.filter(book_id=book.id).update(volume_index=0, volume_title='第一章')
+
+        ensure_epub_volumes(book)
+        chapters = list(Chapter.objects.filter(book_id=book.id).order_by('index'))
+        self.assertTrue(all(c.volume_index is None and c.volume_title == '' for c in chapters))
+        self.assertEqual(json.loads(cache_path.read_text())['volumeVersion'], EPUB_VOLUME_VERSION)
+
+        # Once the marker is current, opening the book must not redo recognition.
+        with patch('reader.services.book_parser._assign_epub_volumes') as assign:
+            ensure_epub_volumes(book)
+            assign.assert_not_called()
 
     def test_positions_roundtrip_and_chinese_element_units(self):
         book = self.upload()
