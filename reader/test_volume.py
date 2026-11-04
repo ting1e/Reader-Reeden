@@ -79,38 +79,6 @@ class VolumeMapTests(TestCase):
         self.assertEqual(restored['paragraphIndex'], 0)
         self.assertEqual(restored['elementIndex'], 0)
 
-    def test_legacy_mixed_progress_is_not_converted_twice(self):
-        legacy_mixed = {
-            'sectionIndex': 5, 'paragraphIndex': 7, 'elementIndex': 3,
-            'volumeIndexVersion': 1,
-        }
-        internal = volume.progress_from_sync(legacy_mixed, self.chapters)
-        self.assertEqual(internal['sectionIndex'], 3)
-        self.assertNotIn('volumeIndexVersion', internal)
-        remixed = volume.progress_to_sync(internal, self.chapters)
-        self.assertEqual(remixed['sectionIndex'], 5)
-        self.assertNotIn('volumeIndexVersion', remixed)
-
-    def test_remote_progress_conversion(self):
-        internal = {'sectionIndex': 3, 'paragraphIndex': 7}
-        legacy_mixed = {'sectionIndex': 5, 'paragraphIndex': 7, 'volumeIndexVersion': 1}
-        new_mixed = {'sectionIndex': 5, 'paragraphIndex': 7}
-        metadata = {s3.S3_VOLUME_INDEX_META: s3.S3_VOLUME_INDEX_MIXED}
-        local_internal = s3.remote_progress_to_local(internal, self.chapters, None)
-        self.assertEqual(local_internal['sectionIndex'], 3)
-        # A truly old object is migrated only when it is uploaded again.
-        migrated = volume.progress_to_sync(local_internal, self.chapters)
-        self.assertEqual(migrated['sectionIndex'], 5)
-        self.assertNotIn('volumeIndexVersion', migrated)
-
-        converted = s3.remote_progress_to_local(legacy_mixed, self.chapters, None)
-        self.assertEqual(converted['sectionIndex'], 3)
-        self.assertNotIn('volumeIndexVersion', converted)
-        # The old marker is already mixed, so re-uploading does not shift twice.
-        self.assertEqual(volume.progress_to_sync(converted, self.chapters)['sectionIndex'], 5)
-
-        self.assertEqual(s3.remote_progress_to_local(new_mixed, self.chapters, metadata)['sectionIndex'], 3)
-
     def test_no_volumes_uses_original_index(self):
         chapters = [make_chapter(0), make_chapter(1)]
         data = {'sectionIndex': 1}
@@ -165,8 +133,7 @@ class VolumeSyncUploadTests(TestCase):
         body = json.loads(kwargs['Body'])
         self.assertEqual(body['sectionIndex'], 5)
         self.assertNotIn('volumeIndexVersion', body)
-        self.assertEqual(kwargs['Metadata'],
-                         {s3.S3_VOLUME_INDEX_META: s3.S3_VOLUME_INDEX_MIXED})
+        self.assertNotIn('Metadata', kwargs)
         # Local JSON keeps the internal chapter index.
         with open(self.local_path, encoding='utf-8') as stream:
             self.assertEqual(json.load(stream)['sectionIndex'], 3)

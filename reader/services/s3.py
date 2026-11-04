@@ -9,37 +9,6 @@ from .progress import _parse_progress_time
 
 logger = logging.getLogger('reader')
 
-# New TXT progress objects use the mixed volume+chapter index and carry this
-# object metadata so old (unmarked) objects can still be migrated safely.
-S3_VOLUME_INDEX_META = 'reader-volume-index'
-S3_VOLUME_INDEX_MIXED = 'mixed'
-LEGACY_VOLUME_SYNC_KEY = 'volumeIndexVersion'
-
-
-def remote_progress_is_mixed(data, metadata=None):
-    """Return whether an S3 progress object already uses the mixed index."""
-    if isinstance(metadata, dict):
-        value = metadata.get(S3_VOLUME_INDEX_META)
-        if str(value or '').lower() == S3_VOLUME_INDEX_MIXED:
-            return True
-    return bool(isinstance(data, dict) and data.get(LEGACY_VOLUME_SYNC_KEY))
-
-
-def remote_progress_to_local(data, chapters, metadata=None):
-    """Convert an S3 progress object to the internal chapter index.
-
-    New objects carry the mixed-index metadata. Legacy objects with the old
-    JSON marker are already mixed; truly old objects without a marker are still
-    internal and must not be converted again.
-    """
-    if not isinstance(data, dict):
-        return data
-    if remote_progress_is_mixed(data, metadata):
-        return volume.progress_from_sync(data, chapters)
-    result = dict(data)
-    result.pop(LEGACY_VOLUME_SYNC_KEY, None)
-    return result
-
 
 def get_s3_config(user):
     if not user.is_authenticated:
@@ -169,14 +138,6 @@ def sync_progress_to_s3(request, book):
                     conditions['IfNoneMatch'] = '*'
                 elif resp.get('ETag'):
                     conditions['IfMatch'] = resp['ETag']
-            put_kwargs = {
-                'Bucket': cfg['bucket'], 'Key': s3_key,
-                'Body': body, 'ContentLength': len(body),
-            }
-            if book.format != 'epub':
-                # TXT progress is always uploaded with mixed indexes.
-                put_kwargs['Metadata'] = {S3_VOLUME_INDEX_META: S3_VOLUME_INDEX_MIXED}
-            put_kwargs.update(conditions)
-            client.put_object(**put_kwargs)
+            client.put_object(Bucket=cfg['bucket'], Key=s3_key, Body=body, ContentLength=len(body), **conditions)
     except Exception:
         logger.exception("sync_progress_to_s3 upload error")
