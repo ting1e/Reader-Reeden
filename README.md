@@ -6,6 +6,8 @@
 
 **内置 KOReader KoSync Server。** 支持通过 KoSync 与外部 KOReader 设备或 Reeden 同步阅读进度
 
+Reeden 的 通过koreader 同步功能对于txt格式的支持有问题，暂不建议使用
+
 ## 预览
 
 | 阅读 | 统计 |
