@@ -312,7 +312,7 @@ def book_view(request):
                 chapter_id = _book.first_chapter_id
                 offset = 0
             if ch_obj and not kosync_active:
-                save_progress_json(_book, ch_obj, offset, request.user.id)
+                save_progress_json(_book, ch_obj, offset, request.user.id, capture_correction=False)
             sync_progress_val = calculate_read_progress(_book, ch_obj, offset) / 100.0 if ch_obj else 0
             record_time = best_record[0] if best_record is not None else timezone.now()
             if kosync_active and best_source == 'kosync':

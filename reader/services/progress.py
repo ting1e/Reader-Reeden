@@ -182,7 +182,7 @@ def _record_readstat(book, user_id, current_date_str, now_utc, delta_seconds, de
         logger.exception("Error writing ReadStat")
 
 
-def save_progress_json(book, chapter, words_read, user_id, epub_location=None):
+def save_progress_json(book, chapter, words_read, user_id, epub_location=None, capture_correction=True):
     """保存进度 JSON + 写入 ReadStat（非 local_only）。"""
     now_utc = datetime.datetime.now(datetime.timezone.utc)
 
@@ -316,6 +316,12 @@ def save_progress_json(book, chapter, words_read, user_id, epub_location=None):
     except Exception:
         logger.exception("Error writing progress JSON")
 
+    if capture_correction:
+        from .s3_correction import capture_snapshot
+        try:
+            capture_snapshot(user_id, book, new_data)
+        except Exception:
+            logger.exception('Unable to capture S3 correction progress')
     _record_readstat(book, user_id, current_date_str, now_utc, delta_seconds, delta_words, progress_val)
 
 

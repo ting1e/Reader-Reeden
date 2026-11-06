@@ -45,6 +45,17 @@
             {% csrf_token %}
             <textarea name="s3_setting" id="s3-setting-input" class="textarea textarea-bordered w-full font-mono text-sm leading-relaxed"
                       rows="8" placeholder='{"accessKeyId":"...","secretAccessKey":"...","region":"...","endpoint":"...","bucket":"...","prefix":"..."}'>{{ s3_setting_display }}</textarea>
+            <div class="mt-4 p-3 rounded-lg bg-base-200/40">
+              <input type="hidden" name="s3_correction_settings" value="1">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" name="s3_correction_enabled" class="toggle toggle-sm" {% if setting.s3_correction_enabled %}checked{% endif %}>
+                <span class="text-sm font-semibold">S3 同步进度自动纠正</span>
+              </label>
+              <label for="s3-progress-path" class="block text-sm mt-3 mb-1">本地进度目录</label>
+              <input id="s3-progress-path" name="s3_progress_path" value="{{ setting.s3_progress_path }}" class="input input-bordered w-full text-sm" placeholder="/data/books/book_progress">
+              <p class="text-xs text-base-content/60 mt-2">填写 OpenList 实际保存进度 JSON 的 book_progress 目录绝对路径；Docker 请填写监听进程内的挂载路径。需运行后台命令 watch_s3_progress。</p>
+              <p class="text-xs text-base-content/60 mt-1">同步间隔 ≥ 10 分钟，位置变化 ≤ 2000 字；服务器进度处于两次同步之间且更靠前时纠正，同一本书 5 分钟内最多成功纠正 2 次。关闭时不监听、不纠正。</p>
+            </div>
             <div class="flex justify-between items-center mt-3 gap-2 flex-wrap">
               <button type="button" class="btn btn-sm btn-ghost gap-1" id="s3-fill-example">
                 <iconify-icon icon="bi:magic"></iconify-icon>填入示例

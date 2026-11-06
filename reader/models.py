@@ -91,6 +91,22 @@ class UserSetting(models.Model):
     kosync_checksum_method = models.CharField(max_length=16, default='binary')
     kosync_auth_hash = models.CharField(max_length=128, default='', blank=True)
     kosync_password_version = models.CharField(max_length=64, default='', blank=True)
+    s3_correction_enabled = models.BooleanField(default=False)
+    s3_progress_path = models.CharField(max_length=1024, default='', blank=True)
+
+
+class S3CorrectionState(models.Model):
+    user_id = models.IntegerField()
+    book_md5 = models.CharField(max_length=32)
+    snapshot = models.JSONField(default=dict)
+    devices = models.JSONField(default=dict)
+    last_content = models.CharField(max_length=64, default='', blank=True)
+    own_content = models.CharField(max_length=64, default='', blank=True)
+    window_start = models.DateTimeField(null=True, blank=True)
+    correction_count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['user_id', 'book_md5'], name='unique_s3_correction_book')]
 
 class UserBookMark(models.Model):
     user_id = models.IntegerField()

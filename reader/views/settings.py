@@ -1,5 +1,6 @@
 import re
 import logging
+import os
 
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
@@ -57,6 +58,15 @@ def user_settings_s3(request):
         return JsonResponse({'success': False, 'error': 'S3配置JSON格式错误: ' + str(e)[:80]})
     setting = get_or_create_user_setting(request.user)
     setting.s3_setting = s3_raw
+    # Older clients saving only S3 JSON must not reset the new settings.
+    if 's3_correction_settings' in request.POST:
+        enabled = request.POST.get('s3_correction_enabled') == 'on'
+        path = request.POST.get('s3_progress_path', '').strip()
+        if enabled and (not os.path.isabs(path) or not os.path.isdir(path)
+                        or not os.access(path, os.R_OK | os.X_OK)):
+            return JsonResponse({'success': False, 'error': '请填写存在且可读取的本地进度目录绝对路径'})
+        setting.s3_correction_enabled = enabled
+        setting.s3_progress_path = path
     setting.save()
     return JsonResponse({'success': True, 'msg': 'S3配置已保存'})
 
