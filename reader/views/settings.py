@@ -68,6 +68,13 @@ def user_settings_s3(request):
         setting.s3_correction_enabled = enabled
         setting.s3_progress_path = path
     setting.save()
+    if 's3_correction_settings' in request.POST:
+        from ..services.s3_watcher import start_if_enabled
+        try:
+            start_if_enabled()
+        except Exception:
+            logger.exception('Unable to start S3 progress watcher')
+            return JsonResponse({'success': False, 'error': '设置已保存，但监听进程启动失败，请检查服务器日志'})
     return JsonResponse({'success': True, 'msg': 'S3配置已保存'})
 
 

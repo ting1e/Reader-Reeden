@@ -1,10 +1,13 @@
 """Run one watcher alongside the web service, sharing its database and mounts."""
 import logging
+import fcntl
+import os
 import queue
 import time
 from pathlib import Path
 
 from django.core.management.base import BaseCommand
+from django.conf import settings
 from django.db import close_old_connections
 
 from reader.models import UserSetting
@@ -16,7 +19,28 @@ logger = logging.getLogger('reader')
 class Command(BaseCommand):
     help = '监听已启用用户的本地 book_progress 目录，纠正 S3 旧进度覆盖'
 
+    def add_arguments(self, parser):
+        parser.add_argument('--lock-fd', type=int, help='Inherited singleton lock descriptor')
+
     def handle(self, *args, **options):
+        if options.get('lock_fd') is not None:
+            lock = os.fdopen(options['lock_fd'], 'a+')
+        else:
+            local = Path(settings.BASE_DIR) / 'local'
+            local.mkdir(parents=True, exist_ok=True)
+            lock = (local / '.s3-progress-watcher.lock').open('a+')
+        with lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                self.stdout.write('S3 progress watcher already running.')
+                return
+            self.watch()
+        # If a user enabled while this process was exiting, restart after unlock.
+        from reader.services.s3_watcher import start_if_enabled
+        start_if_enabled()
+
+    def watch(self):
         from watchdog.events import FileSystemEventHandler
         from watchdog.observers import Observer
 
@@ -53,7 +77,11 @@ class Command(BaseCommand):
                 if now >= next_refresh:
                     close_old_connections()
                     desired = {}
-                    for setting in UserSetting.objects.filter(s3_correction_enabled=True):
+                    enabled = list(UserSetting.objects.filter(s3_correction_enabled=True))
+                    if not enabled:
+                        # Release the lock before checking for a concurrent re-enable.
+                        break
+                    for setting in enabled:
                         path = Path(setting.s3_progress_path)
                         if path.is_absolute() and path.is_dir():
                             desired.setdefault(str(path.resolve()), set()).add(setting.user_id)

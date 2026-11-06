@@ -132,7 +132,8 @@ class CorrectionTests(TestCase):
         self.assertEqual(payload['elementIndex'], snapshot['elementIndex'])
 
     @override_settings(ALLOWED_HOSTS=['testserver'])
-    def test_settings_validation_and_disabled_path(self):
+    @patch('reader.services.s3_watcher.start_if_enabled')
+    def test_settings_validation_and_disabled_path(self, start_watcher):
         self.user.is_superuser = True
         self.user.save()
         self.client.force_login(self.user)
@@ -140,8 +141,10 @@ class CorrectionTests(TestCase):
         values = {'s3_setting': self.setting.s3_setting, 's3_correction_settings': '1',
                   's3_correction_enabled': 'on', 's3_progress_path': 'relative/path'}
         self.assertFalse(self.client.post(url, values).json()['success'])
+        start_watcher.assert_not_called()
         values['s3_progress_path'] = self.folder.name
         self.assertTrue(self.client.post(url, values).json()['success'])
+        start_watcher.assert_called_once()
         values.pop('s3_correction_enabled')
         values['s3_progress_path'] = '/not/mounted/yet'
         self.assertTrue(self.client.post(url, values).json()['success'])
@@ -182,3 +185,34 @@ class LocalFileEventTests(SimpleTestCase):
             finally:
                 observer.stop()
                 observer.join()
+
+
+class WatcherLifecycleTests(TestCase):
+    def test_disabled_never_spawns(self):
+        from .services.s3_watcher import start_if_enabled
+        with patch('reader.services.s3_watcher.subprocess.Popen') as spawn:
+            start_if_enabled()
+        spawn.assert_not_called()
+
+    def test_enabled_spawns_with_lock_and_duplicate_is_skipped(self):
+        import fcntl
+        from .services.s3_watcher import start_if_enabled
+        UserSetting.objects.create(user_id=100, s3_correction_enabled=True)
+        with tempfile.TemporaryDirectory() as folder, override_settings(BASE_DIR=Path(folder)), \
+                patch('reader.services.s3_watcher.subprocess.Popen') as spawn:
+            start_if_enabled()
+            spawn.assert_called_once()
+            self.assertIn('watch_s3_progress', spawn.call_args.args[0])
+            lock_path = Path(folder) / 'local' / '.s3-progress-watcher.lock'
+            with lock_path.open('a+') as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                start_if_enabled()
+            self.assertEqual(spawn.call_count, 1)
+
+    def test_watcher_exits_when_last_user_disables(self):
+        from reader.management.commands.watch_s3_progress import Command
+        # No enabled users: the loop exits rather than staying alive indefinitely.
+        with patch('watchdog.observers.Observer') as observer:
+            Command().watch()
+        observer.return_value.stop.assert_called_once()
+        observer.return_value.join.assert_called_once()

@@ -53,7 +53,7 @@
               </label>
               <label for="s3-progress-path" class="block text-sm mt-3 mb-1">本地进度目录</label>
               <input id="s3-progress-path" name="s3_progress_path" value="{{ setting.s3_progress_path }}" class="input input-bordered w-full text-sm" placeholder="/data/books/book_progress">
-              <p class="text-xs text-base-content/60 mt-2">填写 OpenList 实际保存进度 JSON 的 book_progress 目录绝对路径；Docker 请填写监听进程内的挂载路径。需运行后台命令 watch_s3_progress。</p>
+              <p class="text-xs text-base-content/60 mt-2">填写 OpenList 实际保存进度 JSON 的 book_progress 目录绝对路径；Docker 请填写容器内挂载路径。保存开启后自动启动监听，所有用户关闭后自动退出。</p>
               <p class="text-xs text-base-content/60 mt-1">同步间隔 ≥ 10 分钟，位置变化 ≤ 2000 字；服务器进度处于两次同步之间且更靠前时纠正，同一本书 5 分钟内最多成功纠正 2 次。关闭时不监听、不纠正。</p>
             </div>
             <div class="flex justify-between items-center mt-3 gap-2 flex-wrap">
