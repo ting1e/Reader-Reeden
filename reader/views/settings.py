@@ -44,7 +44,9 @@ def user_settings_s3(request):
     """保存 S3 配置（AJAX，返回 JSON）"""
     if request.method != 'POST':
         return redirect('reader:user_settings')
-    s3_raw = request.POST.get('s3_setting', '').strip()
+    setting = get_or_create_user_setting(request.user)
+    correction_only = 's3_correction_settings' in request.POST and 's3_setting' not in request.POST
+    s3_raw = (setting.s3_setting if correction_only else request.POST.get('s3_setting', '')).strip()
     if not s3_raw:
         return JsonResponse({'success': False, 'error': 'S3配置不能为空'})
     try:
@@ -56,17 +58,29 @@ def user_settings_s3(request):
     except Exception as e:
         logger.warning("user_settings_s3: JSON parse error", exc_info=True)
         return JsonResponse({'success': False, 'error': 'S3配置JSON格式错误: ' + str(e)[:80]})
-    setting = get_or_create_user_setting(request.user)
     setting.s3_setting = s3_raw
     # Older clients saving only S3 JSON must not reset the new settings.
     if 's3_correction_settings' in request.POST:
         enabled = request.POST.get('s3_correction_enabled') == 'on'
         path = request.POST.get('s3_progress_path', '').strip()
-        if enabled and (not os.path.isabs(path) or not os.path.isdir(path)
+        if enabled and path and (not os.path.isabs(path) or not os.path.isdir(path)
                         or not os.access(path, os.R_OK | os.X_OK)):
             return JsonResponse({'success': False, 'error': '请填写存在且可读取的本地进度目录绝对路径'})
         setting.s3_correction_enabled = enabled
         setting.s3_progress_path = path
+        for field, label, minimum in (
+            ('s3_poll_seconds', 'S3 检查间隔', 1),
+            ('s3_upload_delay_minutes', '上传延迟阈值', 1),
+            ('s3_correction_window_minutes', '纠正计数窗口', 1),
+            ('s3_correction_limit', '纠正次数上限', 1),
+        ):
+            try:
+                value = int(request.POST.get(field, getattr(setting, field)))
+                if value < minimum or value > 2147483647:
+                    raise ValueError
+            except (TypeError, ValueError):
+                return JsonResponse({'success': False, 'error': f'{label}必须为 ≥ {minimum} 的整数'})
+            setattr(setting, field, value)
     setting.save()
     if 's3_correction_settings' in request.POST:
         from ..services.s3_watcher import start_if_enabled
@@ -75,7 +89,7 @@ def user_settings_s3(request):
         except Exception:
             logger.exception('Unable to start S3 progress watcher')
             return JsonResponse({'success': False, 'error': '设置已保存，但监听进程启动失败，请检查服务器日志'})
-    return JsonResponse({'success': True, 'msg': 'S3配置已保存'})
+    return JsonResponse({'success': True, 'msg': '进度纠正设置已保存' if correction_only else 'S3配置已保存'})
 
 
 @login_required(login_url='reader:index')

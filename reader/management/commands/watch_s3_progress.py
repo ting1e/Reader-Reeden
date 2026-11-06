@@ -12,8 +12,9 @@ from django.db import close_old_connections
 
 from reader.models import UserSetting
 from reader.services.s3_correction import process_file
+from reader.services.s3_polling import poll_progress
 
-logger = logging.getLogger('reader')
+logger = logging.getLogger('reader.s3_progress')
 
 
 class Command(BaseCommand):
@@ -59,10 +60,11 @@ class Command(BaseCommand):
         watches = {}
         users = {}
         pending = {}
+        polls = {}
 
-        def process(user_id, path, baseline=False):
+        def process(user_id, path):
             try:
-                process_file(user_id, path, baseline=baseline)
+                process_file(user_id, path)
             except FileNotFoundError:
                 pass
             except Exception:
@@ -82,6 +84,8 @@ class Command(BaseCommand):
                         # Release the lock before checking for a concurrent re-enable.
                         break
                     for setting in enabled:
+                        if not setting.s3_progress_path:
+                            continue
                         path = Path(setting.s3_progress_path)
                         if path.is_absolute() and path.is_dir():
                             desired.setdefault(str(path.resolve()), set()).add(setting.user_id)
@@ -92,8 +96,21 @@ class Command(BaseCommand):
                             watches[directory] = observer.schedule(Handler(), directory, recursive=False)
                         for user_id in ids - users.get(directory, set()):
                             for filename in Path(directory).glob('*.json'):
-                                process(user_id, filename, baseline=True)
+                                process(user_id, filename)
                     users = desired
+                    polling_users = {s.user_id for s in enabled if not s.s3_progress_path}
+                    for user_id in set(polls) - polling_users:
+                        del polls[user_id]
+                    for setting in enabled:
+                        if setting.s3_progress_path:
+                            continue
+                        poll = polls.setdefault(setting.user_id, {'seen': {}, 'next': 0})
+                        if time.monotonic() >= poll['next']:
+                            try:
+                                poll_progress(setting, poll['seen'])
+                            except Exception:
+                                logger.exception('S3 directory polling failed user=%s', setting.user_id)
+                            poll['next'] = time.monotonic() + setting.s3_poll_seconds
                     next_refresh = now + 1
                 try:
                     filename = events.get(timeout=0.1)

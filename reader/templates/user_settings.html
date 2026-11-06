@@ -45,7 +45,22 @@
             {% csrf_token %}
             <textarea name="s3_setting" id="s3-setting-input" class="textarea textarea-bordered w-full font-mono text-sm leading-relaxed"
                       rows="8" placeholder='{"accessKeyId":"...","secretAccessKey":"...","region":"...","endpoint":"...","bucket":"...","prefix":"..."}'>{{ s3_setting_display }}</textarea>
-            <div class="mt-4 p-3 rounded-lg bg-base-200/40">
+            <div class="flex justify-between items-center mt-3 gap-2 flex-wrap">
+              <button type="button" class="btn btn-sm btn-ghost gap-1" id="s3-fill-example">
+                <iconify-icon icon="bi:magic"></iconify-icon>填入示例
+              </button>
+              <button type="submit" class="btn btn-sm btn-outline btn-primary gap-1 h-8 min-h-8">
+                <iconify-icon icon="bi:check-lg"></iconify-icon>保存 S3 配置
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <div class="px-5 sm:px-6 py-4 border-t border-base-200/60">
+          <h3 class="text-base font-bold mb-3">S3 进度纠正</h3>
+          <form method="POST" action="{% url 'reader:user_settings_s3' %}" class="settings-form">
+            {% csrf_token %}
+            <div>
               <input type="hidden" name="s3_correction_settings" value="1">
               <label class="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" name="s3_correction_enabled" class="toggle toggle-sm" {% if setting.s3_correction_enabled %}checked{% endif %}>
@@ -53,15 +68,18 @@
               </label>
               <label for="s3-progress-path" class="block text-sm mt-3 mb-1">本地进度目录</label>
               <input id="s3-progress-path" name="s3_progress_path" value="{{ setting.s3_progress_path }}" class="input input-bordered w-full text-sm" placeholder="/data/books/book_progress">
-              <p class="text-xs text-base-content/60 mt-2">填写 OpenList 实际保存进度 JSON 的 book_progress 目录绝对路径；Docker 请填写容器内挂载路径。保存开启后自动启动监听，所有用户关闭后自动退出。</p>
-              <p class="text-xs text-base-content/60 mt-1">同步间隔 ≥ 10 分钟，位置变化 ≤ 2000 字；服务器进度处于两次同步之间且更靠前时纠正，同一本书 5 分钟内最多成功纠正 2 次。关闭时不监听、不纠正。</p>
+              <p class="text-xs text-base-content/60 mt-2">可选：填写 OpenList 本地 book_progress 目录绝对路径，Docker 填容器内路径。留空则定时检查 S3 的 book_progress/。保存开启后自动运行，所有用户关闭后自动退出。</p>
+               <div class="grid grid-cols-2 gap-3 mt-3" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));">
+                <label class="text-sm">S3 检查间隔（秒）<input type="number" min="1" name="s3_poll_seconds" value="{{ setting.s3_poll_seconds }}" class="input input-bordered w-full" required></label>
+                <label class="text-sm">上传延迟阈值（分钟，超过）<input type="number" min="1" name="s3_upload_delay_minutes" value="{{ setting.s3_upload_delay_minutes }}" class="input input-bordered w-full" required></label>
+                <label class="text-sm">纠正计数窗口（分钟）<input type="number" min="1" name="s3_correction_window_minutes" value="{{ setting.s3_correction_window_minutes }}" class="input input-bordered w-full" required></label>
+                <label class="text-sm">窗口内纠正次数上限<input type="number" min="1" name="s3_correction_limit" value="{{ setting.s3_correction_limit }}" class="input input-bordered w-full" required></label>
+              </div>
+              <p class="text-xs text-base-content/60 mt-2">文件修改时间比设备阅读时间晚超过阈值，且服务器阅读时间更新时纠正，不比较位置大小。S3 检查间隔只用于目录留空时；关闭时不监听、不纠正。</p>
             </div>
-            <div class="flex justify-between items-center mt-3 gap-2 flex-wrap">
-              <button type="button" class="btn btn-sm btn-ghost gap-1" id="s3-fill-example">
-                <iconify-icon icon="bi:magic"></iconify-icon>填入示例
-              </button>
+            <div class="flex justify-end items-center mt-3 gap-2">
               <button type="submit" class="btn btn-sm btn-outline btn-primary gap-1 h-8 min-h-8">
-                <iconify-icon icon="bi:check-lg"></iconify-icon>保存
+                <iconify-icon icon="bi:check-lg"></iconify-icon>保存进度纠正设置
               </button>
             </div>
           </form>

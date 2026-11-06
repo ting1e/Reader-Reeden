@@ -1,7 +1,8 @@
 import json
+import os
 import tempfile
 import time
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone as utc_timezone
 from pathlib import Path
 from queue import Queue
 from unittest.mock import Mock, patch
@@ -12,20 +13,19 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .models import Book, Chapter, S3CorrectionState, UserSetting
-from .services.s3_correction import capture_snapshot, position_words, process_file, should_correct
+from .services.s3_correction import capture_snapshot, process_file, should_correct
 
 
 class CorrectionRuleTests(SimpleTestCase):
     def test_boundaries(self):
-        a = {'time': '2026-01-01T10:00:00Z', 'words': 1000}
-        b = {'time': '2026-01-01T10:10:00Z', 'words': 3000}
-        s = {'data': {'lastReadTime': '2026-01-01T10:05:00Z'}, 'words': 4000}
-        self.assertTrue(should_correct(a, b, s))
-        self.assertFalse(should_correct(a, {**b, 'words': 3001}, s))
-        self.assertFalse(should_correct(a, {**b, 'time': '2026-01-01T10:09:59Z'}, s))
-        self.assertFalse(should_correct(a, b, {**s, 'words': 3000}))
-        for timestamp in (a['time'], b['time']):
-            self.assertFalse(should_correct(a, b, {**s, 'data': {'lastReadTime': timestamp}}))
+        read = {'lastReadTime': '2026-01-01T10:00:00Z'}
+        modified = datetime(2026, 1, 1, 10, 5, tzinfo=utc_timezone.utc)
+        snapshot = {'data': {'lastReadTime': '2026-01-01T10:01:00Z'}}
+        self.assertFalse(should_correct(modified, read, snapshot))
+        self.assertTrue(should_correct(modified + timedelta(microseconds=1), read, snapshot))
+        self.assertFalse(should_correct(modified - timedelta(minutes=6), read, snapshot))
+        self.assertFalse(should_correct(modified + timedelta(minutes=1), read, {'data': read}))
+        self.assertTrue(should_correct(modified, read, snapshot, delay_minutes=4))
 
 
 class CorrectionTests(TestCase):
@@ -42,9 +42,6 @@ class CorrectionTests(TestCase):
         Chapter.objects.create(book_id=self.book.id, index=0, start=0, end=20000)
         self.path = Path(self.folder.name) / (self.book.md5 + '.json')
         self.cloud = Mock()
-        self.text = patch('reader.services.s3_correction.read_book_text', return_value='字' * 20000)
-        self.text.start()
-        self.addCleanup(self.text.stop)
         self.client_patch = patch('reader.services.s3._get_s3_client', return_value=self.cloud)
         self.client_patch.start()
         self.addCleanup(self.client_patch.stop)
@@ -56,14 +53,23 @@ class CorrectionTests(TestCase):
                 'readProgress': words // 2, 'todayStats': {'date': '2026-01-01'},
                 'extension': 'preserved'}
 
-    def upload(self, minute, words=1000, device='remote', baseline=False):
-        self.path.write_text(json.dumps(self.data(minute, words, device)), encoding='utf-8')
-        return process_file(self.user.id, self.path, baseline=baseline)
+    def upload(self, minute, words=1000, device='remote'):
+        payload = self.data(max(0, minute - 10), words, device)
+        self.path.write_text(json.dumps(payload), encoding='utf-8')
+        timestamp = datetime(2026, 1, 1, 10, minute, tzinfo=utc_timezone.utc).timestamp()
+        os.utime(self.path, (timestamp, timestamp))
+        return process_file(self.user.id, self.path)
 
     def test_end_to_end_own_event_duplicates_and_quota(self):
-        self.assertFalse(self.upload(0, baseline=True))
+        self.assertFalse(self.upload(0))
         capture_snapshot(self.user.id, self.book, self.data(5, 8000, 'server'))
-        self.assertTrue(self.upload(10, 3000))
+        with self.assertLogs('reader.s3_progress', level='INFO') as logs:
+            self.assertTrue(self.upload(10, 3000))
+        success_logs = [line for line in logs.output if 'Corrected S3 progress' in line]
+        self.assertEqual(len(success_logs), 1)
+        self.assertIn(self.book.md5, success_logs[0])
+        self.assertIn('old_position=', success_logs[0])
+        self.assertIn('new_position=', success_logs[0])
         result = json.loads(self.cloud.put_object.call_args.kwargs['Body'])
         self.assertEqual(result['elementIndex'], 16000)
         self.assertEqual(result['extension'], 'preserved')
@@ -95,38 +101,83 @@ class CorrectionTests(TestCase):
         self.assertFalse(S3CorrectionState.objects.exists())
         self.cloud.put_object.assert_not_called()
 
-    def test_devices_are_separate_and_failed_upload_does_not_count(self):
+    def test_custom_rules_and_quota(self):
+        self.setting.s3_upload_delay_minutes = 1
+        self.setting.s3_correction_window_minutes = 1
+        self.setting.s3_correction_limit = 1
+        self.setting.save()
+        self.upload(0)
+        capture_snapshot(self.user.id, self.book, self.data(1, 8000, 'server'))
+        self.assertTrue(self.upload(2, 1020))
+        capture_snapshot(self.user.id, self.book, self.data(3, 8500, 'server'))
+        self.assertFalse(self.upload(4, 1020))
+        S3CorrectionState.objects.update(window_start=timezone.now() - timedelta(minutes=1))
+        capture_snapshot(self.user.id, self.book, self.data(5, 9000, 'server'))
+        self.assertTrue(self.upload(6, 1020))
+
+    def test_first_observation_can_correct_even_if_server_position_is_behind(self):
+        capture_snapshot(self.user.id, self.book, self.data(5, 100, 'server'))
+        self.assertTrue(self.upload(10, 18000))
+        payload = json.loads(self.cloud.put_object.call_args.kwargs['Body'])
+        self.assertEqual(payload['elementIndex'], 200)
+
+    def test_same_content_with_new_mtime_is_checked_again(self):
+        capture_snapshot(self.user.id, self.book, self.data(5, 8000, 'server'))
+        self.assertFalse(self.upload(5, 1000))  # delay exactly five minutes
+        timestamp = datetime(2026, 1, 1, 10, 6, tzinfo=utc_timezone.utc).timestamp()
+        os.utime(self.path, (timestamp, timestamp))
+        self.assertTrue(process_file(self.user.id, self.path))
+
+    def test_remote_polling_without_local_directory(self):
+        import io
+        from botocore.exceptions import ClientError
+        from .services.s3_polling import poll_progress
+        self.setting.s3_progress_path = ''
+        self.setting.save()
+        key = f'reader/book_progress/{self.book.md5}.json'
+        self.cloud.get_paginator.return_value.paginate.return_value = [
+            {'Contents': [{'Key': key}, {'Key': 'reader/book_progress/not-json.txt'}]}]
+        self.cloud.get_object.return_value = {
+            'Body': io.BytesIO(json.dumps(self.data(0, 1000)).encode()), 'ETag': 'v1',
+            'LastModified': datetime(2026, 1, 1, 10, 0, tzinfo=utc_timezone.utc)}
+        seen = {}
+        poll_progress(self.setting, seen)
+        capture_snapshot(self.user.id, self.book, self.data(5, 8000, 'server'))
+        self.cloud.get_object.return_value = {
+            'Body': io.BytesIO(json.dumps(self.data(0, 1000)).encode()), 'ETag': 'v1',
+            'LastModified': datetime(2026, 1, 1, 10, 10, tzinfo=utc_timezone.utc)}
+        poll_progress(self.setting, seen)
+        self.assertNotIn('IfNoneMatch', self.cloud.get_object.call_args.kwargs)
+        self.cloud.put_object.assert_called_once()
+        self.cloud.get_object.side_effect = ClientError(
+            {'Error': {'Code': '304'}, 'ResponseMetadata': {'HTTPStatusCode': 304}}, 'GetObject')
+        poll_progress(self.setting, seen)
+        self.assertEqual(self.cloud.put_object.call_count, 1)
+
+    def test_failed_upload_does_not_count(self):
         self.upload(0)
         capture_snapshot(self.user.id, self.book, self.data(5, 8000, 'server'))
-        self.assertFalse(self.upload(10, device='other'))
         self.cloud.put_object.side_effect = RuntimeError('upload failed')
         with self.assertRaises(RuntimeError):
             self.upload(10)
         self.assertEqual(S3CorrectionState.objects.get().correction_count, 0)
 
-    def test_volume_index_and_epub_absolute_text_position(self):
+    def test_volume_index_snapshot_export(self):
         chapter = Chapter.objects.get(book_id=self.book.id)
         chapter.volume_index = 0
         chapter.volume_title = '第一卷'
         chapter.save()
-        payload = {**self.data(0, 2000), 'sectionIndex': 1}
-        self.assertEqual(position_words(self.book, payload), 2000)
-        self.book.format = 'epub'
-        chapter.start, chapter.end = 4, 8
-        with patch('reader.services.epub.read_cache', return_value={'text': '甲乙\n丙丁戊己庚'}), \
-                patch('reader.services.epub.import_position', return_value=(chapter, 2, True)):
-            self.assertEqual(position_words(self.book, payload), 5)
+        capture_snapshot(self.user.id, self.book, self.data(5, 8000, 'server'))
+        self.assertEqual(S3CorrectionState.objects.get().snapshot['data']['sectionIndex'], 1)
 
     def test_epub_correction_replaces_all_position_extensions(self):
         self.book.format = 'epub'
         self.book.save()
-        with patch('reader.services.s3_correction.position_words',
-                   side_effect=lambda book, data: data['elementIndex'] // 2):
-            self.upload(0)
-            snapshot = self.data(5, 8000, 'server')
-            snapshot['readerEpub'] = {'position': {'sectionIndex': 0}, 'words': 8000}
-            capture_snapshot(self.user.id, self.book, snapshot)
-            self.assertTrue(self.upload(10))
+        self.upload(0)
+        snapshot = self.data(5, 8000, 'server')
+        snapshot['readerEpub'] = {'position': {'sectionIndex': 0}, 'words': 8000}
+        capture_snapshot(self.user.id, self.book, snapshot)
+        self.assertTrue(self.upload(10))
         payload = json.loads(self.cloud.put_object.call_args.kwargs['Body'])
         self.assertEqual(payload['readerEpub'], snapshot['readerEpub'])
         self.assertEqual(payload['elementIndex'], snapshot['elementIndex'])
@@ -151,6 +202,38 @@ class CorrectionTests(TestCase):
         self.setting.refresh_from_db()
         self.assertFalse(self.setting.s3_correction_enabled)
         self.assertEqual(self.setting.s3_progress_path, '/not/mounted/yet')
+
+    @override_settings(ALLOWED_HOSTS=['testserver'])
+    @patch('reader.services.s3_watcher.start_if_enabled')
+    def test_empty_directory_and_configurable_values(self, start_watcher):
+        self.user.is_superuser = True
+        self.user.save()
+        self.client.force_login(self.user)
+        values = {'s3_setting': self.setting.s3_setting, 's3_correction_settings': '1',
+                  's3_correction_enabled': 'on', 's3_progress_path': '',
+                   's3_poll_seconds': '15', 's3_upload_delay_minutes': '3',
+                  's3_correction_window_minutes': '2',
+                  's3_correction_limit': '4'}
+        url = reverse('reader:user_settings_s3')
+        self.assertTrue(self.client.post(url, values).json()['success'])
+        self.setting.refresh_from_db()
+        self.assertEqual(self.setting.s3_progress_path, '')
+        self.assertEqual(self.setting.s3_poll_seconds, 15)
+        self.assertEqual(self.setting.s3_correction_limit, 4)
+        values.pop('s3_setting')
+        values['s3_poll_seconds'] = '2'
+        response = self.client.post(url, values).json()
+        self.assertTrue(response['success'])
+        self.assertEqual(response['msg'], '进度纠正设置已保存')
+        self.setting.refresh_from_db()
+        self.assertEqual(self.setting.s3_poll_seconds, 2)
+        original_s3 = self.setting.s3_setting
+        self.assertTrue(self.client.post(url, {'s3_setting': original_s3}).json()['success'])
+        self.setting.refresh_from_db()
+        self.assertEqual(self.setting.s3_poll_seconds, 2)
+        self.assertTrue(self.setting.s3_correction_enabled)
+        values['s3_poll_seconds'] = '0'
+        self.assertFalse(self.client.post(url, values).json()['success'])
 
 
 class LocalFileEventTests(SimpleTestCase):

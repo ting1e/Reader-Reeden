@@ -166,6 +166,15 @@ LOGGING = {
         },
     },
     'handlers': {
+        's3_progress_file': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': str(LOG_DIR / 's3-progress.log'),
+            'maxBytes': 10 * 1024 * 1024,
+            'backupCount': 5,
+            'formatter': 'verbose',
+            'encoding': 'utf-8',
+        },
         'reader_file': {
             'level': 'INFO',
             'class': 'logging.handlers.RotatingFileHandler',
@@ -177,6 +186,11 @@ LOGGING = {
         },
     },
     'loggers': {
+        'reader.s3_progress': {
+            'handlers': ['s3_progress_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
         'reader': {
             'handlers': ['reader_file'],
             'level': 'WARNING',

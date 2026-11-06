@@ -93,13 +93,16 @@ class UserSetting(models.Model):
     kosync_password_version = models.CharField(max_length=64, default='', blank=True)
     s3_correction_enabled = models.BooleanField(default=False)
     s3_progress_path = models.CharField(max_length=1024, default='', blank=True)
+    s3_poll_seconds = models.PositiveIntegerField(default=30)
+    s3_upload_delay_minutes = models.PositiveIntegerField(default=5)
+    s3_correction_window_minutes = models.PositiveIntegerField(default=5)
+    s3_correction_limit = models.PositiveIntegerField(default=2)
 
 
 class S3CorrectionState(models.Model):
     user_id = models.IntegerField()
     book_md5 = models.CharField(max_length=32)
     snapshot = models.JSONField(default=dict)
-    devices = models.JSONField(default=dict)
     last_content = models.CharField(max_length=64, default='', blank=True)
     own_content = models.CharField(max_length=64, default='', blank=True)
     window_start = models.DateTimeField(null=True, blank=True)

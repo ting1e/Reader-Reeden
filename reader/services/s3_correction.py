@@ -3,51 +3,23 @@ import copy
 import hashlib
 import json
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone as datetime_timezone
 from pathlib import Path
 
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
 from ..models import Book, Chapter, S3CorrectionState, UserSetting
-from ..utils import get_element_index, read_book_text
 from . import volume
 from .progress import _parse_progress_time
 
-logger = logging.getLogger('reader')
+logger = logging.getLogger('reader.s3_progress')
 POSITION_FIELDS = ('sectionIndex', 'paragraphIndex', 'elementIndex', 'readProgress', 'readerEpub')
 
 
 def content_id(data):
     return hashlib.sha256(json.dumps(data, sort_keys=True, ensure_ascii=False,
                                      separators=(',', ':')).encode()).hexdigest()
-
-
-def position_words(book, data):
-    """Absolute text position, not percentage or accumulated reading statistics."""
-    if book.format == 'epub':
-        from .epub import import_position, read_cache, raw_offset
-        chapter, words, _ = import_position(book, data)
-        text = read_cache(book)['text']
-        raw = chapter.start + raw_offset(text[chapter.start:chapter.end], words)
-        return len(text[:raw].replace('\n', ''))
-    chapters = list(Chapter.objects.filter(book_id=book.id).order_by('index'))
-    internal = volume.progress_from_sync(data, chapters)
-    chapter = next(c for c in chapters if c.index == int(internal['sectionIndex']))
-    text = read_book_text(book)
-    lines = text[chapter.start:chapter.end].split('\n')
-    paragraph = max(0, int(internal.get('paragraphIndex', 0)))
-    element = max(0, int(internal.get('elementIndex', 0)))
-    offset = sum(len(line) for line in lines[:paragraph])
-    if paragraph < len(lines):
-        line = lines[paragraph]
-        # Match the reader's element-index convention, including non-BMP text.
-        index, units = 0, 0
-        while index < len(line) and units < element:
-            units += get_element_index(line[index])
-            index += 1
-        offset += index
-    return len(text[:chapter.start].replace('\n', '')) + offset
 
 
 def capture_snapshot(user_id, book, data):
@@ -61,59 +33,69 @@ def capture_snapshot(user_id, book, data):
             Chapter.objects.filter(book_id=book.id).order_by('index')))
     S3CorrectionState.objects.update_or_create(
         user_id=user_id, book_md5=payload['bookId'],
-        defaults={'snapshot': {'data': payload, 'words': position_words(book, payload)}},
+        defaults={'snapshot': {'data': payload}},
     )
 
 
-def should_correct(previous, current, snapshot):
-    if not previous or not snapshot:
+def should_correct(modified_at, data, snapshot, delay_minutes=5):
+    if not modified_at or not snapshot:
         return False
-    a = _parse_progress_time({'lastReadTime': previous['time']})
-    b = _parse_progress_time({'lastReadTime': current['time']})
+    modified = _parse_progress_time({'lastReadTime': modified_at.isoformat()})
+    read = _parse_progress_time(data)
     s = _parse_progress_time(snapshot['data'])
-    return bool(a and b and s and b - a >= timedelta(minutes=10)
-                and abs(current['words'] - previous['words']) <= 2000
-                and a < s < b
-                and snapshot['words'] > max(previous['words'], current['words']))
+    return bool(modified and read and s
+                and modified - read > timedelta(minutes=delay_minutes) and s > read)
 
 
-def process_file(user_id, filename, baseline=False):
+def process_file(user_id, filename):
     """Called serially by the watcher; only successful writes consume the quota."""
     setting = UserSetting.objects.filter(user_id=user_id, s3_correction_enabled=True).first()
     if not setting:
         return False
     path = Path(filename)
-    if path.suffix != '.json' or path.parent.resolve() != Path(setting.s3_progress_path).resolve():
+    if not setting.s3_progress_path or path.suffix != '.json' or path.parent.resolve() != Path(setting.s3_progress_path).resolve():
         return False
     with path.open(encoding='utf-8') as stream:
         data = json.load(stream)
     md5 = path.stem
+    modified_at = datetime.fromtimestamp(path.stat().st_mtime, datetime_timezone.utc)
+    return process_data(setting, md5, data, modified_at=modified_at)
+
+
+def process_data(setting, md5, data, modified_at=None):
+    user_id = setting.user_id
+    if not UserSetting.objects.filter(pk=setting.pk, s3_correction_enabled=True).exists():
+        return False
     if not isinstance(data, dict) or data.get('bookId') != md5:
         return False
     book = Book.objects.filter(md5=md5, local_only=False).first()
     if not book or not data.get('deviceId') or _parse_progress_time(data) is None:
         return False
     state, _ = S3CorrectionState.objects.get_or_create(user_id=user_id, book_md5=md5)
-    digest = content_id(data)
+    # Identical JSON uploaded again can have a new modification time.
+    digest = content_id({'data': data, 'modified': modified_at.isoformat() if modified_at else None})
     if digest == state.last_content:
         return False
-    if digest == state.own_content:
+    if content_id(data) == state.own_content:
         state.last_content = digest
         state.save(update_fields=['last_content'])
         return False
     device = str(data['deviceId'])
-    current = {'time': data['lastReadTime'], 'words': position_words(book, data)}
-    previous = state.devices.get(device)
-    state.devices[device] = current
     state.last_content = digest
-    state.save(update_fields=['devices', 'last_content'])
-    if baseline or not should_correct(previous, current, state.snapshot):
+    state.save(update_fields=['last_content'])
+    eligible = should_correct(modified_at, data, state.snapshot, setting.s3_upload_delay_minutes)
+    logger.info('S3 correction observation user=%s book=%s device=%s modified=%s read=%s server_read=%s delay_minutes=%s eligible=%s',
+                user_id, md5, device, modified_at, data['lastReadTime'],
+                state.snapshot.get('data', {}).get('lastReadTime'), setting.s3_upload_delay_minutes, eligible)
+    if not eligible:
         return False
     now = timezone.now()
     count = state.correction_count
-    if not state.window_start or now - state.window_start >= timedelta(minutes=5):
+    if not state.window_start or now - state.window_start >= timedelta(minutes=setting.s3_correction_window_minutes):
         count = 0
-    if count >= 2:
+    if count >= setting.s3_correction_limit:
+        logger.info('S3 correction skipped: quota user=%s book=%s count=%s limit=%s',
+                    user_id, md5, count, setting.s3_correction_limit)
         return False
     from .s3 import _get_s3_client, get_s3_config
     cfg = get_s3_config(get_user_model().objects.get(pk=user_id))
@@ -138,5 +120,9 @@ def process_file(user_id, filename, baseline=False):
         state.window_start = now
     state.correction_count = count + 1
     state.save(update_fields=['own_content', 'window_start', 'correction_count'])
-    logger.info('Corrected S3 progress user=%s book=%s count=%s', user_id, md5, count + 1)
+    logger.info('Corrected S3 progress user=%s book=%s device=%s modified=%s device_read=%s server_read=%s old_position=%s new_position=%s written_read=%s count=%s limit=%s window_minutes=%s',
+                user_id, md5, device, modified_at, data['lastReadTime'], source['lastReadTime'],
+                [data.get(k) for k in POSITION_FIELDS[:4]],
+                [corrected.get(k) for k in POSITION_FIELDS[:4]], corrected['lastReadTime'],
+                count + 1, setting.s3_correction_limit, setting.s3_correction_window_minutes)
     return True
