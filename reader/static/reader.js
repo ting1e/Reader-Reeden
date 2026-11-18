@@ -163,7 +163,7 @@ function autoReadLoop(timestamp) {
     if (!c) return;
     autoReadLastScrollTime = Date.now();
 
-    autoReadMotion.step(c, autoReadSpeed, timestamp);
+    autoReadMotion.step(c, autoReadSpeed, timestamp, c.children);
     if (c.scrollTop + c.clientHeight >= c.scrollHeight - 1) {
         var $arts = $('.article-container article[data-chapter-id]');
         if ($arts.length > 0) {

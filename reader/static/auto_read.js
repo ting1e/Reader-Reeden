@@ -25,9 +25,26 @@
     }
     function Motion() { this.reset(); }
     Motion.prototype.reset = function () {
+        if (this.visuals) this.visuals.forEach(function (saved) {
+            saved.element.style.translate = saved.translate;
+            saved.element.style.willChange = saved.willChange;
+        });
+        this.visuals = [];
         this.last = null; this.remainder = 0; this.element = null; this.position = null;
     };
-    Motion.prototype.step = function (element, speed, now) {
+    Motion.prototype.paint = function (targets, offset) {
+        var self = this;
+        Array.prototype.forEach.call(targets || [], function (target) {
+            if (!self.visuals.some(function (saved) { return saved.element === target; })) {
+                self.visuals.push({ element: target, translate: target.style.translate,
+                    willChange: target.style.willChange });
+                target.style.willChange = 'translate';
+            }
+            // Individual translate leaves the reader's pagination transform intact.
+            target.style.translate = '0 ' + (-offset) + 'px';
+        });
+    };
+    Motion.prototype.step = function (element, speed, now, targets) {
         if (this.element !== element || (this.position !== null && Math.abs(element.scrollTop - this.position) > 0.01)) {
             this.reset(); this.element = element;
         }
@@ -35,10 +52,16 @@
         var elapsed = now - this.last;
         this.last = now;
         // Hidden tabs or long stalls must not turn into a large jump on return.
-        if (elapsed < 0 || elapsed > 250) { this.remainder = 0; return; }
+        if (elapsed < 0 || elapsed > 250) { this.reset(); return; }
         this.remainder += speed * elapsed / 1000;
-        var pixels = Math.floor(this.remainder + 1e-9);
-        if (pixels > 0) { element.scrollTop += pixels; this.remainder -= pixels; }
+        var limit = Number.isFinite(element.scrollHeight - element.clientHeight)
+            ? Math.max(0, element.scrollHeight - element.clientHeight) : Infinity;
+        var desired = Math.min(limit, element.scrollTop + this.remainder);
+        // Keep native scrolling for chapter loading, progress and scrollbar behavior;
+        // render its fractional remainder on the content for smooth low speeds.
+        element.scrollTop = Math.floor(desired + 1e-9);
+        this.remainder = desired - element.scrollTop;
+        this.paint(targets, this.remainder);
         this.position = element.scrollTop;
     };
     root.AutoRead = { speeds: speeds, index: index, load: load, Motion: Motion };

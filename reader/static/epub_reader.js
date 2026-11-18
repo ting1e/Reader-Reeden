@@ -1273,17 +1273,18 @@ code,pre{font-size:.9em}`;
     $('epub-mode').value = autoReadPrevMode; autoReadPrevMode = null; settingsChanged();
   }
   $('auto-read-toggle').onchange = () => {
-    clearInterval(autoRead); autoRead = null;
+    cancelAnimationFrame(autoRead); autoRead = null;
     autoReadMotion.reset();
     if ($('auto-read-toggle').checked && !fixed()) {
       autoReadPrevMode = mode();
       $('epub-mode').value = 'slide'; settingsChanged();
       autoReadPausedUntil = 0; autoReadAdvancedAt = 0; autoReadProgressAt = 0;
-      autoRead = setInterval(() => {
+      const tick = (timestamp) => {
+        autoRead = requestAnimationFrame(tick);
         if (loading || suspended || !doc || Date.now() < autoReadPausedUntil) { autoReadMotion.reset(); return; }
         const scroll = doc.scrollingElement;
         if (!fixed()) {
-          autoReadMotion.step(scroll, autoReadSpeed, performance.now());
+          autoReadMotion.step(scroll, autoReadSpeed, timestamp, [doc.body]);
           // 位置定位会遍历文本节点，按 ~150ms 节流，停读时仍会精确保存
           if (Date.now() - autoReadProgressAt >= 150) { autoReadProgressAt = Date.now(); changed(); }
           else dirty = true;
@@ -1293,9 +1294,10 @@ code,pre{font-size:.9em}`;
           if (Date.now() - autoReadAdvancedAt < (fixed() ? 4000 : 0)) return;
           autoReadAdvancedAt = Date.now();
           if (section < config.sections.length - 1) load(section + 1, {}, true);
-          else { clearInterval(autoRead); autoRead = null; $('auto-read-toggle').checked = false; restoreAutoReadMode(); }
+          else { cancelAnimationFrame(autoRead); autoRead = null; autoReadMotion.reset(); $('auto-read-toggle').checked = false; restoreAutoReadMode(); }
         }
-      }, 50);
+      };
+      autoRead = requestAnimationFrame(tick);
     } else restoreAutoReadMode();
   };
   $('auto-read-speed').oninput = () => {
