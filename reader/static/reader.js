@@ -134,14 +134,8 @@ document.addEventListener('keydown', function(e) {
 });
 
 // ===== 自动阅读 =====
-// 速度档位表：0~3 步进 0.1，3~5 步进 0.2，5~10 步进 0.5
-var AUTO_READ_SPEEDS = (function() {
-    var arr = [], i;
-    for (i = 1; i <= 30; i++) arr.push(i / 10);       // 0.1 → 3.0
-    for (i = 32; i <= 50; i += 2) arr.push(i / 10);   // 3.2 → 5.0
-    for (i = 55; i <= 100; i += 5) arr.push(i / 10);  // 5.5 → 10
-    return arr;
-})();
+// Shared 49-step scale in pixels per second.
+var AUTO_READ_SPEEDS = AutoRead.speeds;
 function sliderToSpeed(pos) { return AUTO_READ_SPEEDS[pos] || AUTO_READ_SPEEDS[0]; }
 function speedToSlider(speed) {
     var best = 0, bestDiff = Infinity;
@@ -153,11 +147,8 @@ function speedToSlider(speed) {
 }
 var autoReadEnabled = false;
 localStorage.setItem('auto_read_enabled', 'false');
-var autoReadSpeed = (function() {
-    var s = parseFloat(localStorage.getItem('auto_read_speed'));
-    if (!s || !isFinite(s)) s = 2;
-    return sliderToSpeed(speedToSlider(s));
-})();
+var autoReadSpeed = AutoRead.load(localStorage);
+var autoReadMotion = new AutoRead.Motion();
 var autoReadActive = false;
 var autoReadRAF = null;
 var autoReadLastScrollTime = 0;
@@ -166,13 +157,13 @@ var autoReadResumeTimer = null;
 var autoReadSaveTimer = null;
 var prevReadMode = null;
 
-function autoReadLoop() {
+function autoReadLoop(timestamp) {
     if (!autoReadActive) return;
     var c = $('.article-container')[0];
     if (!c) return;
     autoReadLastScrollTime = Date.now();
 
-    c.scrollTop += autoReadSpeed;
+    autoReadMotion.step(c, autoReadSpeed, timestamp);
     if (c.scrollTop + c.clientHeight >= c.scrollHeight - 1) {
         var $arts = $('.article-container article[data-chapter-id]');
         if ($arts.length > 0) {
@@ -205,6 +196,7 @@ function startAutoRead() {
         prevReadMode = null;
     }
     autoReadLastScrollTime = 0;
+    autoReadMotion.reset();
     autoReadActive = true;
     autoReadUserPaused = false;
 
@@ -214,6 +206,7 @@ function startAutoRead() {
 }
 
 function stopAutoRead() {
+    autoReadMotion.reset();
     if (autoReadRAF) { cancelAnimationFrame(autoReadRAF); autoReadRAF = null; }
     autoReadActive = false;
     autoReadUserPaused = false;
@@ -250,6 +243,7 @@ function stopAutoRead() {
 
 function pauseAutoReadByUser() {
     if (!autoReadActive) return;
+    autoReadMotion.reset();
     if (autoReadRAF) { cancelAnimationFrame(autoReadRAF); autoReadRAF = null; }
     autoReadUserPaused = true;
     if (autoReadResumeTimer) clearTimeout(autoReadResumeTimer);
@@ -909,7 +903,7 @@ function showSettingsToast() {
     updateModeButtons();
     $('#auto-read-toggle').prop('checked', autoReadEnabled);
     $('#auto-read-speed').val(speedToSlider(autoReadSpeed));
-    $('#auto-read-speed-val').text(autoReadSpeed);
+    $('#auto-read-speed-val').text(autoReadSpeed + ' px/s');
     toast.stop(true, true).fadeIn(150);
 }
 
@@ -1521,6 +1515,7 @@ $('#auto-read-toggle').change(function() {
 
 $('#auto-read-speed').on('input', function() {
     autoReadSpeed = sliderToSpeed(parseInt(this.value));
-    localStorage.setItem('auto_read_speed', autoReadSpeed);
-    $('#auto-read-speed-val').text(autoReadSpeed);
+    localStorage.setItem('auto_read_speed_px_s', autoReadSpeed);
+    autoReadMotion.reset();
+    $('#auto-read-speed-val').text(autoReadSpeed + ' px/s');
 });

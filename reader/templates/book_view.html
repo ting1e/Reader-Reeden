@@ -360,8 +360,8 @@ article{ font-weight: {{ user_setting.font_weight }}; }
                             <div class="flex items-center gap-2 flex-1">
                                 <input type="checkbox" class="toggle toggle-sm" id="auto-read-toggle">
                                 <span class="text-xs text-base-content/50">速度</span>
-                                <input type="range" min="0" max="49" step="1" value="19" class="range range-xs flex-1 [--range-fill:0]" id="auto-read-speed">
-                                <span class="text-xs tabular-nums text-base-content/60 w-8 text-center" id="auto-read-speed-val">2</span>
+                                <input type="range" min="0" max="48" step="1" value="18" class="range range-xs flex-1 [--range-fill:0]" id="auto-read-speed">
+                                <span class="text-xs tabular-nums text-base-content/60 whitespace-nowrap text-center" id="auto-read-speed-val">20 px/s</span>
                             </div>
                         </div>
                     </div>
@@ -536,6 +536,7 @@ article{ font-weight: {{ user_setting.font_weight }}; }
     }
     </script>
 
+    <script src="{% static 'auto_read.js' %}"></script>
     <script src="{% static 'reader.js' %}"></script>
     {% if book_format == 'epub' %}
     {{ epub_switch_config|json_script:'epub-switch-config' }}

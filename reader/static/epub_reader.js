@@ -447,7 +447,7 @@
     else load(index, { fragment: target.fragment }, true);
   }
   // 自动阅读期间用户操作 → 暂停，1s 后自动恢复（与文本阅读模式一致）。
-  function pauseAutoRead() { if (autoRead) autoReadPausedUntil = Date.now() + 1000; }
+  function pauseAutoRead() { if (autoRead) { autoReadPausedUntil = Date.now() + 1000; autoReadMotion.reset(); } }
   // 每个文档只绑定一次监听，避免预渲染文档被 adopt 时重复注册（会双跳页）。
   const wiredDocs = new WeakSet();
   function wireDocument() {
@@ -1263,21 +1263,27 @@ code,pre{font-size:.9em}`;
   for (const swatch of document.querySelectorAll('.bg-setting')) swatch.onclick = () => {
     config.settings.background = swatch.dataset.bg || getComputedStyle(swatch).backgroundColor; settingsChanged();
   };
+  const autoReadMotion = new AutoRead.Motion();
+  let autoReadSpeed = AutoRead.load(localStorage);
+  $('auto-read-speed').max = AutoRead.speeds.length - 1;
+  $('auto-read-speed').value = AutoRead.index(autoReadSpeed);
+  $('auto-read-speed-val').textContent = autoReadSpeed + ' px/s';
   function restoreAutoReadMode() {
     if (!autoReadPrevMode) return;
     $('epub-mode').value = autoReadPrevMode; autoReadPrevMode = null; settingsChanged();
   }
   $('auto-read-toggle').onchange = () => {
     clearInterval(autoRead); autoRead = null;
+    autoReadMotion.reset();
     if ($('auto-read-toggle').checked && !fixed()) {
       autoReadPrevMode = mode();
       $('epub-mode').value = 'slide'; settingsChanged();
       autoReadPausedUntil = 0; autoReadAdvancedAt = 0; autoReadProgressAt = 0;
       autoRead = setInterval(() => {
-        if (loading || suspended || !doc || Date.now() < autoReadPausedUntil) return;
+        if (loading || suspended || !doc || Date.now() < autoReadPausedUntil) { autoReadMotion.reset(); return; }
         const scroll = doc.scrollingElement;
         if (!fixed()) {
-          scroll.scrollTop += Math.max(1, Number($('auto-read-speed').value) / 10);
+          autoReadMotion.step(scroll, autoReadSpeed, performance.now());
           // 位置定位会遍历文本节点，按 ~150ms 节流，停读时仍会精确保存
           if (Date.now() - autoReadProgressAt >= 150) { autoReadProgressAt = Date.now(); changed(); }
           else dirty = true;
@@ -1292,7 +1298,12 @@ code,pre{font-size:.9em}`;
       }, 50);
     } else restoreAutoReadMode();
   };
-  $('auto-read-speed').oninput = () => { $('auto-read-speed-val').textContent = (Number($('auto-read-speed').value) / 10).toFixed(1); };
+  $('auto-read-speed').oninput = () => {
+    autoReadSpeed = AutoRead.speeds[Number($('auto-read-speed').value)];
+    localStorage.setItem('auto_read_speed_px_s', autoReadSpeed);
+    autoReadMotion.reset();
+    $('auto-read-speed-val').textContent = autoReadSpeed + ' px/s';
+  };
   document.querySelector('main').style.background = config.settings.background;
   applyDimensions();
   new ResizeObserver(() => {
